@@ -1,0 +1,40 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      # No third-party Python packages: taper.py and test_taper.py are stdlib only.
+      - name: Schedule maths
+        run: python3 test_taper.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # playwright-core ships no browser, so fetch one. This is the only
+      # network dependency in the whole suite.
+      - name: Install browser
+        run: |
+          npm install --no-save playwright-core@^1.49.0 playwright@^1.49.0
+          npx playwright install --with-deps chromium
+
+      # Guards the promise that index.html and taper.py compute the same
+      # ladder. Without this the JS half of the maths is untested.
+      - name: JS/Python parity
+        run: node test_parity.js
