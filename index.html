@@ -553,10 +553,50 @@
     .cal-cell .d { font-size: 0.62rem; color: var(--muted); }
     .cal-cell .mg { font-size: 0.76rem; font-weight: 700; color: var(--ink); line-height: 1.15; }
     .cal-cell .cut { font-size: 0.6rem; color: var(--muted); }
+    .cal-cell .mg .sep { color: var(--muted); font-weight: 400; }
+    /* Compact has to actually be shorter, so it tightens the line box rather
+       than trying to fit two numbers on one line — the cells are ~44px wide and
+       "6.67 / 18.33" does not fit at any readable size. */
+    .cal-months.compact .cal-cell { min-height: 2.3rem; padding: 0.1rem 0.2rem; }
+    .cal-months.compact .cal-cell .d { font-size: 0.58rem; line-height: 1.1; }
+    .cal-months.compact .cal-cell .mg { font-size: 0.72rem; line-height: 1.1; }
+    .cal-months.compact .cal-cell .cut { font-size: 0.58rem; line-height: 1.1; }
     .cal-cell.first { border-color: var(--accent); }
     .cal-cell.first .d { color: var(--accent); font-weight: 700; }
+    /* Cycles running on 2 mg film. A left edge rather than a fill, so it stacks
+       with the cycle banding and the today/selected rings instead of fighting
+       them for the same surface. */
+    .cal-cell.film2 { border-left: 3px solid var(--switch); }
+    .cal-cell.film2 .mg { color: var(--switch); }
     .cal-cell.today { outline: 2px solid var(--cal-today); outline-offset: -2px; }
     .cal-cell.today .d { color: var(--cal-today); font-weight: 700; }
+    /* Every day of the clicked cycle, not just the one cell — a cycle is the
+       unit you select, and seeing its whole span lit is the point. */
+    .cal-cell.picked {
+      box-shadow: inset 0 0 0 2px var(--accent);
+      background: var(--accent-soft);
+    }
+    .cal-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+      margin: 0 0 0.8rem;
+    }
+    .cal-controls .k { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+    .inputdoc { margin: 0.5rem 0 0; }
+    .inputdoc dt {
+      font-weight: 650;
+      color: var(--ink);
+      margin-top: 0.7rem;
+      font-size: 0.92rem;
+    }
+    .inputdoc dt .def {
+      font-weight: 500;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .inputdoc dd { margin: 0.15rem 0 0; color: var(--muted); }
     .cal-key { font-size: 0.75rem; color: var(--muted); margin: 0.6rem 0 0; }
     .cal-now {
       background: var(--accent-soft);
@@ -570,15 +610,24 @@
     /* Seven columns is fixed by the week, so on a narrow screen the only give
        is in the cell. Drop the cut length first, then the type size — a clipped
        "6.6" is worse than a small "6.67". */
+    /* These have to out-specify the .cal-months.compact rules above, which are
+       four classes deep — without the compact selector repeated here the narrow
+       tiers silently lost and the cells clipped at 320px and below. */
     @media (max-width: 420px) {
-      .cal-cell { min-height: 2.6rem; }
-      .cal-cell .mg { font-size: 0.68rem; }
-      .cal-cell .cut { display: none; }
+      .cal-cell,
+      .cal-months.compact .cal-cell { min-height: 2.6rem; }
+      .cal-cell .mg,
+      .cal-months.compact .cal-cell .mg { font-size: 0.68rem; }
+      .cal-cell .cut,
+      .cal-months.compact .cal-cell .cut { display: none; }
     }
     @media (max-width: 360px) {
-      .cal-cell { min-height: 2.2rem; padding: 0.1rem 0.05rem; text-align: center; }
-      .cal-cell .d { font-size: 0.5rem; }
-      .cal-cell .mg { font-size: 0.52rem; }
+      .cal-cell,
+      .cal-months.compact .cal-cell { min-height: 2.2rem; padding: 0.1rem 0.05rem; text-align: center; }
+      .cal-cell .d,
+      .cal-months.compact .cal-cell .d { font-size: 0.5rem; }
+      .cal-cell .mg,
+      .cal-months.compact .cal-cell .mg { font-size: 0.52rem; }
     }
     .dim-table { font-size: 0.84rem; margin-top: 0.7rem; }
     .dim-table th, .dim-table td { text-align: left; }
@@ -730,6 +779,49 @@
         <li>Print / save as PDF and take it to your prescriber <em>before day 1</em> so they can match quantity and write 2 mg films for the back half.</li>
       </ol>
 
+      <h3>What each input does</h3>
+      <p>Defaults in brackets. Only the first three usually need touching; everything else has a sensible default.</p>
+      <dl class="inputdoc">
+        <dt>Start dose (mg) <span class="def">[8]</span></dt>
+        <dd>What you take daily now, before the taper begins. Day 1 cuts this dose out of one whole film, so it also decides which film strength the plan is built on — 2, 4, 8 or 12 mg, whichever is the smallest that holds it.</dd>
+
+        <dt>n (days &amp; cut) <span class="def">[6]</span></dt>
+        <dd>Does two jobs at once, which is the whole trick: you cut <strong>1/n</strong> off the piece each day, <em>and</em> each cycle lasts <strong>n</strong> days. After n days the saved slivers add up to one whole piece. n = 6 drops 16.7% per cycle; n = 8 drops 12.5%; n = 10 drops 10%. Bigger n means a gentler, slower taper.</dd>
+
+        <dt>Start film length (mm) <span class="def">[22]</span></dt>
+        <dd>Measure your own film along the side you will cut and put that number here. All four Suboxone strengths are 22 mm on that side, so the default is usually right — measure anyway, since every cut mark on the page is derived from it.</dd>
+
+        <dt>2 mg film length (mm) <span class="def">[22]</span></dt>
+        <dd>The same measurement for the 2 mg film, used after the switch. Ignored if you turn the switch off.</dd>
+
+        <dt>Target (mg/day) <span class="def">[1]</span></dt>
+        <dd>Where the ladder stops. The run ends on the first cycle at or below this dose. Must be lower than the start dose.</dd>
+
+        <dt>Strip strength (mg) <span class="def">[8]</span></dt>
+        <dd>The strength of one film as dispensed. Used only to convert milligrams into “how many strips”, for the totals and the prescription-quantity table. It does not change the ladder.</dd>
+
+        <dt>Hold / stretch days <span class="def">[blank = same as n]</span></dt>
+        <dd>Makes every cycle longer without changing the size of the cut. Set 9 with n = 6 and you still cut 1/6, but hold each dose for 9 days instead of 6 — the same taper, more settling time between drops.</dd>
+
+        <dt>n below 3 mg <span class="def">[blank = off]</span></dt>
+        <dd>Switches to a different n once the strip you are cutting from drops under 3 mg, where the same percentage is a much smaller piece of film. Setting 10 here makes the back half drop 10% per cycle instead of 16.7%.</dd>
+
+        <dt>Your cutting tolerance (mm) <span class="def">[0.5]</span></dt>
+        <dd>How accurately you can actually cut — half a millimetre is realistic with a razor and a steel ruler. Feeds the “cutting error vs the step” graph only; it never changes the schedule. Set it to 0 to hide that graph.</dd>
+
+        <dt>Half-life for the lag curve (h) <span class="def">[32]</span></dt>
+        <dd>Buprenorphine's half-life, usually quoted as 24–42 hours. Draws the dashed lag curve on the first graph and nothing else. Set it to 0 to hide the curve.</dd>
+
+        <dt>Day 1 date <span class="def">[blank = no calendar]</span></dt>
+        <dd>The date you plan to start. Fills in the Calendar panel with real dates and marks today, so you can see which cycle you are on. Leave blank and the plan stays in day numbers.</dd>
+
+        <dt>Switch to 2 mg films at or below 2.25 mg <span class="def">[on]</span></dt>
+        <dd>When the strip you cut from reaches 2.25 mg, restart on a 2 mg film. A 2 mg film is a quarter the density, so the same dose is four times longer and the same cut is four times more forgiving. Turn it off to stay on one strength the whole way.</dd>
+
+        <dt>Show n = 6 / 8 / 10 comparison <span class="def">[on]</span></dt>
+        <dd>Adds the panel and graph comparing three taper speeds side by side, so you can see what slowing down costs in time and total medication.</dd>
+      </dl>
+
       <h3>Limitation — film strengths</h3>
       <p>The schedule can only <strong>start on one given film</strong> (set Start dose / strip strength) and then either stay on that strength or <strong>switch to 2 mg films</strong>. It does not auto-step 12 → 8 → 4 → 2. Clicking 4 mg or 12 mg in the size table only changes the life-size drawing, not the taper math. To plan a different start, change the inputs and let the tool recalc — for example Start dose 12, or Start dose 4, or uncheck the 2 mg switch to stay on 8 mg films the whole way.</p>
 
@@ -823,7 +915,12 @@
 
     <section class="panel" id="calendarPanel" hidden>
       <h2>Calendar</h2>
-      <p class="legend" id="calLede" style="margin-top:-0.4rem;margin-bottom:0.8rem;"></p>
+      <p class="legend" id="calLede" style="margin-top:-0.4rem;margin-bottom:0.6rem;"></p>
+      <div class="cal-controls no-print">
+        <span class="k">Show</span>
+        <button type="button" class="ghost small" id="calModeBtn">Total off</button>
+        <button type="button" class="ghost small" id="calDensityBtn" aria-pressed="false">Detailed</button>
+      </div>
       <div id="calendar"></div>
       <p class="legend">Every day of a cycle is the same: same cut, same dose. Cycle 1 starts on the date you set above. Print this and put it where you do the cutting.</p>
     </section>
@@ -951,6 +1048,8 @@
   const RX_STRIPS = 30;
   const STORAGE_KEY = "sas-taper-inputs-v1";
   const SCALE_KEY = "sas-taper-strip-scale";
+  const CAL_MODE_KEY = "sas-taper-cal-mode";
+  const CAL_DENSITY_KEY = "sas-taper-cal-density";
   /* CSS reference: 1 in = 96 px, 1 in = 25.4 mm. True size on a 96 PPI screen. */
   const CSS_MM = "mm";
   const FILM_SPECS = {
@@ -1376,6 +1475,66 @@
     });
   }
 
+  /* Three ways to state the same cut, because "cut 2.12" alone is ambiguous:
+     2.12 mm off *what*? Off the piece in hand, which is shorter than the film
+     every cycle after the first — measure it from the end of a fresh strip and
+     you take the wrong dose.
+
+       take  the long left piece you actually take, which is also where the cut
+             falls measured from the LEFT end of a full unused film
+       save  today's sliver, measured from the right of the piece in hand
+       off   everything gone from the original film once today's sliver is off,
+             measured from its RIGHT end
+
+     take + off = the full film, so the first and last are the same mark
+     approached from opposite ends. The 2 mg switch restarts on a fresh film, so
+     `off` resets there too. */
+  const CAL_MODES = {
+    off:  { label: "Total off",  short: "off",  help: "total shaved off the original film so far, measured from its right end." },
+    take: { label: "Take",       short: "take", help: "the piece you take — also the cut position measured from the left end of a fresh film." },
+    save: { label: "Save",       short: "save", help: "today's sliver, measured from the right of the piece in your hand." },
+  };
+  const CAL_ORDER = ["off", "take", "save"];
+  let calMode = "off";
+  let calCompact = false;
+
+  function calMeasure(row, s) {
+    const full = row.filmMg <= 2.01 ? s.film2Mm : s.filmMm;
+    const take = row.pieceMm - row.cutMm;
+    const save = row.cutMm;
+    const off = Math.max(0, full - take);
+    return { full, take, save, off, value: { off, take, save }[calMode] };
+  }
+
+  function applyCalChrome() {
+    const b = $("calModeBtn");
+    if (b) {
+      b.textContent = CAL_MODES[calMode].label;
+      b.setAttribute("aria-label", `Showing ${CAL_MODES[calMode].label} in mm; click for the next measurement`);
+    }
+    const c = $("calDensityBtn");
+    if (c) {
+      c.textContent = calCompact ? "Compact" : "Detailed";
+      c.setAttribute("aria-pressed", calCompact ? "true" : "false");
+    }
+  }
+
+  function loadCalPrefs() {
+    try {
+      const m = localStorage.getItem(CAL_MODE_KEY);
+      if (m && CAL_MODES[m]) calMode = m;
+      calCompact = localStorage.getItem(CAL_DENSITY_KEY) === "compact";
+    } catch (e) { /* ignore */ }
+    applyCalChrome();
+  }
+
+  function saveCalPrefs() {
+    try {
+      localStorage.setItem(CAL_MODE_KEY, calMode);
+      localStorage.setItem(CAL_DENSITY_KEY, calCompact ? "compact" : "detailed");
+    } catch (e) { /* ignore */ }
+  }
+
   /* Day N -> a date someone can act on. The schedule is otherwise abstract:
      "day 43" is not a thing you can put in a calendar or plan a pharmacy visit
      around, and someone mid-taper has no way to see which cycle they are in. */
@@ -1424,7 +1583,7 @@
 
     /* Walk whole months from the first to the last, so partial months at each
        end still render with the right leading/trailing padding. */
-    let html = `<div class="cal-months">`;
+    let html = `<div class="cal-months${calCompact ? " compact" : ""}">`;
     let cur = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1, 12));
     const lastMonth = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1, 12));
     let guard = 0;
@@ -1443,19 +1602,34 @@
           html += `<div class="cal-cell pad"><div class="d">${dnum}</div></div>`;
           continue;
         }
+        const r = hit.row;
         const cls = ["cal-cell"];
-        if (hit.row.cycle % 2 === 0) cls.push("band");
+        if (r.cycle % 2 === 0) cls.push("band");
+        if (r.filmMg <= 2.01) cls.push("film2");
         if (hit.first) cls.push("first");
         if (iso === todayIso) cls.push("today");
-        html += `<div class="${cls.join(" ")}" data-cycle="${hit.row.cycle}" title="Day ${hit.day} · cycle ${hit.row.cycle}">`
-          + `<div class="d">${dnum}${hit.first ? ` · c${hit.row.cycle}` : ""}</div>`
-          + `<div class="mg">${fmt(hit.row.dailyMg, 2)}</div>`
-          + `<div class="cut">cut ${fmt(hit.row.cutMm, 2)}</div></div>`;
+        if (r.cycle === selectedCycle) cls.push("picked");
+        const mm = calMeasure(r, s);
+        const tag = `${dnum}${hit.first ? ` · c${r.cycle}` : ""}`;
+        const title = `Day ${hit.day} · cycle ${r.cycle} · ${fmtG(r.filmMg)} mg film · `
+          + `take ${fmt(mm.take, 2)} mm, save ${fmt(mm.save, 2)} mm, `
+          + `${fmt(mm.off, 2)} mm off the original ${fmt(mm.full, 1)} mm film`;
+        html += `<div class="${cls.join(" ")}" data-cycle="${r.cycle}" title="${title}">`;
+        html += `<div class="d">${tag}</div>`
+          + `<div class="mg">${fmt(r.dailyMg, 2)}</div>`
+          /* Compact drops the label word, not the number: a 44 mm-wide cell
+             cannot hold "take 12.73" on one line at a readable size, and the
+             word is the redundant part once the legend names the mode. */
+          + `<div class="cut">${calCompact ? "" : CAL_MODES[calMode].short + " "}${fmt(mm.value, 2)}</div>`;
+        html += `</div>`;
       }
       html += `</div></div>`;
       cur = new Date(Date.UTC(y, m + 1, 1, 12));
     }
-    html += `</div><p class="cal-key">Big number is the day's dose in mg; “cut” is the millimetres to shave off the right end. Shaded months alternate by cycle, and the first day of each cycle is outlined and tagged c1, c2, … Click any day to select that cycle.</p>`;
+    const mode = CAL_MODES[calMode];
+    html += `</div><p class="cal-key">Big number is the day's dose in mg; the second is <strong>${mode.label.toLowerCase()}</strong> in mm — ${mode.help}`
+      + ` Alternate cycles are shaded, cycles on 2 mg film carry a blue edge, the first day of each cycle is tagged c1, c2, …`
+      + ` Click any day to select that cycle; the selected one is ringed.</p>`;
     $("calendar").innerHTML = now + html;
 
     $("calendar").querySelectorAll("[data-cycle]").forEach((el) => {
@@ -2265,6 +2439,18 @@
   $("resetBtn").addEventListener("click", resetDefaults);
   $("stripScale").addEventListener("input", (e) => setStripScale(e.target.value));
   $("stripScaleReset").addEventListener("click", () => setStripScale(100));
+  $("calModeBtn").addEventListener("click", () => {
+    calMode = CAL_ORDER[(CAL_ORDER.indexOf(calMode) + 1) % CAL_ORDER.length];
+    applyCalChrome();
+    saveCalPrefs();
+    if (lastSched) renderCalendar(lastSched, readOpts());
+  });
+  $("calDensityBtn").addEventListener("click", () => {
+    calCompact = !calCompact;
+    applyCalChrome();
+    saveCalPrefs();
+    if (lastSched) renderCalendar(lastSched, readOpts());
+  });
   $("cyclePrev").addEventListener("click", () => shiftCycle(-1));
   $("cycleNext").addEventListener("click", () => shiftCycle(1));
   $("dimTable").addEventListener("click", (e) => {
@@ -2289,6 +2475,7 @@
 
   applyTheme(currentTheme(), false);
   loadStripScale();
+  loadCalPrefs();
   loadInputs();
   render();
 })();
