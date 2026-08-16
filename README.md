@@ -35,6 +35,15 @@ python3 taper.py --n 10 --no-switch-2mg
 python3 test_taper.py          # math checks
 ```
 
+The ladder maths exists twice — `buildSchedule()` in `index.html` and `build_schedule()` in `taper.py` — and the site claims the two agree. `test_parity.js` checks that claim: it loads the page in a headless browser, runs both implementations over the same inputs, and diffs every row.
+
+```bash
+npm i -D playwright-core     # once
+node test_parity.js
+```
+
+It skips with exit 0 if no browser is available, so a checkout without one still passes.
+
 No extra packages. Python 3.11 is fine. Same math as the site. Cut marks are a full unused film: TAKE left, SAVE, then the already-off remainder. `--cycle N` prints only that cycle’s cut with the extra note. `--stop-mode above` matches the classic n=6/8/10 comparison (last cycle still strictly above target).
 
 ## Method (every day of a cycle)

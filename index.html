@@ -1938,6 +1938,15 @@
     if (lastSched) renderStripViz(lastSched);
   });
 
+  /* Test surface. The ladder maths lives twice — here and in taper.py — and the
+     footer promises the two agree, but everything in this file is sealed inside
+     the IIFE, so nothing could check it. test_parity.js drives a headless
+     browser, calls this, and diffs every row against `taper.py --json`.
+     Read-only and unused by the page itself. */
+  window.SASTaperInternals = Object.freeze({
+    buildSchedule, compareClassic, baseFilmMg, keepRatio,
+  });
+
   applyTheme(currentTheme(), false);
   loadStripScale();
   loadInputs();
