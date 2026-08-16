@@ -345,7 +345,9 @@
     }
     .dim-table { font-size: 0.84rem; margin-top: 0.7rem; }
     .dim-table th, .dim-table td { text-align: left; }
-    .dim-table tbody tr { cursor: default; }
+    .dim-table tbody tr { cursor: pointer; }
+    .dim-table tbody tr:hover { background: #f5f0e6; }
+    .dim-table tbody tr.selected { background: var(--accent-soft); }
     .viz-nav { display: flex; gap: 0.4rem; flex-wrap: wrap; }
     .charts {
       display: grid;
@@ -442,6 +444,9 @@
         <li>The cards, graphs, and schedule recalculate live. Click a cycle row (or a graph step) to see that day’s cut mark and a life-size film: <strong>TAKE on the left, SAVE on the right</strong>.</li>
         <li>Print / save as PDF and take it to your prescriber <em>before day 1</em> so they can match quantity and write 2 mg films for the back half.</li>
       </ol>
+
+      <h3>Limitation — film strengths</h3>
+      <p>The schedule can only <strong>start on one given film</strong> (set Start dose / strip strength) and then either stay on that strength or <strong>switch to 2 mg films</strong>. It does not auto-step 12 → 8 → 4 → 2. Clicking 4 mg or 12 mg in the size table only changes the life-size drawing, not the taper math. To plan a different start, change the inputs and let the tool recalc — for example Start dose 12, or Start dose 4, or uncheck the 2 mg switch to stay on 8 mg films the whole way.</p>
 
       <div class="ritual">
         <h3>The method — every day of a cycle</h3>
@@ -544,9 +549,13 @@
         <span>20 mm calibration — match this to a real ruler</span>
       </div>
       <div class="strip-stage" id="stripViz"></div>
-      <p class="legend">Official Suboxone film sizes (buprenorphine / naloxone). Density is buprenorphine only: mg ÷ (width × length). This tool cuts along the 22 mm side and keeps the other side as full width.</p>
+      <p class="legend">Official Suboxone film sizes (buprenorphine / naloxone). Density is buprenorphine only: mg ÷ (width × length). Click a row to draw that film. Cut fractions follow the selected cycle; millimetres and milligrams on the drawing use the film you picked. This tool cuts along the 22 mm side and keeps the other side as full width.</p>
+      <p class="legend"><strong>Limitation:</strong> the taper schedule starts from one given Suboxone size and does not switch between 12 / 8 / 4 mg mid-run — the only automatic strength change is optional 8 mg → 2 mg. Selecting 4 mg or 12 mg here is for the drawing only. To run a 12 mg or 4 mg start, set Start dose (and strip strength) above and the tables will recalc.</p>
+      <div class="actions no-print" style="margin-bottom:0.4rem">
+        <button type="button" class="ghost" id="filmFollowCycle">Draw the cycle’s film</button>
+      </div>
       <div class="scroll">
-        <table class="dim-table">
+        <table class="dim-table" id="dimTable">
           <thead>
             <tr>
               <th class="left">Strength</th>
@@ -557,28 +566,28 @@
             </tr>
           </thead>
           <tbody>
-            <tr>
+            <tr data-spec="2">
               <td class="left">2 mg / 0.5 mg</td>
               <td class="left">22.0 mm × 12.8 mm</td>
               <td class="left">281.6 mm²</td>
               <td class="left">0.00710 mg/mm²</td>
               <td class="left">Same footprint as the 8 mg film; one-quarter the density</td>
             </tr>
-            <tr>
+            <tr data-spec="4">
               <td class="left">4 mg / 1 mg</td>
               <td class="left">22.0 mm × 25.6 mm</td>
               <td class="left">563.2 mm²</td>
               <td class="left">0.00710 mg/mm²</td>
               <td class="left">Twice the length of the 2 mg film (12.8 × 2); same density as 2 mg</td>
             </tr>
-            <tr>
+            <tr data-spec="8">
               <td class="left">8 mg / 2 mg</td>
               <td class="left">22.0 mm × 12.8 mm</td>
               <td class="left">281.6 mm²</td>
               <td class="left">0.0284 mg/mm²</td>
               <td class="left">Same footprint as the 2 mg film; 4× the density; default start</td>
             </tr>
-            <tr>
+            <tr data-spec="12">
               <td class="left">12 mg / 3 mg</td>
               <td class="left">22.0 mm × 19.2 mm</td>
               <td class="left">422.4 mm²</td>
@@ -622,6 +631,7 @@
         <li>Holding is not failure. If a cycle leaves you with bad sleep, restlessness, sweats, GI upset, or — most importantly — a spike in cravings, stay at that dose for another cycle or two before dropping again.</li>
         <li>Once daily is fine at every level here. Buprenorphine’s half-life is long enough that splitting doses buys you nothing.</li>
         <li>n = 6 (16.7% every 6 days) is at the fast end of typical 10–25% steps. You may not feel a drop until day 4 or 5, right as you are about to drop again. Hedge by stretching the cycle to 8–9 days (same cut, more settling time) or switch to n = 10 below 3 mg.</li>
+        <li>The schedule starts from one given film size and either stays there or switches only to 2 mg films. It will not auto-change 12 → 8 → 4 mg. Clicking those rows only redraws the strip. Change Start dose / strip strength and the tool recalculates the whole ladder.</li>
         <li>Bring this printout to your prescriber. A taper from 8 mg to 1–2 mg is a routine, well-supported goal, and they are the one who can write 2 mg films and match quantity to the ladder.</li>
       </ul>
     </section>
@@ -639,19 +649,26 @@
   const SCALE_KEY = "sas-taper-strip-scale";
   /* CSS reference: 1 in = 96 px, 1 in = 25.4 mm. True size on a 96 PPI screen. */
   const CSS_MM = "mm";
+  const FILM_SPECS = {
+    2: { mg: 2, nal: 0.5, cutMm: 22.0, keepMm: 12.8, label: "2 mg / 0.5 mg" },
+    4: { mg: 4, nal: 1, cutMm: 22.0, keepMm: 25.6, label: "4 mg / 1 mg" },
+    8: { mg: 8, nal: 2, cutMm: 22.0, keepMm: 12.8, label: "8 mg / 2 mg" },
+    12: { mg: 12, nal: 3, cutMm: 22.0, keepMm: 19.2, label: "12 mg / 3 mg" }
+  };
+
+  function specKeyForMg(filmMg) {
+    if (filmMg <= 2.01) return 2;
+    if (filmMg <= 4.01) return 4;
+    if (filmMg <= 8.01) return 8;
+    return 12;
+  }
 
   function filmWidthMm(filmMg) {
-    if (filmMg <= 2.01) return 12.8;
-    if (filmMg <= 4.01) return 25.6;
-    if (filmMg <= 8.01) return 12.8;
-    return 19.2;
+    return FILM_SPECS[specKeyForMg(filmMg)].keepMm;
   }
 
   function filmSpecLabel(filmMg) {
-    if (filmMg <= 2.01) return "2 mg / 0.5 mg";
-    if (filmMg <= 4.01) return "4 mg / 1 mg";
-    if (filmMg <= 8.01) return "8 mg / 2 mg";
-    return "12 mg / 3 mg";
+    return FILM_SPECS[specKeyForMg(filmMg)].label;
   }
 
   const $ = (id) => document.getElementById(id);
@@ -848,6 +865,7 @@
   let selectedCycle = 1;
   let lastSched = null;
   let stripScalePct = 100;
+  let vizFilmMg = null;
 
   function readOpts() {
     return {
@@ -1005,41 +1023,54 @@
       $("stripViz").innerHTML = "<p>No cycles.</p>";
       return;
     }
+    const cycleKey = specKeyForMg(row.filmMg);
+    const spec = FILM_SPECS[vizFilmMg || cycleKey];
+    const scheduleFull = row.filmMg <= 2.01 ? s.film2Mm : s.filmMm;
+    const fracTake = (row.pieceMm - row.cutMm) / scheduleFull;
+    const fracSave = row.cutMm / scheduleFull;
+    const fracGhost = Math.max(0, 1 - row.pieceMm / scheduleFull);
     const k = scaleFactor();
-    const widthMm = filmWidthMm(row.filmMg);
-    const fullMm = row.filmMg <= 2.01 ? s.film2Mm : s.filmMm;
-    const takeMm = row.pieceMm - row.cutMm;
-    const ghostMm = Math.max(0, fullMm - row.pieceMm);
+    const fullMm = spec.cutMm;
+    const widthMm = spec.keepMm;
+    const takeMm = fullMm * fracTake;
+    const saveMm = fullMm * fracSave;
+    const ghostMm = fullMm * fracGhost;
+    const takeMg = spec.mg * fracTake;
+    const saveMg = spec.mg * fracSave;
+    const ghostMg = spec.mg * fracGhost;
     const hasGhost = ghostMm > 0.05;
-    const takePct = (takeMm / fullMm) * 100;
-    const savePct = (row.cutMm / fullMm) * 100;
-    const ghostPct = (ghostMm / fullMm) * 100;
-    const ghostMg = hasGhost ? row.filmMg * (ghostMm / fullMm) : 0;
+    const takePct = fracTake * 100;
+    const savePct = fracSave * 100;
+    const ghostPct = fracGhost * 100;
     const w = fullMm * k;
     const h = widthMm * k;
     const showInner = h >= 8;
     const ghostLabel = showInner && ghostPct > 10 ? "already off" : "";
+    const mismatch = spec.mg !== cycleKey;
+    document.querySelectorAll("#dimTable tbody tr").forEach((tr) => {
+      tr.classList.toggle("selected", parseInt(tr.getAttribute("data-spec"), 10) === spec.mg);
+    });
     $("stripViz").innerHTML = `
       <p class="strip-side">
-        Cycle ${row.cycle} · ${filmSpecLabel(row.filmMg)} film
-        · unused film ${fmt(fullMm, 1)} × ${fmt(widthMm, 1)} mm
-        · current piece ${fmt(row.pieceMm, 1)} mm
+        Cycle ${row.cycle} drawn on a <strong>${spec.label}</strong> film
+        · unused ${fmt(fullMm, 1)} × ${fmt(widthMm, 1)} mm
+        · current piece ${fmt(fullMm - ghostMm, 1)} mm
         ${hasGhost ? " · dashed box is the original unused strip" : " · this cycle uses the full unused strip"}
       </p>
       <div class="strip-full${hasGhost ? "" : " is-full"}" style="width:${w}${CSS_MM};height:${h}${CSS_MM}">
         <div class="take" style="width:${takePct}%">${showInner ? "TAKE" : ""}</div>
         <div class="save" style="width:${savePct}%">${showInner && savePct > 10 ? "SAVE" : ""}</div>
         ${hasGhost ? `<div class="strip-ghost" style="width:${ghostPct}%">${ghostLabel}</div>` : ""}
-        <div class="strip-cut" style="left:${takePct}%"><span>today’s cut · ${fmt(row.cutMm, 2)} mm</span></div>
+        <div class="strip-cut" style="left:${takePct}%"><span>today’s cut · ${fmt(saveMm, 2)} mm</span></div>
       </div>
-      <div class="strip-dims" style="max-width:${w}${CSS_MM}">
-        <span>TAKE ${fmt(row.dailyMg, 2)} mg · ${fmt(takeMm, 1)} mm</span>
-        <span>SAVE ${fmt(row.sliverMg, 2)} mg · ${fmt(row.cutMm, 2)} mm</span>
+      <div class="strip-dims" style="max-width:${Math.max(w, 40)}${CSS_MM}">
+        <span>TAKE ${fmt(takeMg, 2)} mg · ${fmt(takeMm, 1)} mm</span>
+        <span>SAVE ${fmt(saveMg, 2)} mg · ${fmt(saveMm, 2)} mm</span>
         ${hasGhost ? `<span>Already off original ${fmt(ghostMm, 1)} mm · ${fmt(ghostMg, 2)} mg</span>` : ""}
       </div>
-      <p class="legend">${hasGhost
-        ? `The dashed outline is a full unused ${fmtG(row.filmMg)} mg film. The empty end was already reduced in earlier cycles. If you start from a fresh strip, trim that end first and save it — it is extra bank, not extra daily dose. Today’s cut is still 1/${row.n} of the <em>current</em> piece: mark <strong>${fmt(row.cutMm, 2)} mm from the right of that piece</strong> (the TAKE/SAVE line).`
-        : `Mark <strong>${fmt(row.cutMm, 2)} mm from the right end</strong>, then cut straight across the ${fmt(widthMm, 1)} mm width. Cycle 1 uses the full unused film.`}</p>
+      <p class="legend">${mismatch ? `The taper cycle is on an ${fmtG(row.filmMg)} mg film (${fmt(row.dailyMg, 2)} mg/day planned). This drawing uses the <strong>${spec.label}</strong> size you selected — same cut fractions, milligrams scaled to that film.` : ""} ${hasGhost
+        ? `The dashed outline is a full unused ${spec.label} film. The empty end was already reduced in earlier cycles. If you start from a fresh strip, trim that end first and save it — it is extra bank, not extra daily dose. Today’s cut is still 1/${row.n} of the <em>current</em> piece: mark <strong>${fmt(saveMm, 2)} mm from the right of that piece</strong> (the TAKE/SAVE line).`
+        : `Mark <strong>${fmt(saveMm, 2)} mm from the right end</strong>, then cut straight across the ${fmt(widthMm, 1)} mm width. Cycle 1 uses the full unused film.`}</p>
     `;
   }
 
@@ -1403,6 +1434,16 @@
   $("stripScaleReset").addEventListener("click", () => setStripScale(100));
   $("cyclePrev").addEventListener("click", () => shiftCycle(-1));
   $("cycleNext").addEventListener("click", () => shiftCycle(1));
+  $("dimTable").addEventListener("click", (e) => {
+    const tr = e.target.closest("tr[data-spec]");
+    if (!tr) return;
+    vizFilmMg = parseInt(tr.getAttribute("data-spec"), 10);
+    if (lastSched) renderStripViz(lastSched);
+  });
+  $("filmFollowCycle").addEventListener("click", () => {
+    vizFilmMg = null;
+    if (lastSched) renderStripViz(lastSched);
+  });
 
   loadStripScale();
   loadInputs();

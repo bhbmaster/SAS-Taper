@@ -52,6 +52,11 @@ The method — every day of a cycle
 If it gets rough: hold this dose another cycle (cravings matter most). Stretch the
 cycle to 8–9 days or switch n to 10 below 3 mg. When the sliver is under ~1 mm,
 switch to 2 mg films. Lock up saved pieces. Step the Rx quantity down with the dose.
+
+Limitation: the schedule starts on one given film size and either stays there or
+switches only to 2 mg films (not 12→8→4). Clicking other sizes in the table is
+for the drawing. To plan a 12 mg or 4 mg start, change --start-mg / --strip-mg
+and recalc.
 """
 
 NOTES = """\

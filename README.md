@@ -40,3 +40,10 @@ No extra packages. Python 3.11 is fine.
 5. Next cycle, the leftover size is the new whole strip. Repeat to the target (default 1 mg).
 
 Hold a cycle if cravings spike, sleep goes, or you are restless and sweating. When the sliver is under ~1 mm, switch to 2 mg films. Lock up saved pieces (dangerous to kids and pets). Ask the prescriber to step quantity down with the dose.
+
+## Limitation
+
+The schedule starts from **one given film size** and then either stays on that strength or **switches only to 2 mg films**. It does not auto-step 12 → 8 → 4 mg. Clicking those rows on the site only changes the life-size drawing.
+
+To plan a different start, change the inputs and recalc — for example start dose 12, start dose 4, or turn off the 2 mg switch to stay on 8 mg films the whole way.
+
