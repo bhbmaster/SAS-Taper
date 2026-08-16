@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import date, timedelta
 from dataclasses import asdict, dataclass, field
 from typing import Any, Optional
 
@@ -76,6 +77,7 @@ How to use this
         python3 taper.py --compare
         python3 taper.py --cycle 6
         python3 taper.py --n 10 --no-switch-2mg
+        python3 taper.py --start-date 2026-03-01
   Same math either way. Print / save the site, or copy this CLI output, for
   your prescriber before day 1.
 
@@ -662,7 +664,18 @@ def print_table(headers: list[str], rows: list[list[str]]) -> None:
         print("  ".join(row[i].ljust(widths[i]) for i in range(len(headers))))
 
 
-def print_schedule(sched: ScheduleResult, selected_cycle: Optional[int] = None) -> None:
+def parse_start_date(raw: Optional[str]) -> Optional[date]:
+    """YYYY-MM-DD, or None. Raises ValueError on anything else."""
+    if not raw:
+        return None
+    return date.fromisoformat(raw.strip())
+
+
+def print_schedule(
+    sched: ScheduleResult,
+    selected_cycle: Optional[int] = None,
+    start_date: Optional[date] = None,
+) -> None:
     n = sched.n
     r = sched.r
     print("SAS-Taper")
@@ -706,6 +719,8 @@ def print_schedule(sched: ScheduleResult, selected_cycle: Optional[int] = None) 
         "Cyc", "Days", "Film", "Cut from", "Daily", "Sliver",
         "Piece", "Cut at", "Cycle mg", "Cum mg", "Cum strips", "Banked",
     ]
+    if start_date is not None:
+        headers.insert(2, "Dates")
     table = []
     for row in sched.rows:
         flags = []
@@ -718,8 +733,7 @@ def print_schedule(sched: ScheduleResult, selected_cycle: Optional[int] = None) 
         film = f"{row.film_mg:g}mg"
         if flags:
             film += " " + ",".join(flags)
-        table.append(
-            [
+        cells = [
                 str(row.cycle),
                 f"{row.day_start}–{row.day_end}",
                 film,
@@ -732,8 +746,12 @@ def print_schedule(sched: ScheduleResult, selected_cycle: Optional[int] = None) 
                 f"{row.cum_mg:7.1f}",
                 f"{row.cum_strips:6.1f}",
                 f"{row.banked_mg:5.2f}",
-            ]
-        )
+        ]
+        if start_date is not None:
+            d0 = start_date + timedelta(days=row.day_start - 1)
+            d1 = start_date + timedelta(days=row.day_end - 1)
+            cells.insert(2, f"{d0:%d %b}–{d1:%d %b}")
+        table.append(cells)
     print_table(headers, table)
     print()
     print_film_table()
@@ -878,11 +896,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--json", action="store_true", help="dump machine-readable JSON")
     p.add_argument("--max-cycles", type=int, default=MAX_CYCLES)
     p.add_argument("--no-notes", action="store_true", help="skip the practical-notes block")
+    p.add_argument("--start-date", default=None,
+                   help="YYYY-MM-DD for day 1; adds real dates to the schedule")
     return p
 
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = build_parser().parse_args(argv)
+    try:
+        start_date = parse_start_date(args.start_date)
+    except ValueError:
+        print(f"error: --start-date must be YYYY-MM-DD, got {args.start_date!r}", file=sys.stderr)
+        return 2
+
     try:
         sched = build_schedule(
             start_mg=args.start_mg,
@@ -925,7 +951,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         sys.stdout.write("\n")
         return 0
 
-    print_schedule(sched, selected_cycle=args.cycle)
+    print_schedule(sched, selected_cycle=args.cycle, start_date=start_date)
     if compare_rows is not None:
         print_compare(compare_rows)
 

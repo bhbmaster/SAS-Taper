@@ -65,6 +65,9 @@
       --series-keep: #2dd4bf;
       --series-keep-soft: #1c5b52;
       --series-warn: #fb923c;
+      --series-level: #9fb4d8;
+      --cal-band: #1f2b28;
+      --cal-today: #fdba74;
       --stage: #191614;
       --gone-bg: #221e1a;
       --gone-hatch: #3a342e;
@@ -104,6 +107,9 @@
       --series-keep: #5eead4;
       --series-keep-soft: #99f6e4;
       --series-warn: #fb923c;
+      --series-level: #4a5f85;
+      --cal-band: #eef6f3;
+      --cal-today: #9a3412;
       --stage: #faf8f4;
       --gone-bg: #faf8f4;
       --gone-hatch: #e7e5e4;
@@ -508,6 +514,72 @@
       min-width: 11rem;
       box-sizing: border-box;
     }
+    /* Calendar. auto-fill rather than a fixed column count so a phone gets one
+       month and a desktop gets three, without a breakpoint per size. */
+    .cal-months {
+      display: grid;
+      /* min() so the track can drop below 17rem on a very narrow screen — a
+         bare minmax(17rem,…) overflowed the page at 280px. */
+      grid-template-columns: repeat(auto-fill, minmax(min(17rem, 100%), 1fr));
+      gap: 1rem;
+    }
+    .cal-month { min-width: 0; }
+    .cal-month h3 {
+      font-size: 0.9rem;
+      font-weight: 650;
+      margin: 0 0 0.4rem;
+      letter-spacing: -0.01em;
+    }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+    .cal-dow {
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      text-align: center;
+      padding-bottom: 0.15rem;
+    }
+    .cal-cell {
+      min-height: 3.1rem;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 0.15rem 0.2rem;
+      font-variant-numeric: tabular-nums;
+      overflow: hidden;
+    }
+    .cal-cell.pad { border-color: transparent; background: none; }
+    .cal-cell.band { background: var(--cal-band); }
+    .cal-cell .d { font-size: 0.62rem; color: var(--muted); }
+    .cal-cell .mg { font-size: 0.76rem; font-weight: 700; color: var(--ink); line-height: 1.15; }
+    .cal-cell .cut { font-size: 0.6rem; color: var(--muted); }
+    .cal-cell.first { border-color: var(--accent); }
+    .cal-cell.first .d { color: var(--accent); font-weight: 700; }
+    .cal-cell.today { outline: 2px solid var(--cal-today); outline-offset: -2px; }
+    .cal-cell.today .d { color: var(--cal-today); font-weight: 700; }
+    .cal-key { font-size: 0.75rem; color: var(--muted); margin: 0.6rem 0 0; }
+    .cal-now {
+      background: var(--accent-soft);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 0.5rem 0.7rem;
+      margin: 0 0 0.8rem;
+      font-size: 0.9rem;
+      color: var(--ink);
+    }
+    /* Seven columns is fixed by the week, so on a narrow screen the only give
+       is in the cell. Drop the cut length first, then the type size — a clipped
+       "6.6" is worse than a small "6.67". */
+    @media (max-width: 420px) {
+      .cal-cell { min-height: 2.6rem; }
+      .cal-cell .mg { font-size: 0.68rem; }
+      .cal-cell .cut { display: none; }
+    }
+    @media (max-width: 360px) {
+      .cal-cell { min-height: 2.2rem; padding: 0.1rem 0.05rem; text-align: center; }
+      .cal-cell .d { font-size: 0.5rem; }
+      .cal-cell .mg { font-size: 0.52rem; }
+    }
     .dim-table { font-size: 0.84rem; margin-top: 0.7rem; }
     .dim-table th, .dim-table td { text-align: left; }
     .dim-table tbody tr { cursor: pointer; }
@@ -603,6 +675,9 @@
         --plot-band: #d7efe9;
         --series-keep: #5eead4;
         --series-keep-soft: #99f6e4;
+        --series-level: #4a5f85;
+        --cal-band: #f2f7f5;
+        --cal-today: #9a3412;
         --stage: #ffffff;
         --gone-bg: #ffffff;
         --gone-hatch: #e7e5e4;
@@ -619,6 +694,8 @@
       .scale-row, .viz-nav { display: none; }
       .chart { break-inside: avoid; }
       .howto { break-inside: avoid; }
+      .cal-month { break-inside: avoid; }
+      .cal-cell { min-height: 2.8rem; }
     }
   </style>
 </head>
@@ -703,6 +780,15 @@
         <label><span class="k">n below 3 mg</span>
           <input type="number" id="nBelow3" min="0" step="1" placeholder="blank = off">
         </label>
+        <label><span class="k">Your cutting tolerance (mm)</span>
+          <input type="number" id="cutTolMm" min="0" max="5" step="0.1" value="0.5">
+        </label>
+        <label><span class="k">Half-life for the lag curve (h)</span>
+          <input type="number" id="halfLifeH" min="0" max="80" step="1" value="32" placeholder="0 = hide">
+        </label>
+        <label><span class="k">Day 1 date (optional)</span>
+          <input type="date" id="startDate">
+        </label>
         <div class="checks">
           <label><input type="checkbox" id="switch2" checked> Switch to 2 mg films at or below 2.25 mg</label>
           <label><input type="checkbox" id="showCompare" checked> Show n = 6 / 8 / 10 comparison</label>
@@ -733,6 +819,13 @@
         </table>
       </div>
       <p class="legend">Click a row to show its cut mark. Blue = restarted on a 2 mg film. Amber = sliver under 1 mm (stop shaving 8 mg films).</p>
+    </section>
+
+    <section class="panel" id="calendarPanel" hidden>
+      <h2>Calendar</h2>
+      <p class="legend" id="calLede" style="margin-top:-0.4rem;margin-bottom:0.8rem;"></p>
+      <div id="calendar"></div>
+      <p class="legend">Every day of a cycle is the same: same cut, same dose. Cycle 1 starts on the date you set above. Print this and put it where you do the cutting.</p>
     </section>
 
     <section class="panel">
@@ -902,16 +995,63 @@
     return 12;
   }
 
+  /* Writes the fallback back into the field. Without this an empty or junk box
+     silently computed on the default: the start-dose input could read blank
+     while the whole page showed an 8 mg schedule. */
   function num(id, fallback) {
     const el = $(id);
     const v = parseFloat(el.value);
-    return Number.isFinite(v) ? v : fallback;
+    if (Number.isFinite(v)) return v;
+    if (document.activeElement !== el) el.value = String(fallback);
+    return fallback;
   }
   function intOrNull(id) {
     const raw = $(id).value;
     if (raw === "" || raw == null) return null;
     const v = parseInt(raw, 10);
     return Number.isFinite(v) && v > 0 ? v : null;
+  }
+
+  /* The HTML min/max attributes only drive the spinner arrows — the form is
+     never submitted and checkValidity() is never called, so a typed or pasted
+     value reached buildSchedule unchecked. taper.py:277-281 raises ValueError
+     for these; the page cannot throw at the reader, so it clamps and says so.
+     Returns the adjustments for renderWarnings() to surface. */
+  function clampOpts(o) {
+    const notes = [];
+    const fix = (key, label, lo, hi) => {
+      const v = o[key];
+      if (!Number.isFinite(v)) return;
+      const c = Math.min(hi, Math.max(lo, v));
+      if (Math.abs(c - v) > 1e-12) {
+        o[key] = c;
+        notes.push(`${label} ${fmtG(v)} is out of range — using ${fmtG(c)}.`);
+        const el = $(key);
+        if (el && document.activeElement !== el) el.value = String(c);
+      }
+    };
+    fix("n", "n of", 2, 30);
+    fix("startMg", "Start dose", 0.1, 64);
+    fix("filmMm", "Start film length", 1, 200);
+    fix("film2Mm", "2 mg film length", 1, 200);
+    fix("stripMg", "Strip strength", 0.1, 64);
+    fix("targetMg", "Target", 0, 64);
+    fix("cutTolMm", "Cutting tolerance", 0, 5);
+    fix("halfLifeH", "Half-life", 0, 80);
+    /* target >= start is the trigger for the compare table printing the string
+       "undefined": stop-mode "above" yields zero rows, fillSummary bails, and
+       compareClassic reads an endDay that was never assigned. */
+    if (o.targetMg >= o.startMg) {
+      const c = Math.max(0, Math.round((o.startMg * 0.5) * 100) / 100);
+      notes.push(
+        `Target ${fmtG(o.targetMg)} mg is not below the ${fmtG(o.startMg)} mg start dose, ` +
+        `so there is no ladder to build — using ${fmtG(c)} mg.`
+      );
+      o.targetMg = c;
+      const el = $("targetMg");
+      if (el && document.activeElement !== el) el.value = String(c);
+    }
+    return notes;
   }
 
   function buildSchedule(opts) {
@@ -1074,7 +1214,10 @@
         n,
         pct: 100 / n,
         cycles: sched.rows.length,
-        days: sched.endDay,
+        /* fillSummary bails on an empty ladder, leaving endDay unassigned —
+           which rendered as the literal string "undefined". taper.py:187
+           defaults it to 0; match that. */
+        days: sched.endDay == null ? 0 : sched.endDay,
         endDailyMg: sched.endDailyMg,
         totalMg: sched.totalMg,
         totalStrips: sched.totalStrips,
@@ -1100,22 +1243,34 @@
   let stripScalePct = 100;
   let vizFilmMg = null;
 
+  let lastClampNotes = [];
+
   function readOpts() {
-    return {
+    const o = {
       startMg: num("startMg", 8),
-      n: Math.max(2, Math.round(num("n", 6))),
+      n: Math.round(num("n", 6)),
       filmMm: num("filmMm", 22),
       film2Mm: num("film2Mm", 22),
       targetMg: num("targetMg", 1),
       stripMg: num("stripMg", 8),
       switch2mg: $("switch2").checked,
       holdDays: intOrNull("holdDays"),
-      nBelow3: intOrNull("nBelow3")
+      nBelow3: intOrNull("nBelow3"),
+      /* Display only — buildSchedule ignores it, so it cannot move the ladder
+         or break parity with taper.py. It only scales the cut-error chart. */
+      cutTolMm: num("cutTolMm", 0.5),
+      halfLifeH: num("halfLifeH", 32),
+      startDate: $("startDate").value || null
     };
+    lastClampNotes = clampOpts(o);
+    return o;
   }
 
-  function saveInputs() {
-    const o = readOpts();
+  /* Takes the opts render() already read. Re-reading here would run clampOpts a
+     second time against the values it just corrected, find nothing to fix, and
+     wipe the notes before renderWarnings could show them. */
+  function saveInputs(opts) {
+    const o = Object.assign({}, opts || readOpts());
     o.showCompare = $("showCompare").checked;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(o));
   }
@@ -1133,6 +1288,9 @@
       if (o.stripMg != null) $("stripMg").value = o.stripMg;
       if (o.holdDays) $("holdDays").value = o.holdDays;
       if (o.nBelow3) $("nBelow3").value = o.nBelow3;
+      if (o.cutTolMm != null) $("cutTolMm").value = o.cutTolMm;
+      if (o.halfLifeH != null) $("halfLifeH").value = o.halfLifeH;
+      if (o.startDate) $("startDate").value = o.startDate;
       if (typeof o.switch2mg === "boolean") $("switch2").checked = o.switch2mg;
       if (typeof o.showCompare === "boolean") $("showCompare").checked = o.showCompare;
     } catch (e) { /* ignore */ }
@@ -1170,6 +1328,7 @@
       msgs.push(`Day 1 needs ${fmt(s.rows[0].pieceMm, 1)} mm, which is longer than one
         ${fmtG(s.filmMm)} mm film — that start dose does not fit on a single strip.`);
     }
+    lastClampNotes.forEach((m) => msgs.push(m));
     $("warnings").innerHTML = msgs.length
       ? msgs.map((m) => `<div class="banner"><strong>Heads up.</strong> ${m}</div>`).join("")
       : "";
@@ -1212,6 +1371,96 @@
     tb.querySelectorAll("tr").forEach((tr) => {
       tr.addEventListener("click", () => {
         selectedCycle = parseInt(tr.getAttribute("data-cycle"), 10);
+        render();
+      });
+    });
+  }
+
+  /* Day N -> a date someone can act on. The schedule is otherwise abstract:
+     "day 43" is not a thing you can put in a calendar or plan a pharmacy visit
+     around, and someone mid-taper has no way to see which cycle they are in. */
+  function renderCalendar(s, opts) {
+    const panel = $("calendarPanel");
+    const start = parseDay(opts.startDate);
+    if (!start || !s.rows.length) {
+      panel.hidden = true;
+      $("calendar").innerHTML = "";
+      $("calLede").innerHTML = "";
+      return;
+    }
+    panel.hidden = false;
+
+    /* One entry per day of the run, so cells are a lookup rather than a search. */
+    const byIso = new Map();
+    s.rows.forEach((r) => {
+      for (let d = r.dayStart; d <= r.dayEnd; d++) {
+        byIso.set(isoDay(addDays(start, d - 1)), { row: r, day: d, first: d === r.dayStart });
+      }
+    });
+
+    const end = addDays(start, s.endDay - 1);
+    const today = todayUTCNoon();
+    const todayIso = isoDay(today);
+    const dayNow = daysBetween(start, today) + 1;
+
+    let lede = `Day 1 is <strong>${fmtDay(start)} ${start.getUTCFullYear()}</strong>; `
+      + `the run ends <strong>${fmtDay(end)} ${end.getUTCFullYear()}</strong> at `
+      + `${fmt(s.endDailyMg, 2)} mg/day (${s.endDay} days).`;
+    let now = "";
+    if (dayNow >= 1 && dayNow <= s.endDay) {
+      const cur = byIso.get(todayIso);
+      if (cur) {
+        const r = cur.row;
+        now = `<p class="cal-now"><strong>Today is day ${cur.day} — cycle ${r.cycle}, `
+          + `day ${cur.day - r.dayStart + 1} of ${r.days}.</strong> `
+          + `Take ${fmt(r.dailyMg, 2)} mg: cut ${fmt(r.cutMm, 2)} mm off the right of the `
+          + `${fmt(r.pieceMm, 1)} mm piece and save it. `
+          + `Next drop on ${fmtDay(addDays(start, r.dayEnd))}.</p>`;
+      }
+    } else if (dayNow < 1) {
+      now = `<p class="cal-now">Starts in ${1 - dayNow} day${1 - dayNow === 1 ? "" : "s"}.</p>`;
+    }
+    $("calLede").innerHTML = lede;
+
+    /* Walk whole months from the first to the last, so partial months at each
+       end still render with the right leading/trailing padding. */
+    let html = `<div class="cal-months">`;
+    let cur = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1, 12));
+    const lastMonth = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), 1, 12));
+    let guard = 0;
+    while (cur <= lastMonth && guard++ < 120) {
+      const y = cur.getUTCFullYear();
+      const m = cur.getUTCMonth();
+      const daysInMonth = new Date(Date.UTC(y, m + 1, 0, 12)).getUTCDate();
+      const lead = (new Date(Date.UTC(y, m, 1, 12)).getUTCDay() + 6) % 7; // Monday-first
+      html += `<div class="cal-month"><h3>${MONTH_NAMES[m]} ${y}</h3><div class="cal-grid">`;
+      html += DOW.map((d) => `<div class="cal-dow">${d[0]}</div>`).join("");
+      for (let i = 0; i < lead; i++) html += `<div class="cal-cell pad"></div>`;
+      for (let dnum = 1; dnum <= daysInMonth; dnum++) {
+        const iso = isoDay(new Date(Date.UTC(y, m, dnum, 12)));
+        const hit = byIso.get(iso);
+        if (!hit) {
+          html += `<div class="cal-cell pad"><div class="d">${dnum}</div></div>`;
+          continue;
+        }
+        const cls = ["cal-cell"];
+        if (hit.row.cycle % 2 === 0) cls.push("band");
+        if (hit.first) cls.push("first");
+        if (iso === todayIso) cls.push("today");
+        html += `<div class="${cls.join(" ")}" data-cycle="${hit.row.cycle}" title="Day ${hit.day} · cycle ${hit.row.cycle}">`
+          + `<div class="d">${dnum}${hit.first ? ` · c${hit.row.cycle}` : ""}</div>`
+          + `<div class="mg">${fmt(hit.row.dailyMg, 2)}</div>`
+          + `<div class="cut">cut ${fmt(hit.row.cutMm, 2)}</div></div>`;
+      }
+      html += `</div></div>`;
+      cur = new Date(Date.UTC(y, m + 1, 1, 12));
+    }
+    html += `</div><p class="cal-key">Big number is the day's dose in mg; “cut” is the millimetres to shave off the right end. Shaded months alternate by cycle, and the first day of each cycle is outlined and tagged c1, c2, … Click any day to select that cycle.</p>`;
+    $("calendar").innerHTML = now + html;
+
+    $("calendar").querySelectorAll("[data-cycle]").forEach((el) => {
+      el.addEventListener("click", () => {
+        selectedCycle = parseInt(el.getAttribute("data-cycle"), 10);
         render();
       });
     });
@@ -1496,7 +1745,8 @@
       warnBar: get("--series-warn", "#fb923c"),
       switch: get("--switch", "#1d4ed8"),
       keep: get("--series-keep", "#5eead4"),
-      keepSoft: get("--series-keep-soft", "#99f6e4")
+      keepSoft: get("--series-keep-soft", "#99f6e4"),
+      level: get("--series-level", "#4a5f85")
     };
   }
 
@@ -1529,7 +1779,64 @@
     return out;
   }
 
-  function doseOverTimeChart(s) {
+  /* Date-only arithmetic, anchored at UTC noon.
+     `new Date("2026-03-08")` parses as UTC midnight and then renders in local
+     time, which lands on the previous day for anyone west of Greenwich; local
+     midnight instead breaks on DST changeovers, where adding 24h can land on
+     the same date twice. Noon UTC is far enough from both edges that adding
+     whole days is always exact. */
+  const DAY_MS = 86400000;
+  const MONTH_NAMES = ["January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"];
+  const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  function parseDay(iso) {
+    if (!iso) return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+    if (!m) return null;
+    const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const addDays = (d, k) => new Date(d.getTime() + k * DAY_MS);
+  /* Whole days between two noon-UTC anchors; rounded because a leap second or
+     a stray hour must not turn 6 days into 5.999. */
+  const daysBetween = (a, b) => Math.round((b.getTime() - a.getTime()) / DAY_MS);
+  const isoDay = (d) => d.toISOString().slice(0, 10);
+  const fmtDay = (d) => `${DOW[(d.getUTCDay() + 6) % 7]} ${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()].slice(0, 3)}`;
+  function todayUTCNoon() {
+    const n = new Date();
+    return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate(), 12));
+  }
+
+  /* Why a step down is not felt on the day it happens.
+     One-compartment, once-daily accumulation: level = level·e^(−k·24) + dose.
+     The level is then expressed as the steady dose that would produce it
+     (× 1 − e^(−k·24)), which puts it on the same mg axis as the ladder — so the
+     curve can be read against the steps directly. Deliberately NOT plasma
+     concentration: this is a shape, not a measurement, and absolute units would
+     invite reading it as one. Returns one point per day. */
+  function lagSeries(rows, halfLifeH, startMg) {
+    if (!(halfLifeH > 0) || !rows.length) return [];
+    const k = Math.LN2 / halfLifeH;
+    const decay = Math.exp(-k * 24);
+    const toDose = 1 - decay;
+    /* Day 0 is already steady on the pre-taper dose — someone starting a taper
+       is not starting the drug. Seeding at zero drew a loading ramp through the
+       first cycle that nobody in this situation experiences. */
+    const out = [{ day: 0, eff: startMg, dose: startMg }];
+    let level = startMg / toDose;
+    let day = 0;
+    for (const r of rows) {
+      for (let i = 0; i < r.days; i++) {
+        level = level * decay + r.dailyMg;
+        day += 1;
+        out.push({ day, eff: level * toDose, dose: r.dailyMg });
+      }
+    }
+    return out;
+  }
+
+  function doseOverTimeChart(s, opts) {
     const box = plotBox();
     const { W, H, L, R, T, B } = box;
     const iw = W - L - R, ih = H - T - B;
@@ -1559,12 +1866,39 @@
       inner += `<line x1="${L}" y1="${yS(1)}" x2="${W - R}" y2="${yS(1)}" stroke="${C.warn}" stroke-dasharray="4 3" />`;
       inner += `<text x="${W - R - 2}" y="${yS(1) - 4}" text-anchor="end" font-size="10" fill="${C.warn}">1 mg</text>`;
     }
+    const lag = lagSeries(s.rows, opts && opts.halfLifeH, s.startMg);
+    if (lag.length) {
+      let lp = "";
+      lag.forEach((pt, i) => {
+        lp += `${i === 0 ? "M" : "L"} ${xS(pt.day)} ${yS(Math.min(pt.eff, ymax))}`;
+      });
+      inner += `<path d="${lp}" fill="none" stroke="${C.level}" stroke-width="1.6" stroke-dasharray="3 3" opacity="0.95"/>`;
+    }
     inner += `<path d="${path}" fill="none" stroke="${C.accent}" stroke-width="2.2" stroke-linejoin="round"/>`;
     for (const r of s.rows) {
       inner += `<circle data-cycle="${r.cycle}" cx="${xS(r.dayEnd)}" cy="${yS(r.dailyMg)}" r="${r.cycle === selectedCycle ? 4.5 : 3}" fill="${r.switched2mg ? C.switch : C.accent}"/>`;
     }
     inner += "</svg>";
-    return svgFrame("Daily dose over time", "Step hold at each cycle, then a drop. Blue dot = 2 mg film restart.", inner);
+
+    let cap = "Step hold at each cycle, then a drop. Blue dot = 2 mg film restart.";
+    if (lag.length) {
+      /* Quote the real gap on the first day of the second cycle — the point the
+         practical notes are describing when they say a drop is not felt for
+         days. */
+      const c2 = s.rows[1];
+      const first = c2 ? lag.find((pt) => pt.day === c2.dayStart) : null;
+      const last = c2 ? lag.find((pt) => pt.day === c2.dayEnd) : null;
+      cap += ` The dashed line is where your exposure actually sits, lagging behind`
+        + ` the ladder at a ${fmtG(opts.halfLifeH)} h half-life.`;
+      if (first && last) {
+        cap += ` On day ${first.day} you are still carrying ${fmt(first.eff - first.dose, 2)} mg`
+          + ` more than the new dose; by day ${last.day} that is ${fmt(last.eff - last.dose, 2)} mg.`
+          + ` That is why a drop is not felt on the day you make it.`;
+      }
+      cap += ` Illustration of the lag only — a shape, not a prediction of anyone's blood levels,`
+        + ` which vary widely. Set the half-life to 0 to hide it.`;
+    }
+    return svgFrame("Daily dose over time", cap, inner);
   }
 
   function doseLadderChart(s) {
@@ -1681,7 +2015,65 @@
       inner += `<rect data-cycle="${r.cycle}" x="${x}" y="${y}" width="${w}" height="${Math.max(h, 0)}" fill="${r.cutWarn ? C.warnBar : (r.cycle === selectedCycle ? C.accent : C.keepSoft)}" stroke="${r.switched2mg ? C.switch : C.keep}"/>`;
     });
     inner += "</svg>";
-    return svgFrame("Cut sliver length", "Below the 1 mm line, cutting error rivals the dose change. Switch film strength before that.", inner);
+    return svgFrame("Cut sliver length", "How much film you are shaving off each day. Under 1 mm you are at the limit of what a razor and ruler resolve.", inner);
+  }
+
+  /* The chart above says how thin the sliver gets; this one says whether that
+     matters. A hand-cut error is a fixed number of millimetres, so on a fixed
+     film it is a fixed number of milligrams — while the step you are trying to
+     take shrinks every cycle. Once the error passes 100% of the step you are
+     no longer tapering, you are adding noise. This is the whole argument for
+     moving to 2 mg film: a quarter the density is a quarter the error. */
+  function cutErrorChart(s, opts) {
+    const tol = Number.isFinite(opts.cutTolMm) ? opts.cutTolMm : 0.5;
+    const pts = [];
+    let prev = null;
+    s.rows.forEach((r) => {
+      const step = prev == null ? null : prev - r.dailyMg;
+      if (step != null && step > 1e-9) {
+        pts.push({ cycle: r.cycle, pct: (tol * (r.filmMg / 22)) / step * 100, row: r });
+      }
+      prev = r.dailyMg;
+    });
+    if (tol <= 0 || !pts.length) return "";
+
+    const box = plotBox();
+    const { W, H, L, R, T, B } = box;
+    const iw = W - L - R, ih = H - T - B;
+    const n = pts.length;
+    const ymax = Math.max(120, Math.ceil(Math.max(...pts.map((p) => p.pct)) / 20) * 20);
+    const barW = iw / n;
+    const yS = (v) => T + (1 - Math.min(v, ymax) / ymax) * ih;
+    const xS = (i) => L + (i + 0.5) * barW;
+    const xTicks = pts.filter((_, i) => n <= 12 || i % 2 === 0 || i === n - 1).map((p) => p.cycle);
+    const xTickScale = (c) => xS(pts.findIndex((p) => p.cycle === c));
+
+    let inner = svgOpen(box);
+    inner += gridAndAxes(box, xTicks, evenTicks(ymax, 4), xTickScale, yS, "Cycle", "Error ÷ step (%)");
+    const y100 = yS(100);
+    inner += `<line x1="${L}" y1="${y100}" x2="${W - R}" y2="${y100}" stroke="${C.warn}" stroke-dasharray="4 3"/>`;
+    inner += `<text x="${W - R - 2}" y="${y100 - 4}" text-anchor="end" font-size="10" fill="${C.warn}">error = the whole step</text>`;
+    pts.forEach((p, i) => {
+      const x = L + i * barW + barW * 0.12;
+      const w = barW * 0.76;
+      const y = yS(p.pct);
+      const over = p.pct >= 100;
+      const fill = over ? C.warnBar : (p.cycle === selectedCycle ? C.accent : C.keepSoft);
+      inner += `<rect data-cycle="${p.cycle}" x="${x}" y="${y}" width="${w}" height="${Math.max(yS(0) - y, 0)}" fill="${fill}" stroke="${p.row.switched2mg ? C.switch : C.keep}"/>`;
+    });
+    inner += "</svg>";
+
+    const worst = pts.reduce((a, p) => (p.pct > a.pct ? p : a), pts[0]);
+    const blown = pts.filter((p) => p.pct >= 100);
+    const verdict = blown.length
+      ? `From cycle ${blown[0].cycle} the error is bigger than the drop — that part of the ladder is guesswork. Switch to 2 mg film, cut more carefully, or stop higher.`
+      : `Worst case is cycle ${worst.cycle} at ${fmt(worst.pct, 0)}% — every step stays bigger than the error.`;
+    return svgFrame(
+      "Cutting error vs the step you are taking",
+      `A ±${fmtG(tol)} mm slip is ±${fmt(tol * (s.baseFilmMg / 22), 3)} mg on ${fmtG(s.baseFilmMg)} mg film, ` +
+      `but only ±${fmt(tol * (2 / 22), 3)} mg on 2 mg film. ${verdict}`,
+      inner
+    );
   }
 
   function rxMonthChart(s) {
@@ -1739,11 +2131,12 @@
   function renderCharts(s, opts) {
     readChartPalette();
     $("charts").innerHTML = [
-      doseOverTimeChart(s),
+      doseOverTimeChart(s, opts),
       doseLadderChart(s),
       compareOverlayChart(opts),
       cumulativeChart(s),
       cutPrecisionChart(s),
+      cutErrorChart(s, opts),
       rxMonthChart(s),
       pieceLadderChart(s)
     ].join("");
@@ -1797,7 +2190,7 @@
 
   function render() {
     const opts = readOpts();
-    saveInputs();
+    saveInputs(opts);
     const s = buildSchedule(Object.assign({ stopMode: "reach" }, opts));
     if (!s.rows.some((r) => r.cycle === selectedCycle)) {
       selectedCycle = s.rows.length ? s.rows[0].cycle : 1;
@@ -1805,6 +2198,7 @@
     renderCards(s);
     renderCharts(s, opts);
     renderSchedule(s);
+    renderCalendar(s, opts);
     renderRuler(s);
     renderStripViz(s);
     renderCompare(opts);
@@ -1820,10 +2214,12 @@
     $("stripMg").value = 8;
     $("holdDays").value = "";
     $("nBelow3").value = "";
+    $("cutTolMm").value = 0.5;
+    $("halfLifeH").value = 32;
+    $("startDate").value = "";
     $("switch2").checked = true;
     $("showCompare").checked = true;
     selectedCycle = 1;
-    localStorage.removeItem(STORAGE_KEY);
     render();
   }
 
@@ -1880,6 +2276,15 @@
   $("filmFollowCycle").addEventListener("click", () => {
     vizFilmMg = null;
     if (lastSched) renderStripViz(lastSched);
+  });
+
+  /* Test surface. The ladder maths lives twice — here and in taper.py — and the
+     footer promises the two agree, but everything in this file is sealed inside
+     the IIFE, so nothing could check it. test_parity.js drives a headless
+     browser, calls this, and diffs every row against `taper.py --json`.
+     Read-only and unused by the page itself. */
+  window.SASTaperInternals = Object.freeze({
+    buildSchedule, compareClassic, baseFilmMg, keepRatio,
   });
 
   applyTheme(currentTheme(), false);
