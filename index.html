@@ -367,6 +367,10 @@
         position: static;
         left: auto;
         transform: none;
+        /* nowrap only matters while the captions are pinned to a point on the
+           bar. In the wrapped row it just forces the page wider than the
+           viewport on a narrow phone. */
+        white-space: normal;
       }
     }
     .scale-row {
@@ -588,13 +592,22 @@
        description run inline inside a wrapper div, which HTML5 allows around a
        dt/dd pair. The term is set apart by colour alone — bold made it read as
        another heading, and the ink/muted contrast already does that job. */
-    .inputdoc { margin: 0.5rem 0 0; }
-    .inputdoc > div { margin: 0 0 0.4rem; }
+    .inputdoc { margin: 0.5rem 0 0; padding-left: 1.15rem; }
+    /* display: list-item gives the wrapper a bullet without giving up the
+       description-list semantics — dt/dd stay a term and its description. */
+    .inputdoc > div {
+      display: list-item;
+      list-style: disc;
+      margin: 0.35rem 0;
+    }
     .inputdoc dt,
     .inputdoc dd { display: inline; }
     .inputdoc dt { font-weight: 400; color: var(--ink); }
-    .inputdoc dt::after { content: " — "; color: var(--muted); }
-    .inputdoc dt .def { color: var(--muted); font-variant-numeric: tabular-nums; }
+    /* A real span, not a ::after. Generated content is dropped when the page is
+       copied, which ran the term straight into its description on paste. */
+    .inputdoc dt .sep,
+    .inputdoc dt .def { color: var(--muted); }
+    .inputdoc dt .def { font-variant-numeric: tabular-nums; }
     .inputdoc dd { margin: 0; color: var(--muted); }
     .cal-key { font-size: 0.75rem; color: var(--muted); margin: 0.6rem 0 0; }
     .cal-now {
@@ -781,19 +794,19 @@
       <h3>What each input does</h3>
       <p>Defaults in brackets. Only the first three usually need touching; everything else has a sensible default.</p>
       <dl class="inputdoc">
-        <div><dt>Start dose (mg) <span class="def">[8]</span></dt><dd>What you take daily now, before the taper begins. Day 1 cuts this dose out of one whole film, so it also decides which film strength the plan is built on — 2, 4, 8 or 12 mg, whichever is the smallest that holds it.</dd></div>
-        <div><dt>n (days &amp; cut) <span class="def">[6]</span></dt><dd>Does two jobs at once, which is the whole trick: you cut <strong>1/n</strong> off the piece each day, <em>and</em> each cycle lasts <strong>n</strong> days. After n days the saved slivers add up to one whole piece. n = 6 drops 16.7% per cycle; n = 8 drops 12.5%; n = 10 drops 10%. Bigger n means a gentler, slower taper.</dd></div>
-        <div><dt>Start film length (mm) <span class="def">[22]</span></dt><dd>Measure your own film along the side you will cut and put that number here. All four Suboxone strengths are 22 mm on that side, so the default is usually right — measure anyway, since every cut mark on the page is derived from it.</dd></div>
-        <div><dt>2 mg film length (mm) <span class="def">[22]</span></dt><dd>The same measurement for the 2 mg film, used after the switch. Ignored if you turn the switch off.</dd></div>
-        <div><dt>Target (mg/day) <span class="def">[1]</span></dt><dd>Where the ladder stops. The run ends on the first cycle at or below this dose. Must be lower than the start dose.</dd></div>
-        <div><dt>Strip strength (mg) <span class="def">[8]</span></dt><dd>The strength of one film as dispensed. Used only to convert milligrams into “how many strips”, for the totals and the prescription-quantity table. It does not change the ladder.</dd></div>
-        <div><dt>Hold / stretch days <span class="def">[blank = same as n]</span></dt><dd>Makes every cycle longer without changing the size of the cut. Set 9 with n = 6 and you still cut 1/6, but hold each dose for 9 days instead of 6 — the same taper, more settling time between drops.</dd></div>
-        <div><dt>n below 3 mg <span class="def">[blank = off]</span></dt><dd>Switches to a different n once the strip you are cutting from drops under 3 mg, where the same percentage is a much smaller piece of film. Setting 10 here makes the back half drop 10% per cycle instead of 16.7%.</dd></div>
-        <div><dt>Your cutting tolerance (mm) <span class="def">[0.5]</span></dt><dd>How accurately you can actually cut — half a millimetre is realistic with a razor and a steel ruler. Feeds the “cutting error vs the step” graph only; it never changes the schedule. Set it to 0 to hide that graph.</dd></div>
-        <div><dt>Half-life for the lag curve (h) <span class="def">[32]</span></dt><dd>Buprenorphine's half-life, usually quoted as 24–42 hours. Draws the dashed lag curve on the first graph and nothing else. Set it to 0 to hide the curve.</dd></div>
-        <div><dt>Day 1 date <span class="def">[blank = no calendar]</span></dt><dd>The date you plan to start. Fills in the Calendar panel with real dates and marks today, so you can see which cycle you are on. Leave blank and the plan stays in day numbers.</dd></div>
-        <div><dt>Switch to 2 mg films at or below 2.25 mg <span class="def">[on]</span></dt><dd>When the strip you cut from reaches 2.25 mg, restart on a 2 mg film. A 2 mg film is a quarter the density, so the same dose is four times longer and the same cut is four times more forgiving. Turn it off to stay on one strength the whole way.</dd></div>
-        <div><dt>Show n = 6 / 8 / 10 comparison <span class="def">[on]</span></dt><dd>Adds the panel and graph comparing three taper speeds side by side, so you can see what slowing down costs in time and total medication.</dd></div>
+        <div><dt>Start dose (mg) <span class="def">[8]</span><span class="sep"> — </span></dt><dd>What you take daily now, before the taper begins. Day 1 cuts this dose out of one whole film, so it also decides which film strength the plan is built on — 2, 4, 8 or 12 mg, whichever is the smallest that holds it.</dd></div>
+        <div><dt>n (days &amp; cut) <span class="def">[6]</span><span class="sep"> — </span></dt><dd>Does two jobs at once, which is the whole trick: you cut <strong>1/n</strong> off the piece each day, <em>and</em> each cycle lasts <strong>n</strong> days. After n days the saved slivers add up to one whole piece. n = 6 drops 16.7% per cycle; n = 8 drops 12.5%; n = 10 drops 10%. Bigger n means a gentler, slower taper.</dd></div>
+        <div><dt>Start film length (mm) <span class="def">[22]</span><span class="sep"> — </span></dt><dd>Measure your own film along the side you will cut and put that number here. All four Suboxone strengths are 22 mm on that side, so the default is usually right — measure anyway, since every cut mark on the page is derived from it.</dd></div>
+        <div><dt>2 mg film length (mm) <span class="def">[22]</span><span class="sep"> — </span></dt><dd>The same measurement for the 2 mg film, used after the switch. Ignored if you turn the switch off.</dd></div>
+        <div><dt>Target (mg/day) <span class="def">[1]</span><span class="sep"> — </span></dt><dd>Where the ladder stops. The run ends on the first cycle at or below this dose. Must be lower than the start dose.</dd></div>
+        <div><dt>Strip strength (mg) <span class="def">[8]</span><span class="sep"> — </span></dt><dd>The strength of one film as dispensed. Used only to convert milligrams into “how many strips”, for the totals and the prescription-quantity table. It does not change the ladder.</dd></div>
+        <div><dt>Hold / stretch days <span class="def">[blank = same as n]</span><span class="sep"> — </span></dt><dd>Makes every cycle longer without changing the size of the cut. Set 9 with n = 6 and you still cut 1/6, but hold each dose for 9 days instead of 6 — the same taper, more settling time between drops.</dd></div>
+        <div><dt>n below 3 mg <span class="def">[blank = off]</span><span class="sep"> — </span></dt><dd>Switches to a different n once the strip you are cutting from drops under 3 mg, where the same percentage is a much smaller piece of film. Setting 10 here makes the back half drop 10% per cycle instead of 16.7%.</dd></div>
+        <div><dt>Your cutting tolerance (mm) <span class="def">[0.5]</span><span class="sep"> — </span></dt><dd>How accurately you can actually cut — half a millimetre is realistic with a razor and a steel ruler. Feeds the “cutting error vs the step” graph only; it never changes the schedule. Set it to 0 to hide that graph.</dd></div>
+        <div><dt>Half-life for the lag curve (h) <span class="def">[32]</span><span class="sep"> — </span></dt><dd>Buprenorphine's half-life, usually quoted as 24–42 hours. Draws the dashed lag curve on the first graph and nothing else. Set it to 0 to hide the curve.</dd></div>
+        <div><dt>Day 1 date <span class="def">[blank = no calendar]</span><span class="sep"> — </span></dt><dd>The date you plan to start. Fills in the Calendar panel with real dates and marks today, so you can see which cycle you are on. Leave blank and the plan stays in day numbers.</dd></div>
+        <div><dt>Switch to 2 mg films at or below 2.25 mg <span class="def">[on]</span><span class="sep"> — </span></dt><dd>When the strip you cut from reaches 2.25 mg, restart on a 2 mg film. A 2 mg film is a quarter the density, so the same dose is four times longer and the same cut is four times more forgiving. Turn it off to stay on one strength the whole way.</dd></div>
+        <div><dt>Show n = 6 / 8 / 10 comparison <span class="def">[on]</span><span class="sep"> — </span></dt><dd>Adds the panel and graph comparing three taper speeds side by side, so you can see what slowing down costs in time and total medication.</dd></div>
       </dl>
 
       <h3>Limitation — film strengths</h3>
@@ -891,7 +904,7 @@
       <h2>Calendar</h2>
       <p class="legend" id="calLede" style="margin-top:-0.4rem;margin-bottom:0.6rem;"></p>
       <div class="cal-controls no-print">
-        <span class="k">Show</span>
+        <span class="k">Currently showing (click to change)</span>
         <button type="button" class="ghost small" id="calModeBtn">Total off</button>
         <button type="button" class="ghost small" id="calDensityBtn" aria-pressed="false">Detailed</button>
       </div>
@@ -1652,7 +1665,7 @@
       </div>
       <div class="ticks">
         ${takePct >= 12 ? `<span class="start">0</span>` : ""}
-        <span class="cut" data-left="${takePct}">today’s cut · ${fmt(saveMm, 2)} mm</span>
+        <span class="cut" data-left="${takePct}">today’s cut · ${fmt(saveMm, 2)} mm · total off ${fmt(fullMm - takeMm, 2)} mm</span>
         ${hasGhost && ghostPct >= 14 ? `<span class="piece" data-left="${piecePct}">${fmt(row.pieceMm, 1)} mm in hand</span>` : ""}
         <span class="end">${fmt(fullMm, 1)} mm unused</span>
       </div>
@@ -1820,7 +1833,7 @@
         <div class="save" data-short="" style="width:${savePct}%">${showInner && savePct > 10 ? "SAVE" : ""}</div>
         ${hasGhost ? `<div class="strip-ghost" data-short="" style="width:${ghostPct}%">${ghostLabel}</div>` : ""}
         <div class="strip-cut" style="left:${takePct}%"></div>
-        <div class="strip-cut-label">today’s cut · ${fmt(saveMm, 2)} mm</div>
+        <div class="strip-cut-label">today’s cut · ${fmt(saveMm, 2)} mm · total off ${fmt(fullMm - takeMm, 2)} mm</div>
       </div>
       </div>
       <div class="strip-dims" style="max-width:${Math.max(w, 40)}${CSS_MM}">
@@ -1843,6 +1856,16 @@
     const stripW = strip.getBoundingClientRect().width;
     const labelW = label.offsetWidth;
     if (!stripW || !labelW) return;
+    /* The label is absolutely positioned, so it contributes nothing to the
+       mat's width — and it is wider than the strip at any modest zoom. Widen
+       the mat to fit it rather than letting it spill onto the card. Measured
+       rather than a CSS min-width because the text length moves with the
+       numbers in it. */
+    const draw = $("stripViz").querySelector(".strip-draw");
+    if (draw) {
+      const pad = 24; // .strip-draw horizontal padding, 0.75rem each side
+      draw.style.minWidth = Math.ceil(labelW + pad) + "px";
+    }
     const cutX = (takePct / 100) * stripW;
     const left = Math.max(0, Math.min(cutX - labelW / 2, Math.max(0, stripW - labelW)));
     label.style.left = left + "px";
