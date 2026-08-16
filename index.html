@@ -268,7 +268,16 @@
       overflow: hidden;
       box-sizing: border-box;
     }
-    .strip-life .take {
+    .strip-full {
+      position: relative;
+      display: flex;
+      border: 1.5px dashed #9a3412;
+      border-radius: 3px;
+      box-sizing: border-box;
+      background: #faf8f4;
+    }
+    .strip-full.is-full { border-style: solid; }
+    .strip-life .take, .strip-full .take {
       background: linear-gradient(#f3c38a, #e3943c);
       display: flex;
       align-items: center;
@@ -279,7 +288,7 @@
       text-align: center;
       overflow: hidden;
     }
-    .strip-life .save {
+    .strip-life .save, .strip-full .save {
       background: repeating-linear-gradient(-45deg, #fdba74, #fdba74 5px, #ffedd5 5px, #ffedd5 10px);
       display: flex;
       align-items: center;
@@ -289,6 +298,18 @@
       font-weight: 750;
       text-align: center;
       overflow: hidden;
+    }
+    .strip-ghost {
+      background: repeating-linear-gradient(90deg, transparent 0 4px, #e7e5e4 4px 5px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #78716c;
+      font-size: 0.58rem;
+      font-weight: 700;
+      text-align: center;
+      overflow: hidden;
+      border-left: 1px dashed #a8a29e;
     }
     .strip-cut {
       position: absolute;
@@ -976,28 +997,39 @@
     }
     const k = scaleFactor();
     const widthMm = filmWidthMm(row.filmMg);
+    const fullMm = row.filmMg <= 2.01 ? s.film2Mm : s.filmMm;
     const takeMm = row.pieceMm - row.cutMm;
-    const takePct = (takeMm / row.pieceMm) * 100;
-    const savePct = 100 - takePct;
-    const w = row.pieceMm * k;
+    const ghostMm = Math.max(0, fullMm - row.pieceMm);
+    const hasGhost = ghostMm > 0.05;
+    const takePct = (takeMm / fullMm) * 100;
+    const savePct = (row.cutMm / fullMm) * 100;
+    const ghostPct = (ghostMm / fullMm) * 100;
+    const ghostMg = hasGhost ? row.filmMg * (ghostMm / fullMm) : 0;
+    const w = fullMm * k;
     const h = widthMm * k;
     const showInner = h >= 8;
+    const ghostLabel = showInner && ghostPct > 10 ? "already off" : "";
     $("stripViz").innerHTML = `
       <p class="strip-side">
         Cycle ${row.cycle} · ${filmSpecLabel(row.filmMg)} film
-        · full width ${fmt(widthMm, 1)} mm (kept)
-        · piece ${fmt(row.pieceMm, 1)} mm along the cut axis
+        · unused film ${fmt(fullMm, 1)} × ${fmt(widthMm, 1)} mm
+        · current piece ${fmt(row.pieceMm, 1)} mm
+        ${hasGhost ? " · dashed box is the original unused strip" : " · this cycle uses the full unused strip"}
       </p>
-      <div class="strip-life" style="width:${w}${CSS_MM};height:${h}${CSS_MM}">
+      <div class="strip-full${hasGhost ? "" : " is-full"}" style="width:${w}${CSS_MM};height:${h}${CSS_MM}">
         <div class="take" style="width:${takePct}%">${showInner ? "TAKE" : ""}</div>
-        <div class="save" style="width:${savePct}%">${showInner && savePct > 14 ? "SAVE" : ""}</div>
-        <div class="strip-cut" style="left:${takePct}%"><span>cut · ${fmt(row.cutMm, 2)} mm from right</span></div>
+        <div class="save" style="width:${savePct}%">${showInner && savePct > 10 ? "SAVE" : ""}</div>
+        ${hasGhost ? `<div class="strip-ghost" style="width:${ghostPct}%">${ghostLabel}</div>` : ""}
+        <div class="strip-cut" style="left:${takePct}%"><span>today’s cut · ${fmt(row.cutMm, 2)} mm</span></div>
       </div>
       <div class="strip-dims" style="max-width:${w}${CSS_MM}">
         <span>TAKE ${fmt(row.dailyMg, 2)} mg · ${fmt(takeMm, 1)} mm</span>
         <span>SAVE ${fmt(row.sliverMg, 2)} mg · ${fmt(row.cutMm, 2)} mm</span>
+        ${hasGhost ? `<span>Already off original ${fmt(ghostMm, 1)} mm · ${fmt(ghostMg, 2)} mg</span>` : ""}
       </div>
-      <p class="legend">Mark <strong>${fmt(row.cutMm, 2)} mm from the right end</strong>, then cut straight across the ${fmt(widthMm, 1)} mm width. This rectangle is meant to match a real film once the 20 mm bar matches a ruler.</p>
+      <p class="legend">${hasGhost
+        ? `The dashed outline is a full unused ${fmtG(row.filmMg)} mg film. The empty end was already reduced in earlier cycles. If you start from a fresh strip, trim that end first and save it — it is extra bank, not extra daily dose. Today’s cut is still 1/${row.n} of the <em>current</em> piece: mark <strong>${fmt(row.cutMm, 2)} mm from the right of that piece</strong> (the TAKE/SAVE line).`
+        : `Mark <strong>${fmt(row.cutMm, 2)} mm from the right end</strong>, then cut straight across the ${fmt(widthMm, 1)} mm width. Cycle 1 uses the full unused film.`}</p>
     `;
   }
 
