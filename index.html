@@ -26,9 +26,13 @@
        prefers-color-scheme branch, so the page opens dark whatever the OS says.
        Light is opt-in via data-theme="light" (the toggle, or printing).
 
-       The Suboxone film drawings are deliberately NOT themed — a real film is
-       orange, so it keeps one fixed palette in both modes and sits on its own
-       pale stage. Those literals live under "film specimen" below. */
+       The Suboxone film itself is deliberately NOT themed — a real film is
+       orange, so the strip keeps one fixed palette in both modes. Those
+       literals live under "film specimen" below.
+
+       Everything around the film does theme: the stage it sits on, the
+       "already off" region (absence, so it recedes toward the page), and the
+       cut-mark label. Only the product keeps fixed colour. */
     :root {
       color-scheme: dark;
       --ink: #f4efe7;
@@ -61,7 +65,11 @@
       --series-keep: #2dd4bf;
       --series-keep-soft: #1c5b52;
       --series-warn: #fb923c;
-      --stage: #f2ece2;
+      --stage: #191614;
+      --gone-bg: #221e1a;
+      --gone-hatch: #3a342e;
+      --gone-ink: #968e85;
+      --film-mark: #fdba74;
     }
 
     :root[data-theme="light"] {
@@ -97,6 +105,10 @@
       --series-keep-soft: #99f6e4;
       --series-warn: #fb923c;
       --stage: #faf8f4;
+      --gone-bg: #faf8f4;
+      --gone-hatch: #e7e5e4;
+      --gone-ink: #78716c;
+      --film-mark: #9a3412;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
@@ -273,17 +285,18 @@
     .legend { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
     .ruler-meta { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
     .ruler-meta strong { font-size: 1.05rem; }
-    /* Film specimen. A real Suboxone film is orange, so the drawings below
-       keep one fixed palette in both themes and carry their own pale ground —
-       themed tokens would recolour the product. */
+    /* Film specimen. A real Suboxone film is orange, so TAKE and SAVE keep one
+       fixed palette in both themes — themed tokens would recolour the product.
+       The film outline's own backdrop is only ever visible through the
+       "already off" region, so it uses the themed absence tokens. */
     .film {
       position: relative;
       height: 64px;
-      border: 2px solid #1c1917;
+      border: 2px solid var(--ink);
       border-radius: 6px;
       display: flex;
       overflow: hidden;
-      background: #fff;
+      background: var(--gone-bg);
     }
     .film.has-rest { border-style: dashed; }
     .film .sliver {
@@ -303,18 +316,18 @@
       min-width: 0;
     }
     .film .rest {
-      background-color: #faf8f4;
-      background-image: repeating-linear-gradient(90deg, transparent 0 4px, #e7e5e4 4px 5px);
+      background-color: var(--gone-bg);
+      background-image: repeating-linear-gradient(90deg, transparent 0 4px, var(--gone-hatch) 4px 5px);
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 0.7rem;
       font-weight: 700;
-      color: #78716c;
+      color: var(--gone-ink);
       overflow: hidden;
       text-align: center;
       min-width: 0;
-      border-left: 1px dashed #a8a29e;
+      border-left: 1px dashed var(--gone-ink);
     }
     .film-cut {
       position: absolute;
@@ -381,7 +394,7 @@
       border: 1.5px dashed #9a3412;
       border-radius: 3px;
       box-sizing: border-box;
-      background: #faf8f4;
+      background: var(--gone-bg);
     }
     .strip-full.is-full { border-style: solid; }
     .strip-life .take, .strip-full .take {
@@ -407,16 +420,16 @@
       overflow: hidden;
     }
     .strip-ghost {
-      background: repeating-linear-gradient(90deg, transparent 0 4px, #e7e5e4 4px 5px);
+      background: repeating-linear-gradient(90deg, transparent 0 4px, var(--gone-hatch) 4px 5px);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #78716c;
+      color: var(--gone-ink);
       font-size: 0.58rem;
       font-weight: 700;
       text-align: center;
       overflow: hidden;
-      border-left: 1px dashed #a8a29e;
+      border-left: 1px dashed var(--gone-ink);
     }
     .strip-cut {
       position: absolute;
@@ -432,7 +445,7 @@
       left: 0;
       font-size: 0.7rem;
       font-weight: 700;
-      color: #9a3412;
+      color: var(--film-mark);
       white-space: nowrap;
       pointer-events: none;
       line-height: 1.2rem;
@@ -451,13 +464,21 @@
       color: var(--muted);
       margin: 0.15rem 0 0.2rem;
     }
+    /* Hugs the drawing rather than filling the card: at low zoom a full-width
+       mat is a large empty slab, and the film gets lost at one end of it.
+       max-content still grows past the card when the strip is scaled up, and
+       .strip-stage scrolls it. */
     .strip-draw {
       padding: 1.6rem 0.75rem 0.75rem;
       background: var(--stage);
       border: 1px solid var(--line);
       border-radius: 8px;
       display: inline-block;
-      min-width: 100%;
+      width: max-content;
+      /* The cut label is absolutely positioned, so it does not widen
+         max-content. At low zoom the strip is narrower than the label; this
+         floor keeps the label on the mat instead of spilling onto the card. */
+      min-width: 11rem;
       box-sizing: border-box;
     }
     .dim-table { font-size: 0.84rem; margin-top: 0.7rem; }
@@ -556,6 +577,10 @@
         --series-keep: #5eead4;
         --series-keep-soft: #99f6e4;
         --stage: #ffffff;
+        --gone-bg: #ffffff;
+        --gone-hatch: #e7e5e4;
+        --gone-ink: #78716c;
+        --film-mark: #9a3412;
       }
       body { background: #fff; }
       header.app { padding-top: 0; }
