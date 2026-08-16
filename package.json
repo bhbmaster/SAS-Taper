@@ -2,7 +2,7 @@
   "name": "sas-taper",
   "version": "1.0.0",
   "private": true,
-  "description": "Geometric buprenorphine (Suboxone) film-taper calculator. Not medical advice.",
+  "description": "Geometric buprenorphine (Suboxone) film-taper calculator - also known as SAS taper. Not medical advice.",
   "homepage": "https://bhbmaster.github.io/SAS-Taper/",
   "repository": {
     "type": "git",
