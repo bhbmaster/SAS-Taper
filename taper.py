@@ -24,6 +24,9 @@ DEFAULT_RX_STRIPS = 30
 DEFAULT_MONTH_DAYS = 30
 MAX_CYCLES = 40
 CUT_WARN_MM = 1.0
+# Official Suboxone film strengths. All four are 22.0 mm on the axis this tool
+# cuts; only the other side changes, so one film length input covers them all.
+FILM_STRENGTHS = (2.0, 4.0, 8.0, 12.0)
 
 HOW_TO = """\
 SAS means save-a-sliver. Source: https://github.com/bhbmaster/SAS-Taper
@@ -56,7 +59,8 @@ switch to 2 mg films. Lock up saved pieces. Step the Rx quantity down with the d
 Limitation: the schedule starts on one given film size and either stays there or
 switches only to 2 mg films (not 12→8→4). Clicking other sizes in the table is
 for the drawing. To plan a 12 mg or 4 mg start, change --start-mg / --strip-mg
-and recalc.
+and recalc; the base film becomes the smallest official strength that holds the
+start dose (--film-strength overrides it).
 """
 
 NOTES = """\
@@ -140,6 +144,9 @@ class ScheduleResult:
     r: float
     ceiling_mg: float
     ceiling_strips: float
+    base_film_mg: float = 8.0
+    truncated: bool = False
+    switch_never_fired: bool = False
     rows: list[CycleRow] = field(default_factory=list)
     months: list[MonthRow] = field(default_factory=list)
     days_to_2mg: Optional[int] = None
@@ -160,14 +167,39 @@ def keep_ratio(n: int) -> float:
     return 1.0 - 1.0 / n
 
 
-def lifetime_ceiling_mg(start_mg: float, n: int) -> float:
-    return n * (n - 1) * start_mg
+def base_film_mg(start_mg: float) -> float:
+    """Smallest official film strength that can hold the start dose.
+
+    The piece you cut on day 1 is the start dose, so it has to fit on one film.
+    Above 12 mg there is no single film; the caller gets 12 and a piece longer
+    than one strip.
+    """
+    for mg in FILM_STRENGTHS:
+        if start_mg <= mg + 1e-9:
+            return mg
+    return FILM_STRENGTHS[-1]
 
 
-def ingested_closed_form(start_mg: float, n: int, cycles: int) -> float:
-    """n² × D0 × r × (1 − r^K). Valid when n, D0, and cycle length = n stay fixed."""
+def lifetime_ceiling_mg(start_mg: float, n: int, days_per_cycle: Optional[int] = None) -> float:
+    """Total mg if the ladder ran forever: days × (n − 1) × D0.
+
+    Σ_k days·D0·r^k = days·D0·r/(1−r) = days·D0·(n−1). With the default
+    cycle length (days = n) that is the familiar n(n−1)·D0.
+    """
+    days = int(days_per_cycle) if days_per_cycle and days_per_cycle >= 1 else n
+    return days * (n - 1) * start_mg
+
+
+def ingested_closed_form(
+    start_mg: float, n: int, cycles: int, days_per_cycle: Optional[int] = None
+) -> float:
+    """days × n × D0 × r × (1 − r^K). Valid when n, D0, and cycle length stay fixed.
+
+    With the default cycle length (days = n) this is n² × D0 × r × (1 − r^K).
+    """
     r = keep_ratio(n)
-    return (n ** 2) * start_mg * r * (1.0 - r ** cycles)
+    days = int(days_per_cycle) if days_per_cycle and days_per_cycle >= 1 else n
+    return days * n * start_mg * r * (1.0 - r ** cycles)
 
 
 def build_schedule(
@@ -179,6 +211,7 @@ def build_schedule(
     switch_2mg: bool = True,
     switch_at_mg: float = DEFAULT_SWITCH_AT_MG,
     film_2mg_mm: float = DEFAULT_FILM_MM,
+    film_strength_mg: Optional[float] = None,
     hold_days: Optional[int] = None,
     n_below_3mg: Optional[int] = None,
     max_cycles: int = MAX_CYCLES,
@@ -200,13 +233,11 @@ def build_schedule(
     if stop_mode not in ("reach", "above"):
         raise ValueError("stop_mode must be 'reach' or 'above'")
 
-    # 8 mg films unless the start dose is already a 2 mg film.
-    if start_mg <= 2.0 + 1e-9:
-        film_mg = 2.0
-        current_film_mm = film_2mg_mm
-    else:
-        film_mg = 8.0
-        current_film_mm = film_mm
+    # Day 1 cuts the start dose out of one film, so the base film has to be the
+    # smallest official strength that holds it: 8 mg by default, 12 mg for a
+    # 12 mg start, 2 or 4 mg for a low start.
+    film_mg = float(film_strength_mg) if film_strength_mg else base_film_mg(start_mg)
+    current_film_mm = film_2mg_mm if film_mg <= 2.0 + 1e-9 else film_mm
 
     D = float(start_mg)
     current_n = int(n)
@@ -215,6 +246,8 @@ def build_schedule(
     day = 0
     cum_mg = 0.0
     cum_banked = 0.0
+    truncated = False
+    prev_daily: Optional[float] = None
     rows: list[CycleRow] = []
 
     for cycle in range(1, max_cycles + 1):
@@ -236,6 +269,10 @@ def build_schedule(
             and not switched
             and film_mg > 2.0 + 1e-9
             and D <= switch_at_mg + 1e-12
+            # Restarting on a 2 mg film pins the whole strip at 2 mg, so only do
+            # it while the resulting daily dose is still a step down. A low
+            # --switch-at would otherwise walk the dose back up mid-taper.
+            and (prev_daily is None or 2.0 * keep_ratio(current_n) < prev_daily)
         ):
             D = 2.0
             film_mg = 2.0
@@ -286,10 +323,14 @@ def build_schedule(
         )
 
         D = daily
+        prev_daily = daily
         day = day_end
 
         if stop_mode == "reach" and daily <= target_mg + 1e-12:
             break
+    else:
+        # Fell out of the loop with the target still above us.
+        truncated = stop_mode == "reach"
 
     result = ScheduleResult(
         start_mg=start_mg,
@@ -303,8 +344,14 @@ def build_schedule(
         n_below_3mg=n_below_3mg,
         stop_mode=stop_mode,
         r=keep_ratio(n),
-        ceiling_mg=lifetime_ceiling_mg(start_mg, n),
-        ceiling_strips=lifetime_ceiling_mg(start_mg, n) / strip_mg,
+        ceiling_mg=lifetime_ceiling_mg(start_mg, n, hold_days),
+        ceiling_strips=lifetime_ceiling_mg(start_mg, n, hold_days) / strip_mg,
+        base_film_mg=(float(film_strength_mg) if film_strength_mg else base_film_mg(start_mg)),
+        truncated=truncated,
+        # Only a real miss if the ladder ran past 2 mg still on the bigger film.
+        switch_never_fired=bool(
+            switch_2mg and not switched and rows and rows[-1].daily_mg < 2.0
+        ),
         rows=rows,
     )
     _fill_summary(result, rx_strips=rx_strips, month_days=month_days)
@@ -333,8 +380,9 @@ def _fill_summary(
             result.days_to_2mg = row.day_start
             result.dose_at_2mg = row.daily_mg
         if result.days_to_1mg is None and row.daily_mg <= 1.0 + 0.12:
-            # ~1 mg: first cycle at or under ~1.12 mg (covers the classic 1.08 landing)
-            result.days_to_1mg = row.day_end
+            # ~1 mg: first cycle at or under ~1.12 mg (covers the classic 1.08
+            # landing). Same convention as ~2 mg — the first day at that dose.
+            result.days_to_1mg = row.day_start
             result.dose_at_1mg = row.daily_mg
 
     result.months = monthly_usage(rows, result.strip_mg, month_days, rx_strips)
@@ -442,16 +490,33 @@ def print_schedule(sched: ScheduleResult) -> None:
         f"Start {sched.start_mg:g} mg  n={n}  "
         f"({100 / n:.1f}% cut, {n}-day cycles, keep {n - 1}/{n} = {r:.4f})"
     )
-    print(f"Film {sched.film_mm:g} mm  target {sched.target_mg:g} mg  "
+    print(f"Film {sched.film_mm:g} mm ({sched.base_film_mg:g} mg strength)  "
+          f"target {sched.target_mg:g} mg  "
           f"strip {sched.strip_mg:g} mg  2 mg switch {'ON' if sched.switch_2mg else 'OFF'}")
     if sched.hold_days:
         print(f"Stretched cycle: {sched.hold_days} days at each level (cut still 1/{n}).")
     if sched.n_below_3mg:
         print(f"Below 3 mg, n switches to {sched.n_below_3mg}.")
     print(
-        f"Lifetime ceiling (fixed n, never stop): {sched.ceiling_mg:.0f} mg "
+        f"Lifetime ceiling (fixed n and cycle length, never stop): "
+        f"{sched.ceiling_mg:.0f} mg "
         f"({sched.ceiling_strips:.1f} strips of {sched.strip_mg:g} mg)."
     )
+    if sched.truncated:
+        print(
+            f"WARNING: stopped at the {len(sched.rows)}-cycle cap without reaching "
+            f"{sched.target_mg:g} mg. Raise --max-cycles to see the rest of the ladder."
+        )
+    if sched.switch_never_fired:
+        print(
+            "WARNING: the 2 mg switch never fired — --switch-at is below 2 mg, and "
+            "restarting on a 2 mg film there would raise the dose. Use --switch-at 2.25."
+        )
+    if sched.rows and sched.rows[0].piece_mm > sched.film_mm + 1e-9:
+        print(
+            f"WARNING: day 1 needs {sched.rows[0].piece_mm:.1f} mm, longer than one "
+            f"{sched.film_mm:g} mm film — that dose does not fit on a single strip."
+        )
     print()
 
     headers = [
@@ -606,6 +671,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--n", type=int, default=DEFAULT_N, help="cycle length and cut denominator (default 6)")
     p.add_argument("--film-mm", type=float, default=DEFAULT_FILM_MM)
     p.add_argument("--film-2mg-mm", type=float, default=DEFAULT_FILM_MM)
+    p.add_argument("--film-strength", type=float, default=None, dest="film_strength_mg",
+                   help="film strength you are cutting (default: smallest official size "
+                        "that holds the start dose)")
     p.add_argument("--target", type=float, default=DEFAULT_TARGET_MG, dest="target_mg")
     p.add_argument("--strip-mg", type=float, default=DEFAULT_STRIP_MG)
     p.add_argument("--no-switch-2mg", action="store_true", help="stay on 8 mg films the whole way")
@@ -631,6 +699,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             switch_2mg=not args.no_switch_2mg,
             switch_at_mg=args.switch_at,
             film_2mg_mm=args.film_2mg_mm,
+            film_strength_mg=args.film_strength_mg,
             hold_days=args.hold_days,
             n_below_3mg=args.n_below_3mg,
             max_cycles=args.max_cycles,

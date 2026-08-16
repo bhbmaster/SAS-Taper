@@ -469,7 +469,7 @@
       <h3>Instructions</h3>
       <ol>
         <li>You can use this site, or run the Python app from this folder with <code>python3 taper.py</code>. Same math either way. Offline: open <code>index.html</code> in any browser (double-click the file).</li>
-        <li>Measure your film with a ruler along its <strong>length only</strong>. Put that number in “8 mg film length.” Default n = 6 (16.7% every 6 days). If you want a gentler taper, raise n to 8 or 10.</li>
+        <li>Measure your film with a ruler along its <strong>length only</strong> — the 22 mm side, the one you will be cutting. Put that number in “Start film length.” All four Suboxone strengths are 22 mm on that side, so it is the same number whichever you start on. Default n = 6 (16.7% every 6 days). If you want a gentler taper, raise n to 8 or 10.</li>
         <li>The cards, graphs, and schedule recalculate live. Click a cycle row (or a graph step) to see that day’s cut mark and a life-size film: <strong>TAKE on the left, SAVE on the right</strong>. The cut-mark bar is a full unused film; later cycles hash the rest that is already off.</li>
         <li>Print / save as PDF and take it to your prescriber <em>before day 1</em> so they can match quantity and write 2 mg films for the back half.</li>
       </ol>
@@ -506,7 +506,7 @@
         <label><span class="k">n (days &amp; cut)</span>
           <input type="number" id="n" min="2" max="30" step="1" value="6">
         </label>
-        <label><span class="k">8 mg film length (mm)</span>
+        <label><span class="k">Start film length (mm)</span>
           <input type="number" id="filmMm" min="1" step="0.1" value="22">
         </label>
         <label><span class="k">2 mg film length (mm)</span>
@@ -534,6 +534,8 @@
         <button type="button" class="ghost" id="resetBtn">Reset to n = 6 defaults</button>
       </div>
     </section>
+
+    <div id="warnings"></div>
 
     <div class="cards" id="cards"></div>
 
@@ -703,7 +705,22 @@
   const $ = (id) => document.getElementById(id);
 
   function keepRatio(n) { return 1 - 1 / n; }
-  function lifetimeCeilingMg(startMg, n) { return n * (n - 1) * startMg; }
+
+  /* Σ_k days·D0·r^k = days·D0·r/(1−r) = days·(n−1)·D0. With the default cycle
+     length (days = n) that is the familiar n(n−1)·D0. */
+  function lifetimeCeilingMg(startMg, n, daysPerCycle) {
+    const days = daysPerCycle && daysPerCycle >= 1 ? daysPerCycle : n;
+    return days * (n - 1) * startMg;
+  }
+
+  /* Day 1 cuts the start dose out of one film, so the base film has to be the
+     smallest official strength that holds it. */
+  function baseFilmMg(startMg) {
+    for (const mg of [2, 4, 8, 12]) {
+      if (startMg <= mg + 1e-9) return mg;
+    }
+    return 12;
+  }
 
   function num(id, fallback) {
     const el = $(id);
@@ -729,14 +746,9 @@
     const nBelow3 = opts.nBelow3;
     const stopMode = opts.stopMode || "reach";
 
-    let filmMg, currentFilmMm;
-    if (startMg <= 2.0 + 1e-9) {
-      filmMg = 2.0;
-      currentFilmMm = film2Mm;
-    } else {
-      filmMg = 8.0;
-      currentFilmMm = filmMm;
-    }
+    const filmStrength = baseFilmMg(startMg);
+    let filmMg = filmStrength;
+    let currentFilmMm = filmMg <= 2.0 + 1e-9 ? film2Mm : filmMm;
 
     let D = startMg;
     let currentN = n0;
@@ -745,6 +757,8 @@
     let day = 0;
     let cumMg = 0;
     let cumBanked = 0;
+    let truncated = stopMode === "reach";
+    let prevDaily = null;
     const rows = [];
 
     for (let cycle = 1; cycle <= MAX_CYCLES; cycle++) {
@@ -756,7 +770,10 @@
       }
 
       let justSwitched = false;
-      if (switch2mg && !switched && filmMg > 2.0 + 1e-9 && D <= SWITCH_AT_MG + 1e-12) {
+      /* Restarting on a 2 mg film pins the whole strip at 2 mg, so only do it
+         while the resulting daily dose is still a step down. */
+      if (switch2mg && !switched && filmMg > 2.0 + 1e-9 && D <= SWITCH_AT_MG + 1e-12
+          && (prevDaily === null || 2.0 * keepRatio(currentN) < prevDaily)) {
         D = 2.0;
         filmMg = 2.0;
         currentFilmMm = film2Mm;
@@ -792,15 +809,21 @@
       });
 
       D = daily;
+      prevDaily = daily;
       day = dayEnd;
-      if (stopMode === "reach" && daily <= targetMg + 1e-12) break;
+      if (stopMode === "reach" && daily <= targetMg + 1e-12) { truncated = false; break; }
     }
 
     const result = {
       startMg, n: n0, filmMm, film2Mm, targetMg, stripMg, switch2mg, holdDays, nBelow3, stopMode,
       r: keepRatio(n0),
-      ceilingMg: lifetimeCeilingMg(startMg, n0),
-      ceilingStrips: lifetimeCeilingMg(startMg, n0) / stripMg,
+      ceilingMg: lifetimeCeilingMg(startMg, n0, holdDays),
+      ceilingStrips: lifetimeCeilingMg(startMg, n0, holdDays) / stripMg,
+      baseFilmMg: filmStrength,
+      truncated,
+      /* Only a real miss if the ladder ran past 2 mg still on the bigger film. */
+      switchNeverFired: switch2mg && !switched && rows.length > 0
+        && rows[rows.length - 1].dailyMg < 2.0,
       rows
     };
     fillSummary(result);
@@ -828,8 +851,9 @@
         result.daysTo2mg = row.dayStart;
         result.doseAt2mg = row.dailyMg;
       }
+      /* Same convention as ~2 mg — the first day at that dose. */
       if (result.daysTo1mg == null && row.dailyMg <= 1.0 + 0.12) {
-        result.daysTo1mg = row.dayEnd;
+        result.daysTo1mg = row.dayStart;
         result.doseAt1mg = row.dailyMg;
       }
     }
@@ -941,12 +965,34 @@
       { lbl: "End of run", val: "Day " + s.endDay, sub: fmt(s.endDailyMg, 2) + " mg/day" },
       { lbl: "Ingested", val: fmt(s.totalMg, 1) + " mg", sub: fmt(s.totalStrips, 1) + " × " + fmtG(s.stripMg) + " mg strips" },
       { lbl: "Banked buffer", val: fmt(s.totalBankedMg, 1) + " mg", sub: fmt(s.totalBankedMg / s.stripMg, 1) + " strips · not extra dose" },
-      { lbl: "Lifetime ceiling", val: fmt(s.ceilingMg, 0) + " mg", sub: fmt(s.ceilingStrips, 1) + " strips if n never changes" },
+      { lbl: "Lifetime ceiling", val: fmt(s.ceilingMg, 0) + " mg", sub: fmt(s.ceilingStrips, 1) + " strips if n and cycle length never change" },
       { lbl: "Vs staying at " + fmtG(s.startMg) + " mg", val: fmt(s.savedVsStayStrips, 1) + " strips", sub: "saves " + fmt(s.savedVsStayMg, 0) + " mg over " + s.endDay + " days" }
     ];
     $("cards").innerHTML = items.map((c) =>
       `<article class="card"><div class="lbl">${c.lbl}</div><div class="val">${c.val}</div><div class="sub">${c.sub}</div></article>`
     ).join("");
+    renderWarnings(s);
+  }
+
+  function renderWarnings(s) {
+    const msgs = [];
+    if (s.truncated) {
+      msgs.push(`The ladder hit the ${MAX_CYCLES}-cycle cap at ${fmt(s.endDailyMg, 2)} mg/day
+        without reaching ${fmtG(s.targetMg)} mg. Everything below is the first ${MAX_CYCLES}
+        cycles only — lower n or raise the target to see the whole run.`);
+    }
+    if (s.switchNeverFired) {
+      msgs.push(`The 2 mg switch never fired: this ladder steps past 2 mg without landing in the
+        switch window, and restarting on a 2 mg film below that point would raise the dose.
+        The run stays on ${fmtG(s.baseFilmMg)} mg films — watch the sliver length.`);
+    }
+    if (s.rows.length && s.rows[0].pieceMm > s.filmMm + 1e-9) {
+      msgs.push(`Day 1 needs ${fmt(s.rows[0].pieceMm, 1)} mm, which is longer than one
+        ${fmtG(s.filmMm)} mm film — that start dose does not fit on a single strip.`);
+    }
+    $("warnings").innerHTML = msgs.length
+      ? msgs.map((m) => `<div class="banner"><strong>Heads up.</strong> ${m}</div>`).join("")
+      : "";
   }
 
   function renderSchedule(s) {
@@ -1226,7 +1272,7 @@
     const yS = (v) => T + (1 - v / ymax) * ih;
     let path = "";
     s.rows.forEach((r, i) => {
-      const x0 = xS(r.dayStart - (i === 0 ? 1 : 0));
+      const x0 = xS(r.dayStart - 1);
       const x1 = xS(r.dayEnd);
       const y = yS(r.dailyMg);
       path += i === 0 ? `M ${x0} ${y}` : `L ${x0} ${y}`;
@@ -1302,7 +1348,7 @@
     for (const s of series) {
       let path = "";
       s.sched.rows.forEach((r, i) => {
-        const x0 = xS(r.dayStart - (i === 0 ? 1 : 0));
+        const x0 = xS(r.dayStart - 1);
         const x1 = xS(r.dayEnd);
         const y = yS(r.dailyMg);
         path += i === 0 ? `M ${x0} ${y}` : `L ${x0} ${y}`;
@@ -1340,7 +1386,7 @@
     inner += `<path d="${stay}" fill="none" stroke="#a8a29e" stroke-dasharray="5 4" stroke-width="1.6"/>`;
     inner += `<path d="${taper}" fill="none" stroke="#0f6b5c" stroke-width="2.2"/>`;
     inner += "</svg>";
-    return svgFrame("Cumulative ingested vs staying put", `Shaded gap is medication not taken vs ${fmtG(s.startMg)} mg/day for ${s.endDay} days (${fmt(s.savedVsStayStrips, 1)} strips).`);
+    return svgFrame("Cumulative ingested vs staying put", `Shaded gap is medication not taken vs ${fmtG(s.startMg)} mg/day for ${s.endDay} days (${fmt(s.savedVsStayStrips, 1)} strips).`, inner);
   }
 
   function cutPrecisionChart(s) {
