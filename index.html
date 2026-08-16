@@ -223,6 +223,109 @@
     .ticks span.start { left: 0; transform: none; }
     .ticks span.end { left: 100%; transform: translateX(-100%); }
     .ticks span.cut { color: var(--warn); font-weight: 700; }
+    .scale-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.7rem 1.1rem;
+      margin: 0.55rem 0 0.7rem;
+    }
+    .scale-row label {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.55rem;
+      font-size: 0.88rem;
+      color: var(--ink);
+      min-width: 0;
+      flex: 1;
+    }
+    .scale-row input[type="range"] { flex: 1; min-width: 140px; accent-color: var(--accent); }
+    .scale-row .pct { font-variant-numeric: tabular-nums; font-weight: 650; min-width: 3.2rem; }
+    .cal-wrap {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.55rem;
+      margin: 0 0 0.9rem;
+    }
+    .cal-bar {
+      height: 14px;
+      border: 1px solid var(--ink);
+      background:
+        repeating-linear-gradient(90deg, var(--ink) 0 1px, transparent 1px 25%),
+        #fff;
+      box-sizing: border-box;
+    }
+    .cal-wrap span { font-size: 0.78rem; color: var(--muted); }
+    .strip-stage {
+      overflow-x: auto;
+      padding: 1.15rem 0.2rem 0.4rem;
+    }
+    .strip-life {
+      position: relative;
+      display: flex;
+      border: 1.5px solid #9a3412;
+      border-radius: 3px;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+    .strip-life .take {
+      background: linear-gradient(#f3c38a, #e3943c);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #7c2d12;
+      font-size: 0.68rem;
+      font-weight: 750;
+      text-align: center;
+      overflow: hidden;
+    }
+    .strip-life .save {
+      background: repeating-linear-gradient(-45deg, #fdba74, #fdba74 5px, #ffedd5 5px, #ffedd5 10px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #9a3412;
+      font-size: 0.62rem;
+      font-weight: 750;
+      text-align: center;
+      overflow: hidden;
+    }
+    .strip-cut {
+      position: absolute;
+      top: -10px;
+      bottom: -10px;
+      width: 0;
+      border-left: 2px dashed #9a3412;
+      pointer-events: none;
+    }
+    .strip-cut span {
+      position: absolute;
+      top: -1.05rem;
+      left: 0;
+      transform: translateX(-50%);
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--warn);
+      white-space: nowrap;
+    }
+    .strip-dims {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 0.45rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .strip-side {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin: 0.15rem 0 0;
+    }
+    .dim-table { font-size: 0.84rem; margin-top: 0.7rem; }
+    .dim-table th, .dim-table td { text-align: left; }
+    .dim-table tbody tr { cursor: default; }
+    .viz-nav { display: flex; gap: 0.4rem; flex-wrap: wrap; }
     .charts {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -285,6 +388,7 @@
       .panel, .card { box-shadow: none; }
       tbody tr.selected { background: var(--accent-soft); }
       button { display: none; }
+      .scale-row, .viz-nav { display: none; }
       .chart { break-inside: avoid; }
       .howto { break-inside: avoid; }
     }
@@ -314,7 +418,7 @@
       <ol>
         <li>Open <code>index.html</code> in any browser (double-click the file, or from this folder run the Python CLI with <code>python3 taper.py</code>).</li>
         <li>Measure your film with a ruler along its <strong>length only</strong>. Put that number in “8 mg film length.” Default n = 6 (16.7% every 6 days). If you want a gentler taper, raise n to 8 or 10.</li>
-        <li>The cards, graphs, and schedule recalculate live. Click a cycle row (or a graph step) to see that day’s cut mark: <strong>TAKE on the left, SAVE on the right</strong>.</li>
+        <li>The cards, graphs, and schedule recalculate live. Click a cycle row (or a graph step) to see that day’s cut mark and a life-size film: <strong>TAKE on the left, SAVE on the right</strong>.</li>
         <li>Print / save as PDF and take it to your prescriber <em>before day 1</em> so they can match quantity and write 2 mg films for the back half.</li>
       </ol>
 
@@ -400,6 +504,61 @@
       <div id="ruler"></div>
     </section>
 
+    <section class="panel">
+      <h2>Life-size film</h2>
+      <p class="legend" style="margin-top:-0.4rem;">Drawn in CSS millimetres (1 in = 96 px), which is true size on a 96 PPI display. Most screens differ — hold a ruler to the 20 mm bar and move the slider until they match. 100% is the CSS spec default.</p>
+      <div class="scale-row no-print">
+        <label><span class="k">On-screen scale</span>
+          <input type="range" id="stripScale" min="50" max="300" step="1" value="100">
+          <span class="pct" id="stripScaleVal">100%</span>
+        </label>
+        <button type="button" class="ghost" id="stripScaleReset">Reset to CSS mm</button>
+        <div class="viz-nav">
+          <button type="button" class="ghost" id="cyclePrev">Previous cycle</button>
+          <button type="button" class="ghost" id="cycleNext">Next cycle</button>
+        </div>
+      </div>
+      <div class="cal-wrap">
+        <div class="cal-bar" id="calBar" title="20 mm at the current scale"></div>
+        <span>20 mm calibration — match this to a real ruler</span>
+      </div>
+      <div class="strip-stage" id="stripViz"></div>
+      <p class="legend">Official Suboxone film sizes (buprenorphine / naloxone). This tool cuts along the 22 mm side and keeps the other side as full width.</p>
+      <div class="scroll">
+        <table class="dim-table">
+          <thead>
+            <tr>
+              <th class="left">Strength</th>
+              <th class="left">Size</th>
+              <th class="left">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="left">2 mg / 0.5 mg</td>
+              <td class="left">22.0 mm × 12.8 mm</td>
+              <td class="left">Same footprint as the 8 mg film</td>
+            </tr>
+            <tr>
+              <td class="left">4 mg / 1 mg</td>
+              <td class="left">22.0 mm × 25.6 mm</td>
+              <td class="left">Twice the length of the 2 mg film (12.8 × 2)</td>
+            </tr>
+            <tr>
+              <td class="left">8 mg / 2 mg</td>
+              <td class="left">22.0 mm × 12.8 mm</td>
+              <td class="left">Same footprint as the 2 mg film; default start</td>
+            </tr>
+            <tr>
+              <td class="left">12 mg / 3 mg</td>
+              <td class="left">22.0 mm × 19.2 mm</td>
+              <td class="left">1.5× the length of the 8 mg film (12.8 × 1.5)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
     <section class="panel" id="comparePanel">
       <h2>Compare n = 6 / 8 / 10 at ~1 mg</h2>
       <p class="legend" style="margin-top:-0.4rem;margin-bottom:0.7rem;">8 mg films all the way; last cycle still above 1 mg. The save-bank is not fed back into daily dose. Slower is not free: n = 10 uses about 3× the medication of n = 6 because you spend about 3× longer on the ladder.</p>
@@ -446,6 +605,23 @@
   const MONTH_DAYS = 30;
   const RX_STRIPS = 30;
   const STORAGE_KEY = "sas-taper-inputs-v1";
+  const SCALE_KEY = "sas-taper-strip-scale";
+  /* CSS reference: 1 in = 96 px, 1 in = 25.4 mm. True size on a 96 PPI screen. */
+  const CSS_MM = "mm";
+
+  function filmWidthMm(filmMg) {
+    if (filmMg <= 2.01) return 12.8;
+    if (filmMg <= 4.01) return 25.6;
+    if (filmMg <= 8.01) return 12.8;
+    return 19.2;
+  }
+
+  function filmSpecLabel(filmMg) {
+    if (filmMg <= 2.01) return "2 mg / 0.5 mg";
+    if (filmMg <= 4.01) return "4 mg / 1 mg";
+    if (filmMg <= 8.01) return "8 mg / 2 mg";
+    return "12 mg / 3 mg";
+  }
 
   const $ = (id) => document.getElementById(id);
 
@@ -639,6 +815,8 @@
   }
 
   let selectedCycle = 1;
+  let lastSched = null;
+  let stripScalePct = 100;
 
   function readOpts() {
     return {
@@ -763,6 +941,72 @@
       </div>
       <p class="legend">Take the long left end. Save the short right end. The saved sliver is buffer — do not swallow it as extra daily dose.</p>
     `;
+  }
+
+  function scaleFactor() {
+    return stripScalePct / 100;
+  }
+
+  function applyScaleChrome() {
+    const k = scaleFactor();
+    $("calBar").style.width = (20 * k) + CSS_MM;
+    $("stripScale").value = String(stripScalePct);
+    $("stripScaleVal").textContent = stripScalePct + "%";
+  }
+
+  function setStripScale(pct) {
+    stripScalePct = Math.max(50, Math.min(300, Math.round(pct)));
+    localStorage.setItem(SCALE_KEY, String(stripScalePct));
+    if (lastSched) renderStripViz(lastSched);
+    else applyScaleChrome();
+  }
+
+  function loadStripScale() {
+    const v = parseInt(localStorage.getItem(SCALE_KEY), 10);
+    if (Number.isFinite(v) && v >= 50 && v <= 300) stripScalePct = v;
+  }
+
+  function renderStripViz(s) {
+    lastSched = s;
+    applyScaleChrome();
+    const row = s.rows.find((r) => r.cycle === selectedCycle) || s.rows[0];
+    if (!row) {
+      $("stripViz").innerHTML = "<p>No cycles.</p>";
+      return;
+    }
+    const k = scaleFactor();
+    const widthMm = filmWidthMm(row.filmMg);
+    const takeMm = row.pieceMm - row.cutMm;
+    const takePct = (takeMm / row.pieceMm) * 100;
+    const savePct = 100 - takePct;
+    const w = row.pieceMm * k;
+    const h = widthMm * k;
+    const showInner = h >= 8;
+    $("stripViz").innerHTML = `
+      <p class="strip-side">
+        Cycle ${row.cycle} · ${filmSpecLabel(row.filmMg)} film
+        · full width ${fmt(widthMm, 1)} mm (kept)
+        · piece ${fmt(row.pieceMm, 1)} mm along the cut axis
+      </p>
+      <div class="strip-life" style="width:${w}${CSS_MM};height:${h}${CSS_MM}">
+        <div class="take" style="width:${takePct}%">${showInner ? "TAKE" : ""}</div>
+        <div class="save" style="width:${savePct}%">${showInner && savePct > 14 ? "SAVE" : ""}</div>
+        <div class="strip-cut" style="left:${takePct}%"><span>cut · ${fmt(row.cutMm, 2)} mm from right</span></div>
+      </div>
+      <div class="strip-dims" style="max-width:${w}${CSS_MM}">
+        <span>TAKE ${fmt(row.dailyMg, 2)} mg · ${fmt(takeMm, 1)} mm</span>
+        <span>SAVE ${fmt(row.sliverMg, 2)} mg · ${fmt(row.cutMm, 2)} mm</span>
+      </div>
+      <p class="legend">Mark <strong>${fmt(row.cutMm, 2)} mm from the right end</strong>, then cut straight across the ${fmt(widthMm, 1)} mm width. This rectangle is meant to match a real film once the 20 mm bar matches a ruler.</p>
+    `;
+  }
+
+  function shiftCycle(delta) {
+    if (!lastSched || !lastSched.rows.length) return;
+    const idx = lastSched.rows.findIndex((r) => r.cycle === selectedCycle);
+    const i = Math.max(0, Math.min(lastSched.rows.length - 1, (idx < 0 ? 0 : idx) + delta));
+    selectedCycle = lastSched.rows[i].cycle;
+    render();
   }
 
   function axisNum(v) {
@@ -1088,6 +1332,7 @@
     renderCharts(s, opts);
     renderSchedule(s);
     renderRuler(s);
+    renderStripViz(s);
     renderCompare(opts);
     renderMonths(s);
   }
@@ -1112,7 +1357,12 @@
   $("form").addEventListener("change", () => render());
   $("printBtn").addEventListener("click", () => window.print());
   $("resetBtn").addEventListener("click", resetDefaults);
+  $("stripScale").addEventListener("input", (e) => setStripScale(e.target.value));
+  $("stripScaleReset").addEventListener("click", () => setStripScale(100));
+  $("cyclePrev").addEventListener("click", () => shiftCycle(-1));
+  $("cycleNext").addEventListener("click", () => shiftCycle(1));
 
+  loadStripScale();
   loadInputs();
   render();
 })();
