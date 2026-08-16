@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""SAS-Taper: geometric Suboxone (buprenorphine) film-taper calculator.
+"""SAS-Taper (save-a-sliver): geometric Suboxone (buprenorphine) film-taper calculator.
 
 Not medical advice. Bring the output to your prescriber.
 Saved slivers are a buffer, not extra daily dose.
+https://github.com/bhbmaster/SAS-Taper
 """
 
 from __future__ import annotations
@@ -25,12 +26,20 @@ MAX_CYCLES = 40
 CUT_WARN_MM = 1.0
 
 HOW_TO = """\
+SAS means save-a-sliver. Source: https://github.com/bhbmaster/SAS-Taper
+
 How to use this
   Site: open index.html in a browser. Inputs recalculate the schedule, cut marks,
   graphs, and totals. Print it for your prescriber before day 1.
   CLI:  python3 taper.py
         python3 taper.py --compare
         python3 taper.py --n 10 --no-switch-2mg
+
+Why save-a-sliver
+  The hard part is often the sense of getting less, not the milligrams. Each day's
+  remaining piece is framed as a complete strip — the dose you have. Surplus in
+  view is easier to use; once the sliver is saved, it is not part of today's dose.
+  The bank is a safety net, not extra daily supply.
 
 The method — every day of a cycle
   1. The current piece is the "whole strip" (cycle 1: a full 8 mg film).

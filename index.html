@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SAS-Taper — film schedule, cut marks, totals</title>
+  <title>SAS-Taper (save-a-sliver) — film schedule, cut marks, totals</title>
   <style>
     :root {
       --ink: #1c1917;
@@ -39,7 +39,22 @@
       margin: 0 0 0.25rem;
       letter-spacing: -0.02em;
     }
-    header.app p.lede { margin: 0; color: var(--muted); max-width: 46rem; }
+    header.app p.lede { margin: 0.35rem 0 0; color: var(--muted); max-width: 46rem; }
+    header.app .title-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    header.app .gh {
+      font-size: 0.92rem;
+      font-weight: 650;
+      color: var(--accent);
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+    header.app .gh:hover { border-bottom-color: var(--accent); }
     .howto h3 {
       font-size: 0.95rem;
       font-weight: 650;
@@ -49,6 +64,7 @@
       margin: 0.85rem 0 0.4rem;
     }
     .howto h3:first-child { margin-top: 0; }
+    .howto p { margin: 0.2rem 0 0.55rem; }
     .howto ol { margin: 0.2rem 0 0; padding-left: 1.3rem; }
     .howto li { margin: 0.38rem 0; }
     .howto .ritual {
@@ -257,6 +273,8 @@
     .notes ul { margin: 0.2rem 0 0; padding-left: 1.15rem; }
     .notes li { margin: 0.35rem 0; }
     .foot { color: var(--muted); font-size: 0.8rem; margin-top: 1.5rem; }
+    .foot a { color: var(--accent); font-weight: 650; text-decoration: none; }
+    .foot a:hover { text-decoration: underline; }
     @media print {
       body { background: #fff; }
       header.app { padding-top: 0; }
@@ -272,8 +290,11 @@
 </head>
 <body>
   <header class="app">
-    <h1>SAS-Taper</h1>
-    <p class="lede">Geometric film taper: each day cut 1/n off the current piece, save the sliver, take the rest. After n days the save jar holds one full piece — a buffer, not extra dose. Open this file in a browser; numbers update as you change the inputs.</p>
+    <div class="title-row">
+      <h1>SAS-Taper</h1>
+      <a class="gh" href="https://github.com/bhbmaster/SAS-Taper">GitHub: bhbmaster/SAS-Taper</a>
+    </div>
+    <p class="lede"><strong>SAS</strong> means <em>save-a-sliver</em>. Each day you cut 1/n off the current piece, save that sliver, and take the rest — treating what remains as a complete strip. After n days the save jar holds one full piece: a buffer, not extra dose. Open this file in a browser; numbers update as you change the inputs.</p>
   </header>
   <div class="wrap">
     <div class="banner">
@@ -283,6 +304,9 @@
 
     <section class="panel howto">
       <h2>How to use this</h2>
+
+      <h3>Why save-a-sliver</h3>
+      <p>The demanding part of a taper is often not the milligrams but the sense of getting less. SAS frames each day’s remaining piece as a whole strip — the dose you have — while the cut-off sliver leaves the ritual. People tend to work with what is in hand. Surplus that stays in view is easier to use; once the sliver is saved, it is no longer part of today’s dose. The bank is a safety net if you need to step back up, not a second supply for the same day.</p>
 
       <h3>The site</h3>
       <ol>
@@ -409,7 +433,7 @@
         <li>Bring this printout to your prescriber. A taper from 8 mg to 1–2 mg is a routine, well-supported goal, and they are the one who can write 2 mg films and match quantity to the ladder.</li>
       </ul>
     </section>
-    <p class="foot">SAS-Taper · local calculator, no network · same math as <code>taper.py</code></p>
+    <p class="foot">SAS-Taper (save-a-sliver) · <a href="https://github.com/bhbmaster/SAS-Taper">github.com/bhbmaster/SAS-Taper</a> · same math as <code>taper.py</code></p>
   </div>
 
 <script>
