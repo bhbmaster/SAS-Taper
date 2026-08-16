@@ -24,6 +24,27 @@ DEFAULT_MONTH_DAYS = 30
 MAX_CYCLES = 40
 CUT_WARN_MM = 1.0
 
+HOW_TO = """\
+How to use this
+  Site: open index.html in a browser. Inputs recalculate the schedule, cut marks,
+  graphs, and totals. Print it for your prescriber before day 1.
+  CLI:  python3 taper.py
+        python3 taper.py --compare
+        python3 taper.py --n 10 --no-switch-2mg
+
+The method — every day of a cycle
+  1. The current piece is the "whole strip" (cycle 1: a full 8 mg film).
+  2. Keep full width; cut along length only. Mark, then cut with a razor, not scissors.
+  3. Cut 1/n off the RIGHT end. SAVE that sliver. TAKE the long left piece. Once daily.
+  4. After n days the save jar holds one full piece — buffer, not extra dose.
+     If you eat the bank, the dose never drops.
+  5. Next cycle the new whole strip is dose × (1 − 1/n). Repeat to the target.
+
+If it gets rough: hold this dose another cycle (cravings matter most). Stretch the
+cycle to 8–9 days or switch n to 10 below 3 mg. When the sliver is under ~1 mm,
+switch to 2 mg films. Lock up saved pieces. Step the Rx quantity down with the dose.
+"""
+
 NOTES = """\
 Practical notes
 - Cut along one axis only. Keep the full width of the film and only shorten it.
@@ -402,6 +423,7 @@ def print_schedule(sched: ScheduleResult) -> None:
     print("SAS-Taper")
     print("Not medical advice. Calculator for a plan to take to your prescriber.")
     print()
+    print(HOW_TO)
     print(
         f"Start {sched.start_mg:g} mg  n={n}  "
         f"({100 / n:.1f}% cut, {n}-day cycles, keep {n - 1}/{n} = {r:.4f})"
@@ -416,9 +438,6 @@ def print_schedule(sched: ScheduleResult) -> None:
         f"Lifetime ceiling (fixed n, never stop): {sched.ceiling_mg:.0f} mg "
         f"({sched.ceiling_strips:.1f} strips of {sched.strip_mg:g} mg)."
     )
-    print()
-    print("Each day: cut 1/n off the current piece, save the sliver, take the rest.")
-    print("After n days the save jar holds one full piece — buffer, not extra dose.")
     print()
 
     headers = [

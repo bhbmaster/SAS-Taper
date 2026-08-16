@@ -40,6 +40,24 @@
       letter-spacing: -0.02em;
     }
     header.app p.lede { margin: 0; color: var(--muted); max-width: 46rem; }
+    .howto h3 {
+      font-size: 0.95rem;
+      font-weight: 650;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--ink);
+      margin: 0.85rem 0 0.4rem;
+    }
+    .howto h3:first-child { margin-top: 0; }
+    .howto ol { margin: 0.2rem 0 0; padding-left: 1.3rem; }
+    .howto li { margin: 0.38rem 0; }
+    .howto .ritual {
+      background: var(--accent-soft);
+      border-radius: 8px;
+      padding: 0.75rem 0.95rem;
+      margin: 0.7rem 0 0.2rem;
+    }
+    .howto .ritual ol { margin-top: 0.35rem; }
     .wrap { max-width: 1120px; margin: 0 auto; padding: 0 1.25rem 3rem; }
     .banner {
       background: var(--warn-soft);
@@ -248,19 +266,51 @@
       tbody tr.selected { background: var(--accent-soft); }
       button { display: none; }
       .chart { break-inside: avoid; }
+      .howto { break-inside: avoid; }
     }
   </style>
 </head>
 <body>
   <header class="app">
     <h1>SAS-Taper</h1>
-    <p class="lede">Geometric film taper: each day cut 1/n off the current piece, save the sliver, take the rest. After n days the save jar holds one full piece — a buffer, not extra dose.</p>
+    <p class="lede">Geometric film taper: each day cut 1/n off the current piece, save the sliver, take the rest. After n days the save jar holds one full piece — a buffer, not extra dose. Open this file in a browser; numbers update as you change the inputs.</p>
   </header>
   <div class="wrap">
     <div class="banner">
       <strong>Not medical advice.</strong>
       This is a calculator for a plan to take to your prescriber. Buprenorphine pieces are severely dangerous to children and pets — keep saved slivers locked up. Holding a cycle is allowed; cravings are the signal that matters most.
     </div>
+
+    <section class="panel howto">
+      <h2>How to use this</h2>
+
+      <h3>The site</h3>
+      <ol>
+        <li>Open <code>index.html</code> in any browser (double-click the file, or from this folder run the Python CLI with <code>python3 taper.py</code>).</li>
+        <li>Measure your film with a ruler along its <strong>length only</strong>. Put that number in “8 mg film length.” Default n = 6 (16.7% every 6 days). If you want a gentler taper, raise n to 8 or 10.</li>
+        <li>The cards, graphs, and schedule recalculate live. Click a cycle row (or a graph step) to see that day’s cut mark: <strong>TAKE on the left, SAVE on the right</strong>.</li>
+        <li>Print / save as PDF and take it to your prescriber <em>before day 1</em> so they can match quantity and write 2 mg films for the back half.</li>
+      </ol>
+
+      <div class="ritual">
+        <h3>The method — every day of a cycle</h3>
+        <ol>
+          <li>Start the cycle with a piece that is the current “whole strip” (cycle 1: a full 8 mg film).</li>
+          <li>Keep the full width. Cut only along the length. Mark, then cut with a fresh razor on a mat — not scissors.</li>
+          <li>Cut 1/n off the <strong>right</strong> end. That short sliver goes in the save container. Take the long left piece. Once daily is enough.</li>
+          <li>Do that for n days. The save jar now holds one full piece of this cycle’s size. That is a <strong>buffer / safety net, not extra daily dose</strong>. If you eat the bank, the dose never drops.</li>
+          <li>Next cycle, the leftover size is the new whole strip: dose × (1 − 1/n). Repeat until you hit the target (default 1 mg).</li>
+        </ol>
+      </div>
+
+      <h3>If it gets rough</h3>
+      <ol>
+        <li>Hold: stay at this cycle’s daily dose for another n days. Cravings, bad sleep, restlessness, sweats, or GI upset are data — especially cravings. Holding is not failure.</li>
+        <li>Optional hedges: stretch each cycle to 8–9 days (same 1/n cut, more settling time), or switch n to 10 once you are below 3 mg.</li>
+        <li>When the sliver is under ~1 mm, stop shaving 8 mg films. Switch to 2 mg films (on by default here around 2.2 mg) so the same cut is four times more precise.</li>
+        <li>Store saved pieces airtight, dry, separated by wax paper, and locked up. Ask the prescriber to step the monthly quantity down; return surplus via pharmacy take-back.</li>
+      </ol>
+    </section>
 
     <section class="panel">
       <h2>Inputs</h2>
