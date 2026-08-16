@@ -584,19 +584,18 @@
       margin: 0 0 0.8rem;
     }
     .cal-controls .k { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+    /* Each entry is one paragraph, not two stacked blocks: the term and its
+       description run inline inside a wrapper div, which HTML5 allows around a
+       dt/dd pair. The term is set apart by colour alone — bold made it read as
+       another heading, and the ink/muted contrast already does that job. */
     .inputdoc { margin: 0.5rem 0 0; }
-    .inputdoc dt {
-      font-weight: 650;
-      color: var(--ink);
-      margin-top: 0.7rem;
-      font-size: 0.92rem;
-    }
-    .inputdoc dt .def {
-      font-weight: 500;
-      color: var(--muted);
-      font-variant-numeric: tabular-nums;
-    }
-    .inputdoc dd { margin: 0.15rem 0 0; color: var(--muted); }
+    .inputdoc > div { margin: 0 0 0.4rem; }
+    .inputdoc dt,
+    .inputdoc dd { display: inline; }
+    .inputdoc dt { font-weight: 400; color: var(--ink); }
+    .inputdoc dt::after { content: " — "; color: var(--muted); }
+    .inputdoc dt .def { color: var(--muted); font-variant-numeric: tabular-nums; }
+    .inputdoc dd { margin: 0; color: var(--muted); }
     .cal-key { font-size: 0.75rem; color: var(--muted); margin: 0.6rem 0 0; }
     .cal-now {
       background: var(--accent-soft);
@@ -782,44 +781,19 @@
       <h3>What each input does</h3>
       <p>Defaults in brackets. Only the first three usually need touching; everything else has a sensible default.</p>
       <dl class="inputdoc">
-        <dt>Start dose (mg) <span class="def">[8]</span></dt>
-        <dd>What you take daily now, before the taper begins. Day 1 cuts this dose out of one whole film, so it also decides which film strength the plan is built on — 2, 4, 8 or 12 mg, whichever is the smallest that holds it.</dd>
-
-        <dt>n (days &amp; cut) <span class="def">[6]</span></dt>
-        <dd>Does two jobs at once, which is the whole trick: you cut <strong>1/n</strong> off the piece each day, <em>and</em> each cycle lasts <strong>n</strong> days. After n days the saved slivers add up to one whole piece. n = 6 drops 16.7% per cycle; n = 8 drops 12.5%; n = 10 drops 10%. Bigger n means a gentler, slower taper.</dd>
-
-        <dt>Start film length (mm) <span class="def">[22]</span></dt>
-        <dd>Measure your own film along the side you will cut and put that number here. All four Suboxone strengths are 22 mm on that side, so the default is usually right — measure anyway, since every cut mark on the page is derived from it.</dd>
-
-        <dt>2 mg film length (mm) <span class="def">[22]</span></dt>
-        <dd>The same measurement for the 2 mg film, used after the switch. Ignored if you turn the switch off.</dd>
-
-        <dt>Target (mg/day) <span class="def">[1]</span></dt>
-        <dd>Where the ladder stops. The run ends on the first cycle at or below this dose. Must be lower than the start dose.</dd>
-
-        <dt>Strip strength (mg) <span class="def">[8]</span></dt>
-        <dd>The strength of one film as dispensed. Used only to convert milligrams into “how many strips”, for the totals and the prescription-quantity table. It does not change the ladder.</dd>
-
-        <dt>Hold / stretch days <span class="def">[blank = same as n]</span></dt>
-        <dd>Makes every cycle longer without changing the size of the cut. Set 9 with n = 6 and you still cut 1/6, but hold each dose for 9 days instead of 6 — the same taper, more settling time between drops.</dd>
-
-        <dt>n below 3 mg <span class="def">[blank = off]</span></dt>
-        <dd>Switches to a different n once the strip you are cutting from drops under 3 mg, where the same percentage is a much smaller piece of film. Setting 10 here makes the back half drop 10% per cycle instead of 16.7%.</dd>
-
-        <dt>Your cutting tolerance (mm) <span class="def">[0.5]</span></dt>
-        <dd>How accurately you can actually cut — half a millimetre is realistic with a razor and a steel ruler. Feeds the “cutting error vs the step” graph only; it never changes the schedule. Set it to 0 to hide that graph.</dd>
-
-        <dt>Half-life for the lag curve (h) <span class="def">[32]</span></dt>
-        <dd>Buprenorphine's half-life, usually quoted as 24–42 hours. Draws the dashed lag curve on the first graph and nothing else. Set it to 0 to hide the curve.</dd>
-
-        <dt>Day 1 date <span class="def">[blank = no calendar]</span></dt>
-        <dd>The date you plan to start. Fills in the Calendar panel with real dates and marks today, so you can see which cycle you are on. Leave blank and the plan stays in day numbers.</dd>
-
-        <dt>Switch to 2 mg films at or below 2.25 mg <span class="def">[on]</span></dt>
-        <dd>When the strip you cut from reaches 2.25 mg, restart on a 2 mg film. A 2 mg film is a quarter the density, so the same dose is four times longer and the same cut is four times more forgiving. Turn it off to stay on one strength the whole way.</dd>
-
-        <dt>Show n = 6 / 8 / 10 comparison <span class="def">[on]</span></dt>
-        <dd>Adds the panel and graph comparing three taper speeds side by side, so you can see what slowing down costs in time and total medication.</dd>
+        <div><dt>Start dose (mg) <span class="def">[8]</span></dt><dd>What you take daily now, before the taper begins. Day 1 cuts this dose out of one whole film, so it also decides which film strength the plan is built on — 2, 4, 8 or 12 mg, whichever is the smallest that holds it.</dd></div>
+        <div><dt>n (days &amp; cut) <span class="def">[6]</span></dt><dd>Does two jobs at once, which is the whole trick: you cut <strong>1/n</strong> off the piece each day, <em>and</em> each cycle lasts <strong>n</strong> days. After n days the saved slivers add up to one whole piece. n = 6 drops 16.7% per cycle; n = 8 drops 12.5%; n = 10 drops 10%. Bigger n means a gentler, slower taper.</dd></div>
+        <div><dt>Start film length (mm) <span class="def">[22]</span></dt><dd>Measure your own film along the side you will cut and put that number here. All four Suboxone strengths are 22 mm on that side, so the default is usually right — measure anyway, since every cut mark on the page is derived from it.</dd></div>
+        <div><dt>2 mg film length (mm) <span class="def">[22]</span></dt><dd>The same measurement for the 2 mg film, used after the switch. Ignored if you turn the switch off.</dd></div>
+        <div><dt>Target (mg/day) <span class="def">[1]</span></dt><dd>Where the ladder stops. The run ends on the first cycle at or below this dose. Must be lower than the start dose.</dd></div>
+        <div><dt>Strip strength (mg) <span class="def">[8]</span></dt><dd>The strength of one film as dispensed. Used only to convert milligrams into “how many strips”, for the totals and the prescription-quantity table. It does not change the ladder.</dd></div>
+        <div><dt>Hold / stretch days <span class="def">[blank = same as n]</span></dt><dd>Makes every cycle longer without changing the size of the cut. Set 9 with n = 6 and you still cut 1/6, but hold each dose for 9 days instead of 6 — the same taper, more settling time between drops.</dd></div>
+        <div><dt>n below 3 mg <span class="def">[blank = off]</span></dt><dd>Switches to a different n once the strip you are cutting from drops under 3 mg, where the same percentage is a much smaller piece of film. Setting 10 here makes the back half drop 10% per cycle instead of 16.7%.</dd></div>
+        <div><dt>Your cutting tolerance (mm) <span class="def">[0.5]</span></dt><dd>How accurately you can actually cut — half a millimetre is realistic with a razor and a steel ruler. Feeds the “cutting error vs the step” graph only; it never changes the schedule. Set it to 0 to hide that graph.</dd></div>
+        <div><dt>Half-life for the lag curve (h) <span class="def">[32]</span></dt><dd>Buprenorphine's half-life, usually quoted as 24–42 hours. Draws the dashed lag curve on the first graph and nothing else. Set it to 0 to hide the curve.</dd></div>
+        <div><dt>Day 1 date <span class="def">[blank = no calendar]</span></dt><dd>The date you plan to start. Fills in the Calendar panel with real dates and marks today, so you can see which cycle you are on. Leave blank and the plan stays in day numbers.</dd></div>
+        <div><dt>Switch to 2 mg films at or below 2.25 mg <span class="def">[on]</span></dt><dd>When the strip you cut from reaches 2.25 mg, restart on a 2 mg film. A 2 mg film is a quarter the density, so the same dose is four times longer and the same cut is four times more forgiving. Turn it off to stay on one strength the whole way.</dd></div>
+        <div><dt>Show n = 6 / 8 / 10 comparison <span class="def">[on]</span></dt><dd>Adds the panel and graph comparing three taper speeds side by side, so you can see what slowing down costs in time and total medication.</dd></div>
       </dl>
 
       <h3>Limitation — film strengths</h3>
