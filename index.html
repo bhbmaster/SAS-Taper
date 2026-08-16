@@ -343,6 +343,26 @@
     .ticks span.end { left: 100%; transform: translateX(-100%); }
     .ticks span.cut { color: var(--warn); font-weight: 700; }
     .ticks span.piece { color: var(--ink); font-weight: 650; }
+    /* Under ~640px the four tick captions cannot all sit over the points they
+       label without colliding. Below that they become a plain wrapped row —
+       still in left-to-right bar order, just no longer pinned. pinRulerTick-
+       Labels() detects this mode and clears the inline offsets it would set. */
+    @media (max-width: 640px) {
+      .ticks {
+        position: static;
+        height: auto;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.1rem 0.85rem;
+      }
+      .ticks span,
+      .ticks span.start,
+      .ticks span.end {
+        position: static;
+        left: auto;
+        transform: none;
+      }
+    }
     .scale-row {
       display: flex;
       flex-wrap: wrap;
@@ -350,16 +370,22 @@
       gap: 0.7rem 1.1rem;
       margin: 0.55rem 0 0.7rem;
     }
+    /* flex-basis, not min-width: 0. With min-width: 0 the label box could
+       shrink below the slider + percentage it contains, and that content then
+       overflowed on top of the Reset button (any viewport under ~820px). A
+       basis lets the label claim its own row instead, and wrapping inside the
+       label drops the slider under the caption when even that is too narrow. */
     .scale-row label {
+      flex: 1 1 18rem;
       flex-direction: row;
+      flex-wrap: wrap;
       align-items: center;
-      gap: 0.55rem;
+      gap: 0.5rem 0.55rem;
       font-size: 0.88rem;
       color: var(--ink);
-      min-width: 0;
-      flex: 1;
     }
-    .scale-row input[type="range"] { flex: 1; min-width: 140px; accent-color: var(--accent); }
+    .scale-row label span.k { white-space: nowrap; }
+    .scale-row input[type="range"] { flex: 1 1 7rem; min-width: 6rem; accent-color: var(--accent); }
     .scale-row .pct { font-variant-numeric: tabular-nums; font-weight: 650; min-width: 3.2rem; }
     .cal-wrap {
       display: flex;
@@ -452,8 +478,9 @@
     }
     .strip-dims {
       display: flex;
+      flex-wrap: wrap;
       justify-content: space-between;
-      gap: 0.5rem;
+      gap: 0.15rem 0.8rem;
       font-size: 0.78rem;
       color: var(--muted);
       margin-top: 0.45rem;
@@ -1221,9 +1248,9 @@
         ? `The hashed end is the rest of that original Suboxone — already reduced in earlier cycles (${fmt(ghostMm, 1)} mm / ${fmt(ghostMg, 2)} mg). If you start from a fresh strip, trim that end first and bank it. It is extra buffer, not extra daily dose.`
         : `Cycle 1 uses the whole unused strip, so there is no leftover from earlier cuts.`}</p>
       <div class="film${hasGhost ? " has-rest" : ""}" title="Full unused film; cut along length only">
-        <div class="keep" style="width:${takePct}%">${takeLabel}</div>
-        <div class="sliver" style="width:${savePct}%">${saveLabel}</div>
-        ${hasGhost ? `<div class="rest" style="width:${ghostPct}%">${restLabel}</div>` : ""}
+        <div class="keep" data-short="TAKE" style="width:${takePct}%">${takeLabel}</div>
+        <div class="sliver" data-short="SAVE" style="width:${savePct}%">${saveLabel}</div>
+        ${hasGhost ? `<div class="rest" data-short="already off" style="width:${ghostPct}%">${restLabel}</div>` : ""}
         <div class="film-cut" style="left:${takePct}%"></div>
       </div>
       <div class="ticks">
@@ -1239,23 +1266,65 @@
       </div>
       <p class="legend">Take the long left end. Save the short sliver as buffer — do not swallow it as extra daily dose. Do not measure today’s cut from the right of the original film; measure from the right of the piece in hand.</p>
     `;
+    fitBandLabels($("ruler"));
     pinRulerTickLabels();
+  }
+
+  /* The label tiers above are chosen by percentage of the bar, but whether a
+     word fits is a pixel question: an 8% sliver is ~75px on a desktop and ~25px
+     on a phone, where "SAVE" gets sliced in half. Step each band down to its
+     short form, then to nothing, rather than showing a clipped word. */
+  function fitBandLabels(scope) {
+    scope.querySelectorAll("[data-short]").forEach((band) => {
+      const fits = () => band.scrollWidth <= band.clientWidth + 1;
+      if (!band.textContent.trim() || fits()) return;
+      const short = band.getAttribute("data-short");
+      if (short && band.textContent.trim() !== short) {
+        band.textContent = short;
+        if (fits()) return;
+      }
+      band.textContent = "";
+    });
   }
 
   function pinRulerTickLabels() {
     const box = $("ruler").querySelector(".ticks");
     if (!box) return;
+    const all = [...box.querySelectorAll("span")];
+    all.forEach((el) => { el.style.display = ""; });
+
+    /* Narrow viewports lay the ticks out as a wrapped row (see the 640px media
+       query). Clear anything a wider layout pinned, and let flow handle it. */
+    if (getComputedStyle(box).position === "static") {
+      all.forEach((el) => { el.style.left = ""; el.style.transform = ""; });
+      return;
+    }
+
     const W = box.getBoundingClientRect().width;
     if (!W) return;
+    const GAP = 6;
+    /* "0" and "22.0 mm unused" are pinned to the ends by CSS, so they are
+       obstacles, not candidates — leaving them out of the collision pass is
+       what let the middle captions slide underneath them. */
+    const startEl = box.querySelector("span.start");
+    const endEl = box.querySelector("span.end");
+    const loBound = startEl ? startEl.offsetWidth + GAP : 0;
+    const hiBound = W - (endEl ? endEl.offsetWidth + GAP : 0);
+
     const placed = [];
     box.querySelectorAll("[data-left]").forEach((el) => {
       const pct = parseFloat(el.getAttribute("data-left"));
       const w = el.offsetWidth;
       if (!Number.isFinite(pct) || !w) return;
-      let left = Math.max(0, Math.min((pct / 100) * W - w / 2, Math.max(0, W - w)));
-      placed.forEach((prev) => {
-        if (left < prev.right + 6) left = Math.min(prev.right + 6, Math.max(0, W - w));
-      });
+      const lo = placed.reduce((acc, p) => Math.max(acc, p.right + GAP), loBound);
+      const hi = hiBound - w;
+      if (hi < lo) {
+        /* No gap wide enough. Dropping the caption beats printing it on top of
+           its neighbour; the same numbers are in the row below the bar. */
+        el.style.display = "none";
+        return;
+      }
+      const left = Math.max(lo, Math.min((pct / 100) * W - w / 2, hi));
       el.style.left = left + "px";
       el.style.transform = "none";
       placed.push({ left, right: left + w });
@@ -1350,9 +1419,9 @@
       </p>
       <div class="strip-draw">
       <div class="strip-full${hasGhost ? "" : " is-full"}" style="width:${w}${CSS_MM};height:${h}${CSS_MM}">
-        <div class="take" style="width:${takePct}%">${showInner ? "TAKE" : ""}</div>
-        <div class="save" style="width:${savePct}%">${showInner && savePct > 10 ? "SAVE" : ""}</div>
-        ${hasGhost ? `<div class="strip-ghost" style="width:${ghostPct}%">${ghostLabel}</div>` : ""}
+        <div class="take" data-short="" style="width:${takePct}%">${showInner ? "TAKE" : ""}</div>
+        <div class="save" data-short="" style="width:${savePct}%">${showInner && savePct > 10 ? "SAVE" : ""}</div>
+        ${hasGhost ? `<div class="strip-ghost" data-short="" style="width:${ghostPct}%">${ghostLabel}</div>` : ""}
         <div class="strip-cut" style="left:${takePct}%"></div>
         <div class="strip-cut-label">today’s cut · ${fmt(saveMm, 2)} mm</div>
       </div>
@@ -1366,6 +1435,7 @@
         ? `The dashed outline is a full unused ${spec.label} film. The empty end was already reduced in earlier cycles. If you start from a fresh strip, trim that end first and save it — it is extra bank, not extra daily dose. Today’s cut is still 1/${row.n} of the <em>current</em> piece: mark <strong>${fmt(saveMm, 2)} mm from the right of that piece</strong> (the TAKE/SAVE line).`
         : `Mark <strong>${fmt(saveMm, 2)} mm from the right end</strong>, then cut straight across the ${fmt(widthMm, 1)} mm width. Cycle 1 uses the full unused film.`}</p>
     `;
+    fitBandLabels($("stripViz"));
     pinStripCutLabel(takePct);
   }
 
@@ -1759,6 +1829,19 @@
 
   $("form").addEventListener("input", () => { selectedCycle = 1; render(); });
   $("form").addEventListener("change", () => render());
+
+  /* Both rulers are positioned from measured pixel widths, so a rotation or a
+     window resize leaves those offsets describing the old width — and the tick
+     row switches between pinned and wrapped layout at 640px. Recompute both. */
+  let resizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (!lastSched) return;
+      renderRuler(lastSched);
+      renderStripViz(lastSched);
+    }, 120);
+  });
   $("printBtn").addEventListener("click", () => window.print());
   $("themeBtn").addEventListener("click", () => {
     applyTheme(currentTheme() === "light" ? "dark" : "light", true);
