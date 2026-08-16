@@ -65,6 +65,7 @@
       --series-keep: #2dd4bf;
       --series-keep-soft: #1c5b52;
       --series-warn: #fb923c;
+      --series-level: #9fb4d8;
       --stage: #191614;
       --gone-bg: #221e1a;
       --gone-hatch: #3a342e;
@@ -104,6 +105,7 @@
       --series-keep: #5eead4;
       --series-keep-soft: #99f6e4;
       --series-warn: #fb923c;
+      --series-level: #4a5f85;
       --stage: #faf8f4;
       --gone-bg: #faf8f4;
       --gone-hatch: #e7e5e4;
@@ -603,6 +605,7 @@
         --plot-band: #d7efe9;
         --series-keep: #5eead4;
         --series-keep-soft: #99f6e4;
+        --series-level: #4a5f85;
         --stage: #ffffff;
         --gone-bg: #ffffff;
         --gone-hatch: #e7e5e4;
@@ -705,6 +708,9 @@
         </label>
         <label><span class="k">Your cutting tolerance (mm)</span>
           <input type="number" id="cutTolMm" min="0" max="5" step="0.1" value="0.5">
+        </label>
+        <label><span class="k">Half-life for the lag curve (h)</span>
+          <input type="number" id="halfLifeH" min="0" max="80" step="1" value="32" placeholder="0 = hide">
         </label>
         <div class="checks">
           <label><input type="checkbox" id="switch2" checked> Switch to 2 mg films at or below 2.25 mg</label>
@@ -947,6 +953,7 @@
     fix("stripMg", "Strip strength", 0.1, 64);
     fix("targetMg", "Target", 0, 64);
     fix("cutTolMm", "Cutting tolerance", 0, 5);
+    fix("halfLifeH", "Half-life", 0, 80);
     /* target >= start is the trigger for the compare table printing the string
        "undefined": stop-mode "above" yields zero rows, fillSummary bails, and
        compareClassic reads an endDay that was never assigned. */
@@ -1167,7 +1174,8 @@
       nBelow3: intOrNull("nBelow3"),
       /* Display only — buildSchedule ignores it, so it cannot move the ladder
          or break parity with taper.py. It only scales the cut-error chart. */
-      cutTolMm: num("cutTolMm", 0.5)
+      cutTolMm: num("cutTolMm", 0.5),
+      halfLifeH: num("halfLifeH", 32)
     };
     lastClampNotes = clampOpts(o);
     return o;
@@ -1559,7 +1567,8 @@
       warnBar: get("--series-warn", "#fb923c"),
       switch: get("--switch", "#1d4ed8"),
       keep: get("--series-keep", "#5eead4"),
-      keepSoft: get("--series-keep-soft", "#99f6e4")
+      keepSoft: get("--series-keep-soft", "#99f6e4"),
+      level: get("--series-level", "#4a5f85")
     };
   }
 
@@ -1592,7 +1601,35 @@
     return out;
   }
 
-  function doseOverTimeChart(s) {
+  /* Why a step down is not felt on the day it happens.
+     One-compartment, once-daily accumulation: level = level·e^(−k·24) + dose.
+     The level is then expressed as the steady dose that would produce it
+     (× 1 − e^(−k·24)), which puts it on the same mg axis as the ladder — so the
+     curve can be read against the steps directly. Deliberately NOT plasma
+     concentration: this is a shape, not a measurement, and absolute units would
+     invite reading it as one. Returns one point per day. */
+  function lagSeries(rows, halfLifeH, startMg) {
+    if (!(halfLifeH > 0) || !rows.length) return [];
+    const k = Math.LN2 / halfLifeH;
+    const decay = Math.exp(-k * 24);
+    const toDose = 1 - decay;
+    /* Day 0 is already steady on the pre-taper dose — someone starting a taper
+       is not starting the drug. Seeding at zero drew a loading ramp through the
+       first cycle that nobody in this situation experiences. */
+    const out = [{ day: 0, eff: startMg, dose: startMg }];
+    let level = startMg / toDose;
+    let day = 0;
+    for (const r of rows) {
+      for (let i = 0; i < r.days; i++) {
+        level = level * decay + r.dailyMg;
+        day += 1;
+        out.push({ day, eff: level * toDose, dose: r.dailyMg });
+      }
+    }
+    return out;
+  }
+
+  function doseOverTimeChart(s, opts) {
     const box = plotBox();
     const { W, H, L, R, T, B } = box;
     const iw = W - L - R, ih = H - T - B;
@@ -1622,12 +1659,39 @@
       inner += `<line x1="${L}" y1="${yS(1)}" x2="${W - R}" y2="${yS(1)}" stroke="${C.warn}" stroke-dasharray="4 3" />`;
       inner += `<text x="${W - R - 2}" y="${yS(1) - 4}" text-anchor="end" font-size="10" fill="${C.warn}">1 mg</text>`;
     }
+    const lag = lagSeries(s.rows, opts && opts.halfLifeH, s.startMg);
+    if (lag.length) {
+      let lp = "";
+      lag.forEach((pt, i) => {
+        lp += `${i === 0 ? "M" : "L"} ${xS(pt.day)} ${yS(Math.min(pt.eff, ymax))}`;
+      });
+      inner += `<path d="${lp}" fill="none" stroke="${C.level}" stroke-width="1.6" stroke-dasharray="3 3" opacity="0.95"/>`;
+    }
     inner += `<path d="${path}" fill="none" stroke="${C.accent}" stroke-width="2.2" stroke-linejoin="round"/>`;
     for (const r of s.rows) {
       inner += `<circle data-cycle="${r.cycle}" cx="${xS(r.dayEnd)}" cy="${yS(r.dailyMg)}" r="${r.cycle === selectedCycle ? 4.5 : 3}" fill="${r.switched2mg ? C.switch : C.accent}"/>`;
     }
     inner += "</svg>";
-    return svgFrame("Daily dose over time", "Step hold at each cycle, then a drop. Blue dot = 2 mg film restart.", inner);
+
+    let cap = "Step hold at each cycle, then a drop. Blue dot = 2 mg film restart.";
+    if (lag.length) {
+      /* Quote the real gap on the first day of the second cycle — the point the
+         practical notes are describing when they say a drop is not felt for
+         days. */
+      const c2 = s.rows[1];
+      const first = c2 ? lag.find((pt) => pt.day === c2.dayStart) : null;
+      const last = c2 ? lag.find((pt) => pt.day === c2.dayEnd) : null;
+      cap += ` The dashed line is where your exposure actually sits, lagging behind`
+        + ` the ladder at a ${fmtG(opts.halfLifeH)} h half-life.`;
+      if (first && last) {
+        cap += ` On day ${first.day} you are still carrying ${fmt(first.eff - first.dose, 2)} mg`
+          + ` more than the new dose; by day ${last.day} that is ${fmt(last.eff - last.dose, 2)} mg.`
+          + ` That is why a drop is not felt on the day you make it.`;
+      }
+      cap += ` Illustration of the lag only — a shape, not a prediction of anyone's blood levels,`
+        + ` which vary widely. Set the half-life to 0 to hide it.`;
+    }
+    return svgFrame("Daily dose over time", cap, inner);
   }
 
   function doseLadderChart(s) {
@@ -1860,7 +1924,7 @@
   function renderCharts(s, opts) {
     readChartPalette();
     $("charts").innerHTML = [
-      doseOverTimeChart(s),
+      doseOverTimeChart(s, opts),
       doseLadderChart(s),
       compareOverlayChart(opts),
       cumulativeChart(s),
