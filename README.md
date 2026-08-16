@@ -4,7 +4,8 @@
 
 A geometric buprenorphine (Suboxone) film-taper calculator. **Not medical advice.** Bring the schedule to your prescriber before day 1.
 
-Source: [github.com/bhbmaster/SAS-Taper](https://github.com/bhbmaster/SAS-Taper)
+Source: [github.com/bhbmaster/SAS-Taper](https://github.com/bhbmaster/SAS-Taper)  
+Live site: [bhbmaster.github.io/SAS-Taper](https://bhbmaster.github.io/SAS-Taper/)
 
 Each day you cut `1/n` off the current piece, **save** the short right sliver, and **take** the long left piece. After `n` days the save jar holds one full piece — a buffer, not extra daily dose. Next cycle the new “whole strip” is `dose × (1 − 1/n)`.
 
@@ -18,7 +19,7 @@ People tend to work with what is in hand. Surplus that stays in view is easier t
 
 ## Site
 
-Open `index.html` in a browser, or use the GitHub Pages site if enabled. Measure your film **length only**, put that in the inputs, and the schedule / cut marks / graphs update live. Click a cycle for that day’s ruler (TAKE left, SAVE right). Print it for your prescriber.
+Open the calculator at **[bhbmaster.github.io/SAS-Taper](https://bhbmaster.github.io/SAS-Taper/)**, or open `index.html` in a browser. Measure your film **length only**, put that in the inputs, and the schedule / cut marks / graphs update live. Click a cycle for that day’s ruler (TAKE left, SAVE right). Print it for your prescriber.
 
 ## CLI
 
