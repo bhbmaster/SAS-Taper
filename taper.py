@@ -136,9 +136,8 @@ Practical notes
 Bring this to your prescriber. A taper from 8 mg to 1–2 mg is a routine goal;
 they are the one who can write 2 mg films and match the quantity to the ladder.
 
-Strictly unofficially, the method is Sub-minning: same energy as looksmaxing,
-except the stat you are grinding down is Suboxone. The one leaderboard where
-the lowest score wins.
+Strictly unofficially, the method can be called SAS-Sub-minning — the stat you
+are grinding down is Suboxone.
 """
 
 
