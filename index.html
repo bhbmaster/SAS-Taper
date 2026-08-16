@@ -703,6 +703,9 @@
         <label><span class="k">n below 3 mg</span>
           <input type="number" id="nBelow3" min="0" step="1" placeholder="blank = off">
         </label>
+        <label><span class="k">Your cutting tolerance (mm)</span>
+          <input type="number" id="cutTolMm" min="0" max="5" step="0.1" value="0.5">
+        </label>
         <div class="checks">
           <label><input type="checkbox" id="switch2" checked> Switch to 2 mg films at or below 2.25 mg</label>
           <label><input type="checkbox" id="showCompare" checked> Show n = 6 / 8 / 10 comparison</label>
@@ -943,6 +946,7 @@
     fix("film2Mm", "2 mg film length", 1, 200);
     fix("stripMg", "Strip strength", 0.1, 64);
     fix("targetMg", "Target", 0, 64);
+    fix("cutTolMm", "Cutting tolerance", 0, 5);
     /* target >= start is the trigger for the compare table printing the string
        "undefined": stop-mode "above" yields zero rows, fillSummary bails, and
        compareClassic reads an endDay that was never assigned. */
@@ -1160,7 +1164,10 @@
       stripMg: num("stripMg", 8),
       switch2mg: $("switch2").checked,
       holdDays: intOrNull("holdDays"),
-      nBelow3: intOrNull("nBelow3")
+      nBelow3: intOrNull("nBelow3"),
+      /* Display only — buildSchedule ignores it, so it cannot move the ladder
+         or break parity with taper.py. It only scales the cut-error chart. */
+      cutTolMm: num("cutTolMm", 0.5)
     };
     lastClampNotes = clampOpts(o);
     return o;
@@ -1737,7 +1744,65 @@
       inner += `<rect data-cycle="${r.cycle}" x="${x}" y="${y}" width="${w}" height="${Math.max(h, 0)}" fill="${r.cutWarn ? C.warnBar : (r.cycle === selectedCycle ? C.accent : C.keepSoft)}" stroke="${r.switched2mg ? C.switch : C.keep}"/>`;
     });
     inner += "</svg>";
-    return svgFrame("Cut sliver length", "Below the 1 mm line, cutting error rivals the dose change. Switch film strength before that.", inner);
+    return svgFrame("Cut sliver length", "How much film you are shaving off each day. Under 1 mm you are at the limit of what a razor and ruler resolve.", inner);
+  }
+
+  /* The chart above says how thin the sliver gets; this one says whether that
+     matters. A hand-cut error is a fixed number of millimetres, so on a fixed
+     film it is a fixed number of milligrams — while the step you are trying to
+     take shrinks every cycle. Once the error passes 100% of the step you are
+     no longer tapering, you are adding noise. This is the whole argument for
+     moving to 2 mg film: a quarter the density is a quarter the error. */
+  function cutErrorChart(s, opts) {
+    const tol = Number.isFinite(opts.cutTolMm) ? opts.cutTolMm : 0.5;
+    const pts = [];
+    let prev = null;
+    s.rows.forEach((r) => {
+      const step = prev == null ? null : prev - r.dailyMg;
+      if (step != null && step > 1e-9) {
+        pts.push({ cycle: r.cycle, pct: (tol * (r.filmMg / 22)) / step * 100, row: r });
+      }
+      prev = r.dailyMg;
+    });
+    if (tol <= 0 || !pts.length) return "";
+
+    const box = plotBox();
+    const { W, H, L, R, T, B } = box;
+    const iw = W - L - R, ih = H - T - B;
+    const n = pts.length;
+    const ymax = Math.max(120, Math.ceil(Math.max(...pts.map((p) => p.pct)) / 20) * 20);
+    const barW = iw / n;
+    const yS = (v) => T + (1 - Math.min(v, ymax) / ymax) * ih;
+    const xS = (i) => L + (i + 0.5) * barW;
+    const xTicks = pts.filter((_, i) => n <= 12 || i % 2 === 0 || i === n - 1).map((p) => p.cycle);
+    const xTickScale = (c) => xS(pts.findIndex((p) => p.cycle === c));
+
+    let inner = svgOpen(box);
+    inner += gridAndAxes(box, xTicks, evenTicks(ymax, 4), xTickScale, yS, "Cycle", "Error ÷ step (%)");
+    const y100 = yS(100);
+    inner += `<line x1="${L}" y1="${y100}" x2="${W - R}" y2="${y100}" stroke="${C.warn}" stroke-dasharray="4 3"/>`;
+    inner += `<text x="${W - R - 2}" y="${y100 - 4}" text-anchor="end" font-size="10" fill="${C.warn}">error = the whole step</text>`;
+    pts.forEach((p, i) => {
+      const x = L + i * barW + barW * 0.12;
+      const w = barW * 0.76;
+      const y = yS(p.pct);
+      const over = p.pct >= 100;
+      const fill = over ? C.warnBar : (p.cycle === selectedCycle ? C.accent : C.keepSoft);
+      inner += `<rect data-cycle="${p.cycle}" x="${x}" y="${y}" width="${w}" height="${Math.max(yS(0) - y, 0)}" fill="${fill}" stroke="${p.row.switched2mg ? C.switch : C.keep}"/>`;
+    });
+    inner += "</svg>";
+
+    const worst = pts.reduce((a, p) => (p.pct > a.pct ? p : a), pts[0]);
+    const blown = pts.filter((p) => p.pct >= 100);
+    const verdict = blown.length
+      ? `From cycle ${blown[0].cycle} the error is bigger than the drop — that part of the ladder is guesswork. Switch to 2 mg film, cut more carefully, or stop higher.`
+      : `Worst case is cycle ${worst.cycle} at ${fmt(worst.pct, 0)}% — every step stays bigger than the error.`;
+    return svgFrame(
+      "Cutting error vs the step you are taking",
+      `A ±${fmtG(tol)} mm slip is ±${fmt(tol * (s.baseFilmMg / 22), 3)} mg on ${fmtG(s.baseFilmMg)} mg film, ` +
+      `but only ±${fmt(tol * (2 / 22), 3)} mg on 2 mg film. ${verdict}`,
+      inner
+    );
   }
 
   function rxMonthChart(s) {
@@ -1800,6 +1865,7 @@
       compareOverlayChart(opts),
       cumulativeChart(s),
       cutPrecisionChart(s),
+      cutErrorChart(s, opts),
       rxMonthChart(s),
       pieceLadderChart(s)
     ].join("");
