@@ -203,6 +203,7 @@
       overflow: hidden;
       background: #fff;
     }
+    .film.has-rest { border-style: dashed; }
     .film .sliver {
       background: repeating-linear-gradient(-45deg, #fdba74, #fdba74 6px, #ffedd5 6px, #ffedd5 12px);
       display: flex; align-items: center; justify-content: center;
@@ -217,12 +218,36 @@
       font-size: 0.78rem; font-weight: 700; color: #134e4a;
       overflow: hidden;
       text-align: center;
+      min-width: 0;
     }
-    .ticks { position: relative; height: 1.4rem; margin-top: 0.15rem; font-size: 0.75rem; color: var(--muted); }
-    .ticks span { position: absolute; transform: translateX(-50%); }
+    .film .rest {
+      background-color: #faf8f4;
+      background-image: repeating-linear-gradient(90deg, transparent 0 4px, #e7e5e4 4px 5px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: #78716c;
+      overflow: hidden;
+      text-align: center;
+      min-width: 0;
+      border-left: 1px dashed #a8a29e;
+    }
+    .film-cut {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 0;
+      border-left: 2px dashed var(--warn);
+      pointer-events: none;
+    }
+    .ticks { position: relative; height: 1.55rem; margin-top: 0.15rem; font-size: 0.75rem; color: var(--muted); }
+    .ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
     .ticks span.start { left: 0; transform: none; }
     .ticks span.end { left: 100%; transform: translateX(-100%); }
     .ticks span.cut { color: var(--warn); font-weight: 700; }
+    .ticks span.piece { color: var(--ink); font-weight: 650; }
     .scale-row {
       display: flex;
       flex-wrap: wrap;
@@ -258,7 +283,7 @@
     .cal-wrap span { font-size: 0.78rem; color: var(--muted); }
     .strip-stage {
       overflow-x: auto;
-      padding: 1.15rem 0.2rem 0.4rem;
+      padding: 0.15rem 0.2rem 0.4rem;
     }
     .strip-life {
       position: relative;
@@ -321,13 +346,14 @@
     }
     .strip-cut-label {
       position: absolute;
-      top: -1.05rem;
+      top: -1.2rem;
       left: 0;
       font-size: 0.7rem;
       font-weight: 700;
       color: var(--warn);
       white-space: nowrap;
       pointer-events: none;
+      line-height: 1.2rem;
     }
     .strip-dims {
       display: flex;
@@ -341,7 +367,10 @@
     .strip-side {
       font-size: 0.75rem;
       color: var(--muted);
-      margin: 0.15rem 0 0;
+      margin: 0.15rem 0 0.2rem;
+    }
+    .strip-draw {
+      padding-top: 1.3rem;
     }
     .dim-table { font-size: 0.84rem; margin-top: 0.7rem; }
     .dim-table th, .dim-table td { text-align: left; }
@@ -441,7 +470,7 @@
       <ol>
         <li>Open <code>index.html</code> in any browser (double-click the file, or from this folder run the Python CLI with <code>python3 taper.py</code>).</li>
         <li>Measure your film with a ruler along its <strong>length only</strong>. Put that number in “8 mg film length.” Default n = 6 (16.7% every 6 days). If you want a gentler taper, raise n to 8 or 10.</li>
-        <li>The cards, graphs, and schedule recalculate live. Click a cycle row (or a graph step) to see that day’s cut mark and a life-size film: <strong>TAKE on the left, SAVE on the right</strong>.</li>
+        <li>The cards, graphs, and schedule recalculate live. Click a cycle row (or a graph step) to see that day’s cut mark and a life-size film: <strong>TAKE on the left, SAVE on the right</strong>. The cut-mark bar is a full unused film; later cycles hash the rest that is already off.</li>
         <li>Print / save as PDF and take it to your prescriber <em>before day 1</em> so they can match quantity and write 2 mg films for the back half.</li>
       </ol>
 
@@ -968,28 +997,70 @@
       $("ruler").innerHTML = "<p>No cycles.</p>";
       return;
     }
-    const sliverPct = Math.max(8, (row.cutMm / row.pieceMm) * 100);
-    const keepPct = 100 - sliverPct;
-    const keepMm = row.pieceMm - row.cutMm;
+    const fullMm = row.filmMg <= 2.01 ? s.film2Mm : s.filmMm;
+    const takeMm = row.pieceMm - row.cutMm;
+    const saveMm = row.cutMm;
+    const ghostMm = Math.max(0, fullMm - row.pieceMm);
+    const ghostMg = row.filmMg * (ghostMm / fullMm);
+    const takePct = (takeMm / fullMm) * 100;
+    const savePct = (saveMm / fullMm) * 100;
+    const ghostPct = (ghostMm / fullMm) * 100;
+    const piecePct = takePct + savePct;
+    const hasGhost = ghostMm > 0.05;
+    const takeLabel = takePct >= 16 ? `TAKE ${fmt(row.dailyMg, 2)} mg · ${fmt(takeMm, 1)} mm` : (takePct >= 8 ? "TAKE" : "");
+    const saveLabel = savePct >= 12 ? `SAVE<br>${fmt(saveMm, 2)} mm<br>${fmt(row.sliverMg, 2)} mg` : (savePct >= 7 ? "SAVE" : "");
+    const restLabel = ghostPct >= 18 ? `already off original<br>${fmt(ghostMm, 1)} mm · ${fmt(ghostMg, 2)} mg` : (ghostPct >= 10 ? "already off" : "");
     $("ruler").innerHTML = `
       <div class="ruler-meta">
         <div>
           <strong>Cycle ${row.cycle}</strong> · days ${row.dayStart}–${row.dayEnd}
           · ${fmtG(row.filmMg)} mg film · n = ${row.n}
         </div>
-        <div>Mark the cut <strong>${fmt(row.cutMm, 2)} mm from the right end</strong> of a <strong>${fmt(row.pieceMm, 1)} mm</strong> piece. Keep full width; shorten length only.</div>
+        <div>Mark the cut <strong>${fmt(saveMm, 2)} mm from the right of the ${fmt(row.pieceMm, 1)} mm piece in hand</strong> (the TAKE/SAVE line). Keep full width; shorten length only.</div>
       </div>
-      <div class="film" title="Cut along length only">
-        <div class="keep" style="width:${keepPct}%">TAKE ${fmt(row.dailyMg, 2)} mg · ${fmt(keepMm, 1)} mm</div>
-        <div class="sliver" style="width:${sliverPct}%">SAVE<br>${fmt(row.cutMm, 2)} mm<br>${fmt(row.sliverMg, 2)} mg</div>
+      <p class="legend" style="margin-top:-0.15rem;margin-bottom:0.65rem;">This bar is a <strong>full unused ${fmtG(row.filmMg)} mg film</strong> (${fmt(fullMm, 1)} mm), not a zoomed leftover. TAKE + SAVE is what you are holding this cycle. ${hasGhost
+        ? `The hashed end is the rest of that original Suboxone — already reduced in earlier cycles (${fmt(ghostMm, 1)} mm / ${fmt(ghostMg, 2)} mg). If you start from a fresh strip, trim that end first and bank it. It is extra buffer, not extra daily dose.`
+        : `Cycle 1 uses the whole unused strip, so there is no leftover from earlier cuts.`}</p>
+      <div class="film${hasGhost ? " has-rest" : ""}" title="Full unused film; cut along length only">
+        <div class="keep" style="width:${takePct}%">${takeLabel}</div>
+        <div class="sliver" style="width:${savePct}%">${saveLabel}</div>
+        ${hasGhost ? `<div class="rest" style="width:${ghostPct}%">${restLabel}</div>` : ""}
+        <div class="film-cut" style="left:${takePct}%"></div>
       </div>
       <div class="ticks">
-        <span class="start">0</span>
-        <span class="cut" style="left:${keepPct}%">${fmt(keepMm, 1)} mm cut</span>
-        <span class="end">${fmt(row.pieceMm, 1)} mm</span>
+        ${takePct >= 12 ? `<span class="start">0</span>` : ""}
+        <span class="cut" data-left="${takePct}">today’s cut · ${fmt(saveMm, 2)} mm</span>
+        ${hasGhost && ghostPct >= 14 ? `<span class="piece" data-left="${piecePct}">${fmt(row.pieceMm, 1)} mm in hand</span>` : ""}
+        <span class="end">${fmt(fullMm, 1)} mm unused</span>
       </div>
-      <p class="legend">Take the long left end. Save the short right end. The saved sliver is buffer — do not swallow it as extra daily dose.</p>
+      <div class="strip-dims">
+        <span>TAKE ${fmt(row.dailyMg, 2)} mg · ${fmt(takeMm, 1)} mm</span>
+        <span>SAVE ${fmt(row.sliverMg, 2)} mg · ${fmt(saveMm, 2)} mm</span>
+        ${hasGhost ? `<span>Already off original ${fmt(ghostMm, 1)} mm · ${fmt(ghostMg, 2)} mg</span>` : `<span>Full unused film ${fmt(fullMm, 1)} mm · ${fmtG(row.filmMg)} mg</span>`}
+      </div>
+      <p class="legend">Take the long left end. Save the short sliver as buffer — do not swallow it as extra daily dose. Do not measure today’s cut from the right of the original film; measure from the right of the piece in hand.</p>
     `;
+    pinRulerTickLabels();
+  }
+
+  function pinRulerTickLabels() {
+    const box = $("ruler").querySelector(".ticks");
+    if (!box) return;
+    const W = box.getBoundingClientRect().width;
+    if (!W) return;
+    const placed = [];
+    box.querySelectorAll("[data-left]").forEach((el) => {
+      const pct = parseFloat(el.getAttribute("data-left"));
+      const w = el.offsetWidth;
+      if (!Number.isFinite(pct) || !w) return;
+      let left = Math.max(0, Math.min((pct / 100) * W - w / 2, Math.max(0, W - w)));
+      placed.forEach((prev) => {
+        if (left < prev.right + 6) left = Math.min(prev.right + 6, Math.max(0, W - w));
+      });
+      el.style.left = left + "px";
+      el.style.transform = "none";
+      placed.push({ left, right: left + w });
+    });
   }
 
   function scaleFactor() {
@@ -1057,12 +1128,14 @@
         · current piece ${fmt(fullMm - ghostMm, 1)} mm
         ${hasGhost ? " · dashed box is the original unused strip" : " · this cycle uses the full unused strip"}
       </p>
+      <div class="strip-draw">
       <div class="strip-full${hasGhost ? "" : " is-full"}" style="width:${w}${CSS_MM};height:${h}${CSS_MM}">
         <div class="take" style="width:${takePct}%">${showInner ? "TAKE" : ""}</div>
         <div class="save" style="width:${savePct}%">${showInner && savePct > 10 ? "SAVE" : ""}</div>
         ${hasGhost ? `<div class="strip-ghost" style="width:${ghostPct}%">${ghostLabel}</div>` : ""}
         <div class="strip-cut" style="left:${takePct}%"></div>
         <div class="strip-cut-label">today’s cut · ${fmt(saveMm, 2)} mm</div>
+      </div>
       </div>
       <div class="strip-dims" style="max-width:${Math.max(w, 40)}${CSS_MM}">
         <span>TAKE ${fmt(takeMg, 2)} mg · ${fmt(takeMm, 1)} mm</span>
