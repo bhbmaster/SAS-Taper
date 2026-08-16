@@ -24,16 +24,60 @@ DEFAULT_RX_STRIPS = 30
 DEFAULT_MONTH_DAYS = 30
 MAX_CYCLES = 40
 CUT_WARN_MM = 1.0
+SITE_URL = "https://bhbmaster.github.io/SAS-Taper/"
 
-HOW_TO = """\
+
+@dataclass(frozen=True)
+class FilmSpec:
+    mg: float
+    nal: float
+    cut_mm: float
+    keep_mm: float
+    label: str
+
+    @property
+    def area_mm2(self) -> float:
+        return self.cut_mm * self.keep_mm
+
+    @property
+    def density(self) -> float:
+        return self.mg / self.area_mm2
+
+
+# Official Suboxone film sizes. Cut along cut_mm; keep keep_mm as full width.
+FILM_SPECS: dict[int, FilmSpec] = {
+    2: FilmSpec(2, 0.5, 22.0, 12.8, "2 mg / 0.5 mg"),
+    4: FilmSpec(4, 1.0, 22.0, 25.6, "4 mg / 1 mg"),
+    8: FilmSpec(8, 2.0, 22.0, 12.8, "8 mg / 2 mg"),
+    12: FilmSpec(12, 3.0, 22.0, 19.2, "12 mg / 3 mg"),
+}
+
+
+def spec_key_for_mg(film_mg: float) -> int:
+    if film_mg <= 2.01:
+        return 2
+    if film_mg <= 4.01:
+        return 4
+    if film_mg <= 8.01:
+        return 8
+    return 12
+
+
+def film_spec_for_mg(film_mg: float) -> FilmSpec:
+    return FILM_SPECS[spec_key_for_mg(film_mg)]
+
+
+HOW_TO = f"""\
 SAS means save-a-sliver. Source: https://github.com/bhbmaster/SAS-Taper
 
 How to use this
-  Site: open index.html in a browser. Inputs recalculate the schedule, cut marks,
-  graphs, and totals. Print it for your prescriber before day 1.
+  Site: {SITE_URL}  (or open index.html offline)
   CLI:  python3 taper.py
         python3 taper.py --compare
+        python3 taper.py --cycle 6
         python3 taper.py --n 10 --no-switch-2mg
+  Same math either way. Print / save the site, or copy this CLI output, for
+  your prescriber before day 1.
 
 Why save-a-sliver
   The hard part is often the sense of getting less, not the milligrams. Each day's
@@ -54,9 +98,9 @@ cycle to 8–9 days or switch n to 10 below 3 mg. When the sliver is under ~1 mm
 switch to 2 mg films. Lock up saved pieces. Step the Rx quantity down with the dose.
 
 Limitation: the schedule starts on one given film size and either stays there or
-switches only to 2 mg films (not 12→8→4). Clicking other sizes in the table is
-for the drawing. To plan a 12 mg or 4 mg start, change --start-mg / --strip-mg
-and recalc.
+switches only to 2 mg films (not 12→8→4). The official size table is a reference;
+it does not change the ladder. To plan a 12 mg or 4 mg start, change --start-mg /
+--strip-mg and recalc.
 """
 
 NOTES = """\
@@ -408,14 +452,150 @@ def compare_classic(
     return out
 
 
-def ascii_ruler(piece_mm: float, cut_mm: float, width: int = 46) -> str:
-    if piece_mm <= 0:
-        return ""
-    inner = max(10, width - 2)
-    sliver_cols = max(1, round(inner * (cut_mm / piece_mm)))
-    sliver_cols = min(sliver_cols, inner - 1)
-    keep_cols = inner - sliver_cols
-    return "[" + ("#" * sliver_cols) + "|" + ("=" * keep_cols) + "]"
+def share_cols(values: list[float], inner: int) -> list[int]:
+    """Integer column counts that sum to inner, proportional to values."""
+    n = len(values)
+    total = sum(max(0.0, v) for v in values)
+    if inner <= 0 or n == 0:
+        return [0] * n
+    if total <= 0:
+        return [0] * n
+    exact = [max(0.0, v) / total * inner for v in values]
+    cols = [int(x) for x in exact]
+    leftover = inner - sum(cols)
+    order = sorted(range(n), key=lambda i: (exact[i] - cols[i], exact[i]), reverse=True)
+    i = 0
+    while leftover > 0:
+        cols[order[i % n]] += 1
+        leftover -= 1
+        i += 1
+    for i, v in enumerate(values):
+        if v > 0.02 and cols[i] == 0:
+            j = max(range(n), key=lambda k: cols[k])
+            if cols[j] > 1:
+                cols[j] -= 1
+                cols[i] = 1
+    drift = inner - sum(cols)
+    if drift:
+        cols[-1] += drift
+    return cols
+
+
+def ascii_ruler(
+    take_mm: float,
+    save_mm: float,
+    ghost_mm: float = 0.0,
+    width: int = 52,
+) -> str:
+    """TAKE (=) on the left, SAVE (#) , already-off original (.) on the right."""
+    inner = max(12, width - 2)
+    take_c, save_c, ghost_c = share_cols([take_mm, save_mm, ghost_mm], inner)
+    parts = [("=", take_c), ("#", save_c), (".", ghost_c)]
+    body = "|".join(ch * n for ch, n in parts if n > 0)
+    return "[" + body + "]"
+
+
+def cut_context(row: CycleRow, sched: ScheduleResult) -> dict[str, Any]:
+    spec = film_spec_for_mg(row.film_mg)
+    full_mm = sched.film_2mg_mm if row.film_mg <= 2.01 else sched.film_mm
+    take_mm = row.piece_mm - row.cut_mm
+    save_mm = row.cut_mm
+    ghost_mm = max(0.0, full_mm - row.piece_mm)
+    ghost_mg = row.film_mg * (ghost_mm / full_mm) if full_mm else 0.0
+    return {
+        "cycle": row.cycle,
+        "label": spec.label,
+        "keep_mm": spec.keep_mm,
+        "full_mm": full_mm,
+        "take_mm": take_mm,
+        "save_mm": save_mm,
+        "ghost_mm": ghost_mm,
+        "take_mg": row.daily_mg,
+        "save_mg": row.sliver_mg,
+        "ghost_mg": ghost_mg,
+        "piece_mm": row.piece_mm,
+        "n": row.n,
+        "ruler": ascii_ruler(take_mm, save_mm, ghost_mm),
+    }
+
+
+def film_specs_payload() -> list[dict[str, Any]]:
+    out = []
+    for key in (2, 4, 8, 12):
+        spec = FILM_SPECS[key]
+        out.append(
+            {
+                "mg": spec.mg,
+                "nal": spec.nal,
+                "label": spec.label,
+                "cut_mm": spec.cut_mm,
+                "keep_mm": spec.keep_mm,
+                "area_mm2": spec.area_mm2,
+                "density_mg_per_mm2": spec.density,
+            }
+        )
+    return out
+
+
+def print_film_table() -> None:
+    print("Official Suboxone film sizes (buprenorphine / naloxone)")
+    print("Cut along the 22 mm side; keep the other side as full width.")
+    print("This table is a reference. It does not change the taper math.")
+    print()
+    headers = ["Film", "Cut mm", "Keep mm", "Area mm²", "mg/mm²"]
+    rows = []
+    for key in (2, 4, 8, 12):
+        spec = FILM_SPECS[key]
+        rows.append(
+            [
+                spec.label,
+                f"{spec.cut_mm:.1f}",
+                f"{spec.keep_mm:.1f}",
+                f"{spec.area_mm2:.1f}",
+                f"{spec.density:.5f}",
+            ]
+        )
+    print_table(headers, rows)
+    print()
+
+
+def print_cut_block(ctx: dict[str, Any], row: CycleRow, detailed: bool = False) -> None:
+    warn = "  << sliver under 1 mm — switch film strength" if row.cut_warn else ""
+    extra = ""
+    if row.switched_2mg:
+        extra = "  [switched to 2 mg films, restarted as a whole strip]"
+    has_ghost = ctx["ghost_mm"] > 0.05
+    print(
+        f"  cycle {row.cycle:2d}  unused {ctx['full_mm']:.1f} × {ctx['keep_mm']:.1f} mm"
+        f"  in hand {ctx['piece_mm']:.1f} mm"
+        f"{extra}{warn}"
+    )
+    print(f"           {ctx['ruler']}")
+    bits = [
+        f"TAKE {ctx['take_mm']:.1f} mm ({ctx['take_mg']:.2f} mg)",
+        f"SAVE {ctx['save_mm']:.2f} mm ({ctx['save_mg']:.2f} mg)",
+    ]
+    if has_ghost:
+        bits.append(
+            f"already off {ctx['ghost_mm']:.1f} mm ({ctx['ghost_mg']:.2f} mg)"
+        )
+    print("           " + "  |  ".join(bits))
+    print(
+        f"           mark {ctx['save_mm']:.2f} mm from the right of the "
+        f"{ctx['piece_mm']:.1f} mm piece in hand (TAKE/SAVE line)"
+    )
+    if detailed:
+        if has_ghost:
+            print(
+                "           This bar is the full unused film, not a zoomed leftover. "
+                "The dotted end was already reduced in earlier cycles — extra bank "
+                "if you start from a fresh strip, not extra daily dose."
+            )
+        else:
+            print("           Cycle 1 uses the whole unused strip.")
+        print(
+            f"           Keep full width ({ctx['keep_mm']:.1f} mm); shorten length only."
+        )
 
 
 def print_table(headers: list[str], rows: list[list[str]]) -> None:
@@ -431,7 +611,7 @@ def print_table(headers: list[str], rows: list[list[str]]) -> None:
         print("  ".join(row[i].ljust(widths[i]) for i in range(len(headers))))
 
 
-def print_schedule(sched: ScheduleResult) -> None:
+def print_schedule(sched: ScheduleResult, selected_cycle: Optional[int] = None) -> None:
     n = sched.n
     r = sched.r
     print("SAS-Taper")
@@ -488,23 +668,21 @@ def print_schedule(sched: ScheduleResult) -> None:
         )
     print_table(headers, table)
     print()
-    print("Cut marks (full width, shorten length only)")
+    print_film_table()
+    print("Cut marks (full unused film: TAKE left, SAVE, then already-off original)")
+    print("Do not measure today’s cut from the right of the original film.")
     print()
+    selected_row = None
     for row in sched.rows:
-        warn = "  << sliver under 1 mm — switch film strength" if row.cut_warn else ""
-        extra = ""
-        if row.switched_2mg:
-            extra = "  [switched to 2 mg films, restarted as a whole strip]"
-        print(
-            f"  cycle {row.cycle:2d}  {row.piece_mm:5.1f} mm piece   "
-            f"mark {row.cut_mm:4.2f} mm   "
-            f"{ascii_ruler(row.piece_mm, row.cut_mm)}{extra}{warn}"
-        )
-        print(
-            f"           save the short end ({row.sliver_mg:.2f} mg), "
-            f"take the long end ({row.daily_mg:.2f} mg)"
-        )
-    print()
+        ctx = cut_context(row, sched)
+        if selected_cycle is None or row.cycle == selected_cycle:
+            print_cut_block(ctx, row, detailed=(selected_cycle is not None))
+            print()
+        if selected_cycle is not None and row.cycle == selected_cycle:
+            selected_row = row
+    if selected_cycle is not None and selected_row is None:
+        print(f"  (cycle {selected_cycle} is not on this run)")
+        print()
 
     print("Headline")
     if sched.days_to_2mg is not None:
@@ -613,6 +791,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--hold-days", type=int, default=None, help="stretch each cycle to this many days; cut is still 1/n")
     p.add_argument("--n-below-3", type=int, default=None, dest="n_below_3mg", help="switch n once cut-from drops below 3 mg")
     p.add_argument("--compare", action="store_true", help="also print n=6/8/10 classic totals")
+    p.add_argument(
+        "--cycle",
+        type=int,
+        default=None,
+        help="print only this cycle’s cut mark, with the full unused-film note",
+    )
+    p.add_argument(
+        "--stop-mode",
+        choices=("reach", "above"),
+        default="reach",
+        help="reach = include first cycle at or under target (default); "
+        "above = stop while still strictly above target (classic compare)",
+    )
     p.add_argument("--json", action="store_true", help="dump machine-readable JSON")
     p.add_argument("--max-cycles", type=int, default=MAX_CYCLES)
     p.add_argument("--no-notes", action="store_true", help="skip the practical-notes block")
@@ -634,10 +825,14 @@ def main(argv: Optional[list[str]] = None) -> int:
             hold_days=args.hold_days,
             n_below_3mg=args.n_below_3mg,
             max_cycles=args.max_cycles,
-            stop_mode="reach",
+            stop_mode=args.stop_mode,
         )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    if args.cycle is not None and not any(r.cycle == args.cycle for r in sched.rows):
+        print(f"error: cycle {args.cycle} is not on this run", file=sys.stderr)
         return 2
 
     compare_rows = compare_classic(
@@ -647,11 +842,18 @@ def main(argv: Optional[list[str]] = None) -> int:
     ) if args.compare else None
 
     if args.json:
-        json.dump(result_to_json(sched, compare_rows), sys.stdout, indent=2)
+        payload = result_to_json(sched, compare_rows)
+        payload["film_specs"] = film_specs_payload()
+        payload["cut_context"] = [cut_context(r, sched) for r in sched.rows]
+        if args.cycle is not None:
+            row = next(r for r in sched.rows if r.cycle == args.cycle)
+            payload["selected_cycle"] = args.cycle
+            payload["selected_cut"] = cut_context(row, sched)
+        json.dump(payload, sys.stdout, indent=2)
         sys.stdout.write("\n")
         return 0
 
-    print_schedule(sched)
+    print_schedule(sched, selected_cycle=args.cycle)
     if compare_rows is not None:
         print_compare(compare_rows)
 
