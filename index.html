@@ -6,8 +6,66 @@
   <title>SAS-Taper (save-a-sliver) — film schedule, cut marks, totals</title>
   <meta name="description" content="SAS-Taper (save-a-sliver): a geometric buprenorphine film taper calculator — cycle schedule, cut marks in mm, and cumulative totals.">
   <link rel="canonical" href="https://bhbmaster.github.io/SAS-Taper/">
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#14120f">
+  <script>
+    /* Applied before first paint so a reader who chose light does not get a
+       flash of dark. Dark is the default: anything other than a stored
+       "light" resolves to dark, whatever the OS preference is. */
+    (function () {
+      try {
+        var t = localStorage.getItem("sas-taper-theme");
+        document.documentElement.setAttribute("data-theme", t === "light" ? "light" : "dark");
+      } catch (e) {
+        document.documentElement.setAttribute("data-theme", "dark");
+      }
+    })();
+  </script>
   <style>
+    /* Dark is the default: it is the bare :root palette, not a
+       prefers-color-scheme branch, so the page opens dark whatever the OS says.
+       Light is opt-in via data-theme="light" (the toggle, or printing).
+
+       The Suboxone film drawings are deliberately NOT themed — a real film is
+       orange, so it keeps one fixed palette in both modes and sits on its own
+       pale stage. Those literals live under "film specimen" below. */
     :root {
+      color-scheme: dark;
+      --ink: #f4efe7;
+      --muted: #a8a29e;
+      --line: #302b27;
+      --paper: #14120f;
+      --card: #1d1a17;
+      --accent: #3ad0b4;
+      --accent-soft: #14352f;
+      --warn: #fb923c;
+      --warn-soft: #3d1f0d;
+      --warn-ink: #fdba74;
+      --switch: #8ab0ff;
+      --switch-soft: #17254d;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.55);
+      --on-accent: #0b201c;
+      --field: #12100e;
+      --field-line: #45403a;
+      --head-bg: #211d1a;
+      --row-hover: #262220;
+      --banner-bg: #3d1f0d;
+      --banner-line: #7c4a1e;
+      --banner-ink: #fed7aa;
+      --plot-bg: #191614;
+      --plot-frame: #322d29;
+      --plot-grid: #262220;
+      --plot-ink: #a8a29e;
+      --plot-stay: #6b645d;
+      --plot-band: #14352f;
+      --series-keep: #2dd4bf;
+      --series-keep-soft: #1c5b52;
+      --series-warn: #fb923c;
+      --stage: #f2ece2;
+    }
+
+    :root[data-theme="light"] {
+      color-scheme: light;
       --ink: #1c1917;
       --muted: #57534e;
       --line: #e7e5e4;
@@ -17,9 +75,28 @@
       --accent-soft: #d7efe9;
       --warn: #9a3412;
       --warn-soft: #ffedd5;
+      --warn-ink: #7c2d12;
       --switch: #1d4ed8;
       --switch-soft: #dbeafe;
       --shadow: 0 1px 2px rgba(28, 25, 23, 0.06);
+      --on-accent: #ffffff;
+      --field: #ffffff;
+      --field-line: #d6d3d1;
+      --head-bg: #faf8f4;
+      --row-hover: #f5f0e6;
+      --banner-bg: #ffedd5;
+      --banner-line: #fdba74;
+      --banner-ink: #7c2d12;
+      --plot-bg: #ffffff;
+      --plot-frame: #e7e5e4;
+      --plot-grid: #f0eeea;
+      --plot-ink: #57534e;
+      --plot-stay: #a8a29e;
+      --plot-band: #d7efe9;
+      --series-keep: #5eead4;
+      --series-keep-soft: #99f6e4;
+      --series-warn: #fb923c;
+      --stage: #faf8f4;
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
@@ -57,6 +134,8 @@
       border-bottom: 1px solid transparent;
     }
     header.app .gh:hover { border-bottom-color: var(--accent); }
+    header.app .title-side { display: flex; align-items: center; gap: 0.9rem; }
+    button.small { font-size: 0.82rem; padding: 0.3rem 0.7rem; }
     .howto h3 {
       font-size: 0.95rem;
       font-weight: 650;
@@ -78,9 +157,9 @@
     .howto .ritual ol { margin-top: 0.35rem; }
     .wrap { max-width: 1120px; margin: 0 auto; padding: 0 1.25rem 3rem; }
     .banner {
-      background: var(--warn-soft);
-      border: 1px solid #fdba74;
-      color: #7c2d12;
+      background: var(--banner-bg);
+      border: 1px solid var(--banner-line);
+      color: var(--banner-ink);
       padding: 0.85rem 1rem;
       border-radius: 10px;
       margin-bottom: 1.1rem;
@@ -113,8 +192,8 @@
     input[type="number"], select {
       font: inherit;
       color: var(--ink);
-      background: #fff;
-      border: 1px solid #d6d3d1;
+      background: var(--field);
+      border: 1px solid var(--field-line);
       border-radius: 8px;
       padding: 0.45rem 0.55rem;
       width: 100%;
@@ -169,12 +248,12 @@
       letter-spacing: 0.04em;
       color: var(--muted);
       font-weight: 650;
-      background: #faf8f4;
+      background: var(--head-bg);
       position: sticky;
       top: 0;
     }
     tbody tr { cursor: pointer; }
-    tbody tr:hover { background: #f5f0e6; }
+    tbody tr:hover { background: var(--row-hover); }
     tbody tr.selected { background: var(--accent-soft); }
     tbody tr.switch td { background: var(--switch-soft); }
     tbody tr.warn td { background: var(--warn-soft); }
@@ -194,10 +273,13 @@
     .legend { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
     .ruler-meta { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
     .ruler-meta strong { font-size: 1.05rem; }
+    /* Film specimen. A real Suboxone film is orange, so the drawings below
+       keep one fixed palette in both themes and carry their own pale ground —
+       themed tokens would recolour the product. */
     .film {
       position: relative;
       height: 64px;
-      border: 2px solid var(--ink);
+      border: 2px solid #1c1917;
       border-radius: 6px;
       display: flex;
       overflow: hidden;
@@ -239,7 +321,7 @@
       top: 0;
       bottom: 0;
       width: 0;
-      border-left: 2px dashed var(--warn);
+      border-left: 2px dashed #9a3412;
       pointer-events: none;
     }
     .ticks { position: relative; height: 1.55rem; margin-top: 0.15rem; font-size: 0.75rem; color: var(--muted); }
@@ -277,7 +359,7 @@
       border: 1px solid var(--ink);
       background:
         repeating-linear-gradient(90deg, var(--ink) 0 1px, transparent 1px 25%),
-        #fff;
+        var(--field);
       box-sizing: border-box;
     }
     .cal-wrap span { font-size: 0.78rem; color: var(--muted); }
@@ -350,7 +432,7 @@
       left: 0;
       font-size: 0.7rem;
       font-weight: 700;
-      color: var(--warn);
+      color: #9a3412;
       white-space: nowrap;
       pointer-events: none;
       line-height: 1.2rem;
@@ -370,12 +452,18 @@
       margin: 0.15rem 0 0.2rem;
     }
     .strip-draw {
-      padding-top: 1.3rem;
+      padding: 1.6rem 0.75rem 0.75rem;
+      background: var(--stage);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      display: inline-block;
+      min-width: 100%;
+      box-sizing: border-box;
     }
     .dim-table { font-size: 0.84rem; margin-top: 0.7rem; }
     .dim-table th, .dim-table td { text-align: left; }
     .dim-table tbody tr { cursor: pointer; }
-    .dim-table tbody tr:hover { background: #f5f0e6; }
+    .dim-table tbody tr:hover { background: var(--row-hover); }
     .dim-table tbody tr.selected { background: var(--accent-soft); }
     .viz-nav { display: flex; gap: 0.4rem; flex-wrap: wrap; }
     .charts {
@@ -404,8 +492,8 @@
       cursor: pointer;
     }
     .piece-row .n { font-size: 0.75rem; color: var(--muted); text-align: right; }
-    .piece-track { height: 20px; display: flex; border: 1px solid var(--ink); border-radius: 4px; overflow: hidden; background: #fff; }
-    .piece-track .k { background: #5eead4; }
+    .piece-track { height: 20px; display: flex; border: 1px solid var(--ink); border-radius: 4px; overflow: hidden; background: var(--field); }
+    .piece-track .k { background: var(--series-keep); }
     .piece-track .s {
       background: repeating-linear-gradient(-45deg, #fdba74, #fdba74 4px, #ffedd5 4px, #ffedd5 8px);
     }
@@ -419,20 +507,56 @@
       font-weight: 650;
       border: 1px solid var(--accent);
       background: var(--accent);
-      color: #fff;
+      color: var(--on-accent);
       border-radius: 8px;
       padding: 0.45rem 0.85rem;
       cursor: pointer;
     }
-    button.ghost { background: #fff; color: var(--accent); }
+    button.ghost { background: transparent; color: var(--accent); }
     button:hover { filter: brightness(1.05); }
-    .notes { font-size: 0.92rem; color: #292524; }
+    .notes { font-size: 0.92rem; color: var(--ink); }
     .notes ul { margin: 0.2rem 0 0; padding-left: 1.15rem; }
     .notes li { margin: 0.35rem 0; }
     .foot { color: var(--muted); font-size: 0.8rem; margin-top: 1.5rem; }
     .foot a { color: var(--accent); font-weight: 650; text-decoration: none; }
     .foot a:hover { text-decoration: underline; }
     @media print {
+      /* Always print light. This page exists to be handed to a prescriber, and
+         a dark background is unreadable on paper and a waste of toner. These
+         repeat the [data-theme="light"] values because a media block cannot
+         join that selector list; keep the two in step. */
+      :root {
+        color-scheme: light;
+        --ink: #1c1917;
+        --muted: #57534e;
+        --line: #e7e5e4;
+        --paper: #ffffff;
+        --card: #ffffff;
+        --accent: #0f6b5c;
+        --accent-soft: #d7efe9;
+        --warn: #9a3412;
+        --warn-soft: #ffedd5;
+        --warn-ink: #7c2d12;
+        --switch: #1d4ed8;
+        --switch-soft: #dbeafe;
+        --on-accent: #ffffff;
+        --field: #ffffff;
+        --field-line: #d6d3d1;
+        --head-bg: #faf8f4;
+        --row-hover: #ffffff;
+        --banner-bg: #ffedd5;
+        --banner-line: #fdba74;
+        --banner-ink: #7c2d12;
+        --plot-bg: #ffffff;
+        --plot-frame: #e7e5e4;
+        --plot-grid: #f0eeea;
+        --plot-ink: #57534e;
+        --plot-stay: #a8a29e;
+        --plot-band: #d7efe9;
+        --series-keep: #5eead4;
+        --series-keep-soft: #99f6e4;
+        --stage: #ffffff;
+      }
       body { background: #fff; }
       header.app { padding-top: 0; }
       .no-print, .actions, tbody tr { cursor: default; }
@@ -450,7 +574,10 @@
   <header class="app">
     <div class="title-row">
       <h1>SAS-Taper</h1>
-      <a class="gh" href="https://github.com/bhbmaster/SAS-Taper">GitHub: bhbmaster/SAS-Taper</a>
+      <div class="title-side">
+        <button type="button" class="ghost small no-print" id="themeBtn">Light mode</button>
+        <a class="gh" href="https://github.com/bhbmaster/SAS-Taper">GitHub: bhbmaster/SAS-Taper</a>
+      </div>
     </div>
     <p class="lede"><strong>SAS</strong> means <em>save-a-sliver</em>. Each day you cut 1/n off the current piece, save that sliver, and take the rest — treating what remains as a complete strip. After n days the save jar holds one full piece: a buffer, not extra dose. Open this file in a browser; numbers update as you change the inputs.</p>
   </header>
@@ -1109,6 +1236,27 @@
     });
   }
 
+  const THEME_KEY = "sas-taper-theme";
+
+  /* Dark unless the reader has explicitly chosen light. Deliberately not keyed
+     to prefers-color-scheme: dark is the default this page ships with. */
+  function currentTheme() {
+    return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+  }
+
+  function applyTheme(theme, persist) {
+    const light = theme === "light";
+    document.documentElement.setAttribute("data-theme", light ? "light" : "dark");
+    const btn = $("themeBtn");
+    if (btn) {
+      btn.textContent = light ? "Dark mode" : "Light mode";
+      btn.setAttribute("aria-label", light ? "Switch to dark mode" : "Switch to light mode");
+    }
+    if (persist) {
+      try { localStorage.setItem(THEME_KEY, light ? "light" : "dark"); } catch (e) { /* ignore */ }
+    }
+  }
+
   function scaleFactor() {
     return stripScalePct / 100;
   }
@@ -1233,6 +1381,29 @@
     return { W: 560, H: 248, L: 40, R: 12, T: 14, B: 34 };
   }
 
+  /* SVG attributes cannot read CSS variables reliably across engines, so the
+     chart palette is pulled off the root element once per render and the
+     charts are redrawn when the theme flips. */
+  let C = {};
+  function readChartPalette() {
+    const cs = getComputedStyle(document.documentElement);
+    const get = (name, fallback) => (cs.getPropertyValue(name).trim() || fallback);
+    C = {
+      bg: get("--plot-bg", "#fff"),
+      frame: get("--plot-frame", "#e7e5e4"),
+      grid: get("--plot-grid", "#f0eeea"),
+      ink: get("--plot-ink", "#57534e"),
+      accent: get("--accent", "#0f6b5c"),
+      band: get("--plot-band", "#d7efe9"),
+      stay: get("--plot-stay", "#a8a29e"),
+      warn: get("--warn", "#9a3412"),
+      warnBar: get("--series-warn", "#fb923c"),
+      switch: get("--switch", "#1d4ed8"),
+      keep: get("--series-keep", "#5eead4"),
+      keepSoft: get("--series-keep-soft", "#99f6e4")
+    };
+  }
+
   function svgOpen(box) {
     return `<svg class="plot" viewBox="0 0 ${box.W} ${box.H}" role="img">`;
   }
@@ -1240,18 +1411,18 @@
   function gridAndAxes(box, xTicks, yTicks, xScale, yScale, xLabel, yLabel) {
     const { W, H, L, R, T, B } = box;
     const iw = W - L - R, ih = H - T - B;
-    let out = `<rect x="${L}" y="${T}" width="${iw}" height="${ih}" fill="#fff" stroke="#e7e5e4"/>`;
+    let out = `<rect x="${L}" y="${T}" width="${iw}" height="${ih}" fill="${C.bg}" stroke="${C.frame}"/>`;
     for (const t of yTicks) {
       const y = yScale(t);
-      out += `<line x1="${L}" y1="${y}" x2="${W - R}" y2="${y}" stroke="#f0eeea" />`;
-      out += `<text x="${L - 6}" y="${y + 3}" text-anchor="end" font-size="10" fill="#57534e">${axisNum(t)}</text>`;
+      out += `<line x1="${L}" y1="${y}" x2="${W - R}" y2="${y}" stroke="${C.grid}" />`;
+      out += `<text x="${L - 6}" y="${y + 3}" text-anchor="end" font-size="10" fill="${C.ink}">${axisNum(t)}</text>`;
     }
     for (const t of xTicks) {
       const x = xScale(t);
-      out += `<text x="${x}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#57534e">${axisNum(t)}</text>`;
+      out += `<text x="${x}" y="${H - 12}" text-anchor="middle" font-size="10" fill="${C.ink}">${axisNum(t)}</text>`;
     }
-    out += `<text x="${L + iw / 2}" y="${H - 2}" text-anchor="middle" font-size="10" fill="#57534e">${xLabel}</text>`;
-    out += `<text x="12" y="${T + ih / 2}" text-anchor="middle" font-size="10" fill="#57534e" transform="rotate(-90 12 ${T + ih / 2})">${yLabel}</text>`;
+    out += `<text x="${L + iw / 2}" y="${H - 2}" text-anchor="middle" font-size="10" fill="${C.ink}">${xLabel}</text>`;
+    out += `<text x="12" y="${T + ih / 2}" text-anchor="middle" font-size="10" fill="${C.ink}" transform="rotate(-90 12 ${T + ih / 2})">${yLabel}</text>`;
     return out;
   }
 
@@ -1282,19 +1453,19 @@
     inner += gridAndAxes(box, evenTicks(xmax, 5), evenTicks(ymax, 4), xS, yS, "Day", "Daily dose (mg)");
     const sel = s.rows.find((r) => r.cycle === selectedCycle);
     if (sel) {
-      inner += `<rect data-cycle="${sel.cycle}" x="${xS(sel.dayStart - 1)}" y="${T}" width="${Math.max(1, xS(sel.dayEnd) - xS(sel.dayStart - 1))}" height="${ih}" fill="#0f6b5c" opacity="0.08"/>`;
+      inner += `<rect data-cycle="${sel.cycle}" x="${xS(sel.dayStart - 1)}" y="${T}" width="${Math.max(1, xS(sel.dayEnd) - xS(sel.dayStart - 1))}" height="${ih}" fill="${C.accent}" opacity="0.14"/>`;
     }
     if (ymax >= 2) {
-      inner += `<line x1="${L}" y1="${yS(2)}" x2="${W - R}" y2="${yS(2)}" stroke="#1d4ed8" stroke-dasharray="4 3" />`;
-      inner += `<text x="${W - R - 2}" y="${yS(2) - 4}" text-anchor="end" font-size="10" fill="#1d4ed8">2 mg</text>`;
+      inner += `<line x1="${L}" y1="${yS(2)}" x2="${W - R}" y2="${yS(2)}" stroke="${C.switch}" stroke-dasharray="4 3" />`;
+      inner += `<text x="${W - R - 2}" y="${yS(2) - 4}" text-anchor="end" font-size="10" fill="${C.switch}">2 mg</text>`;
     }
     if (ymax >= 1) {
-      inner += `<line x1="${L}" y1="${yS(1)}" x2="${W - R}" y2="${yS(1)}" stroke="#9a3412" stroke-dasharray="4 3" />`;
-      inner += `<text x="${W - R - 2}" y="${yS(1) - 4}" text-anchor="end" font-size="10" fill="#9a3412">1 mg</text>`;
+      inner += `<line x1="${L}" y1="${yS(1)}" x2="${W - R}" y2="${yS(1)}" stroke="${C.warn}" stroke-dasharray="4 3" />`;
+      inner += `<text x="${W - R - 2}" y="${yS(1) - 4}" text-anchor="end" font-size="10" fill="${C.warn}">1 mg</text>`;
     }
-    inner += `<path d="${path}" fill="none" stroke="#0f6b5c" stroke-width="2.2" stroke-linejoin="round"/>`;
+    inner += `<path d="${path}" fill="none" stroke="${C.accent}" stroke-width="2.2" stroke-linejoin="round"/>`;
     for (const r of s.rows) {
-      inner += `<circle data-cycle="${r.cycle}" cx="${xS(r.dayEnd)}" cy="${yS(r.dailyMg)}" r="${r.cycle === selectedCycle ? 4.5 : 3}" fill="${r.switched2mg ? "#1d4ed8" : "#0f6b5c"}"/>`;
+      inner += `<circle data-cycle="${r.cycle}" cx="${xS(r.dayEnd)}" cy="${yS(r.dailyMg)}" r="${r.cycle === selectedCycle ? 4.5 : 3}" fill="${r.switched2mg ? C.switch : C.accent}"/>`;
     }
     inner += "</svg>";
     return svgFrame("Daily dose over time", "Step hold at each cycle, then a drop. Blue dot = 2 mg film restart.", inner);
@@ -1317,8 +1488,8 @@
       const w = barW * 0.76;
       const y = yS(r.dailyMg);
       const h = yS(0) - y;
-      const fill = r.cycle === selectedCycle ? "#0f6b5c" : (r.cutWarn ? "#fdba74" : "#99f6e4");
-      const stroke = r.cycle === selectedCycle ? "#0f6b5c" : (r.switched2mg ? "#1d4ed8" : "#5eead4");
+      const fill = r.cycle === selectedCycle ? C.accent : (r.cutWarn ? C.warnBar : C.keepSoft);
+      const stroke = r.cycle === selectedCycle ? C.accent : (r.switched2mg ? C.switch : C.keep);
       inner += `<rect data-cycle="${r.cycle}" x="${x}" y="${y}" width="${w}" height="${Math.max(h, 0)}" fill="${fill}" stroke="${stroke}"/>`;
     });
     inner += "</svg>";
@@ -1330,7 +1501,7 @@
     const box = plotBox();
     const { W, H, L, R, T, B } = box;
     const iw = W - L - R, ih = H - T - B;
-    const colors = { 6: "#0f6b5c", 8: "#1d4ed8", 10: "#b45309" };
+    const colors = { 6: C.accent, 8: C.switch, 10: C.warnBar };
     const series = [6, 8, 10].map((n) => ({
       n,
       sched: buildSchedule({
@@ -1358,9 +1529,9 @@
     }
     inner += `</svg>
       <div class="cap" style="margin-top:0.25rem">
-        <span><span class="swatch" style="background:#0f6b5c"></span>n=6</span>
-        &nbsp;&nbsp;<span><span class="swatch" style="background:#1d4ed8"></span>n=8</span>
-        &nbsp;&nbsp;<span><span class="swatch" style="background:#b45309"></span>n=10</span>
+        <span><span class="swatch" style="background:${C.accent}"></span>n=6</span>
+        &nbsp;&nbsp;<span><span class="swatch" style="background:${C.switch}"></span>n=8</span>
+        &nbsp;&nbsp;<span><span class="swatch" style="background:${C.warnBar}"></span>n=10</span>
       </div>`;
     return svgFrame("n = 6 / 8 / 10 ladders over time", "Classic 8 mg films all the way, stopping just above 1 mg. Slower n stays higher for longer — and costs more total mg.", inner);
   }
@@ -1382,9 +1553,9 @@
     const fill = `${taper} L ${xS(xmax)} ${yS(stayEnd)} L ${xS(0)} ${yS(0)} Z`;
     let inner = svgOpen(box);
     inner += gridAndAxes(box, evenTicks(xmax, 5), evenTicks(ymax, 4), xS, yS, "Day", "Cumulative mg");
-    inner += `<path d="${fill}" fill="#d7efe9" opacity="0.85"/>`;
-    inner += `<path d="${stay}" fill="none" stroke="#a8a29e" stroke-dasharray="5 4" stroke-width="1.6"/>`;
-    inner += `<path d="${taper}" fill="none" stroke="#0f6b5c" stroke-width="2.2"/>`;
+    inner += `<path d="${fill}" fill="${C.band}" opacity="0.85"/>`;
+    inner += `<path d="${stay}" fill="none" stroke="${C.stay}" stroke-dasharray="5 4" stroke-width="1.6"/>`;
+    inner += `<path d="${taper}" fill="none" stroke="${C.accent}" stroke-width="2.2"/>`;
     inner += "</svg>";
     return svgFrame("Cumulative ingested vs staying put", `Shaded gap is medication not taken vs ${fmtG(s.startMg)} mg/day for ${s.endDay} days (${fmt(s.savedVsStayStrips, 1)} strips).`, inner);
   }
@@ -1403,15 +1574,15 @@
     inner += gridAndAxes(box, xTicks, evenTicks(ymax, 4), xS, yS, "Cycle", "Sliver (mm)");
     const y1 = yS(1);
     if (1 <= ymax) {
-      inner += `<line x1="${L}" y1="${y1}" x2="${W - R}" y2="${y1}" stroke="#9a3412" stroke-dasharray="4 3"/>`;
-      inner += `<text x="${W - R - 2}" y="${y1 - 4}" text-anchor="end" font-size="10" fill="#9a3412">1 mm</text>`;
+      inner += `<line x1="${L}" y1="${y1}" x2="${W - R}" y2="${y1}" stroke="${C.warn}" stroke-dasharray="4 3"/>`;
+      inner += `<text x="${W - R - 2}" y="${y1 - 4}" text-anchor="end" font-size="10" fill="${C.warn}">1 mm</text>`;
     }
     s.rows.forEach((r, i) => {
       const x = L + i * barW + barW * 0.12;
       const w = barW * 0.76;
       const y = yS(r.cutMm);
       const h = yS(0) - y;
-      inner += `<rect data-cycle="${r.cycle}" x="${x}" y="${y}" width="${w}" height="${Math.max(h, 0)}" fill="${r.cutWarn ? "#fb923c" : (r.cycle === selectedCycle ? "#0f6b5c" : "#99f6e4")}" stroke="${r.switched2mg ? "#1d4ed8" : "#5eead4"}"/>`;
+      inner += `<rect data-cycle="${r.cycle}" x="${x}" y="${y}" width="${w}" height="${Math.max(h, 0)}" fill="${r.cutWarn ? C.warnBar : (r.cycle === selectedCycle ? C.accent : C.keepSoft)}" stroke="${r.switched2mg ? C.switch : C.keep}"/>`;
     });
     inner += "</svg>";
     return svgFrame("Cut sliver length", "Below the 1 mm line, cutting error rivals the dose change. Switch film strength before that.", inner);
@@ -1430,12 +1601,12 @@
     const xS = (m) => L + (m - 0.5) * slot;
     let inner = svgOpen(box);
     inner += gridAndAxes(box, months.map((m) => m.month), evenTicks(ymax, 4), xS, yS, "Month", "Strips");
-    inner += `<line x1="${L}" y1="${yS(RX_STRIPS)}" x2="${W - R}" y2="${yS(RX_STRIPS)}" stroke="#9a3412" stroke-dasharray="4 3"/>`;
+    inner += `<line x1="${L}" y1="${yS(RX_STRIPS)}" x2="${W - R}" y2="${yS(RX_STRIPS)}" stroke="${C.warn}" stroke-dasharray="4 3"/>`;
     months.forEach((m, i) => {
       const x = L + i * slot + slot * 0.18;
       const w = slot * 0.64;
       const y = yS(m.usedStrips);
-      inner += `<rect x="${x}" y="${y}" width="${w}" height="${Math.max(yS(0) - y, 0)}" fill="#0f6b5c"/>`;
+      inner += `<rect x="${x}" y="${y}" width="${w}" height="${Math.max(yS(0) - y, 0)}" fill="${C.accent}"/>`;
     });
     inner += "</svg>";
     return svgFrame("Monthly strips used vs a 30-strip script", "Green bars are ingested-equivalent strips. Dashed line is an unchanged 30/month Rx — everything above the bar is surplus stockpile.", inner);
@@ -1462,7 +1633,7 @@
     }).join("");
     const inner = `${rows}
       <p class="cap" style="margin-top:0.45rem">
-        <span class="swatch" style="background:#5eead4"></span>TAKE (left)
+        <span class="swatch" style="background:var(--series-keep)"></span>TAKE (left)
         &nbsp;&nbsp;<span class="swatch" style="background:#fdba74"></span>SAVE (right)
         · bar length = piece length that cycle
       </p>`;
@@ -1470,6 +1641,7 @@
   }
 
   function renderCharts(s, opts) {
+    readChartPalette();
     $("charts").innerHTML = [
       doseOverTimeChart(s),
       doseLadderChart(s),
@@ -1562,6 +1734,29 @@
   $("form").addEventListener("input", () => { selectedCycle = 1; render(); });
   $("form").addEventListener("change", () => render());
   $("printBtn").addEventListener("click", () => window.print());
+  $("themeBtn").addEventListener("click", () => {
+    applyTheme(currentTheme() === "light" ? "dark" : "light", true);
+    render();
+  });
+
+  /* Chart colours are baked into the SVG at render time, so the print
+     stylesheet alone cannot lighten them. Flip to light, redraw, and put the
+     reader's theme back when the dialog closes. */
+  let themeBeforePrint = null;
+  window.addEventListener("beforeprint", () => {
+    themeBeforePrint = currentTheme();
+    if (themeBeforePrint !== "light") {
+      applyTheme("light", false);
+      render();
+    }
+  });
+  window.addEventListener("afterprint", () => {
+    if (themeBeforePrint && themeBeforePrint !== "light") {
+      applyTheme(themeBeforePrint, false);
+      render();
+    }
+    themeBeforePrint = null;
+  });
   $("resetBtn").addEventListener("click", resetDefaults);
   $("stripScale").addEventListener("input", (e) => setStripScale(e.target.value));
   $("stripScaleReset").addEventListener("click", () => setStripScale(100));
@@ -1578,6 +1773,7 @@
     if (lastSched) renderStripViz(lastSched);
   });
 
+  applyTheme(currentTheme(), false);
   loadStripScale();
   loadInputs();
   render();
