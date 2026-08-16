@@ -59,5 +59,5 @@ If a run stops at the 40-cycle cap before reaching the target, or the 2 mg switc
 
 ---
 
-Strictly unofficially, the method is **Sub-minning** — same energy as looksmaxing, except the stat you are grinding down is Suboxone. The one leaderboard where the lowest score wins.
+Strictly unofficially, the method can be called **SAS-Sub-minning** — the stat you are grinding down is Suboxone.
 
