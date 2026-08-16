@@ -544,13 +544,15 @@
         <span>20 mm calibration — match this to a real ruler</span>
       </div>
       <div class="strip-stage" id="stripViz"></div>
-      <p class="legend">Official Suboxone film sizes (buprenorphine / naloxone). This tool cuts along the 22 mm side and keeps the other side as full width.</p>
+      <p class="legend">Official Suboxone film sizes (buprenorphine / naloxone). Density is buprenorphine only: mg ÷ (width × length). This tool cuts along the 22 mm side and keeps the other side as full width.</p>
       <div class="scroll">
         <table class="dim-table">
           <thead>
             <tr>
               <th class="left">Strength</th>
               <th class="left">Size</th>
+              <th class="left">Area</th>
+              <th class="left">Density</th>
               <th class="left">Notes</th>
             </tr>
           </thead>
@@ -558,22 +560,30 @@
             <tr>
               <td class="left">2 mg / 0.5 mg</td>
               <td class="left">22.0 mm × 12.8 mm</td>
-              <td class="left">Same footprint as the 8 mg film</td>
+              <td class="left">281.6 mm²</td>
+              <td class="left">0.00710 mg/mm²</td>
+              <td class="left">Same footprint as the 8 mg film; one-quarter the density</td>
             </tr>
             <tr>
               <td class="left">4 mg / 1 mg</td>
               <td class="left">22.0 mm × 25.6 mm</td>
-              <td class="left">Twice the length of the 2 mg film (12.8 × 2)</td>
+              <td class="left">563.2 mm²</td>
+              <td class="left">0.00710 mg/mm²</td>
+              <td class="left">Twice the length of the 2 mg film (12.8 × 2); same density as 2 mg</td>
             </tr>
             <tr>
               <td class="left">8 mg / 2 mg</td>
               <td class="left">22.0 mm × 12.8 mm</td>
-              <td class="left">Same footprint as the 2 mg film; default start</td>
+              <td class="left">281.6 mm²</td>
+              <td class="left">0.0284 mg/mm²</td>
+              <td class="left">Same footprint as the 2 mg film; 4× the density; default start</td>
             </tr>
             <tr>
               <td class="left">12 mg / 3 mg</td>
               <td class="left">22.0 mm × 19.2 mm</td>
-              <td class="left">1.5× the length of the 8 mg film (12.8 × 1.5)</td>
+              <td class="left">422.4 mm²</td>
+              <td class="left">0.0284 mg/mm²</td>
+              <td class="left">1.5× the length of the 8 mg film (12.8 × 1.5); same density as 8 mg</td>
             </tr>
           </tbody>
         </table>
