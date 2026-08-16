@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SAS-Taper — film schedule, cut marks, totals</title>
+  <style>
+    :root {
+      --ink: #1c1917;
+      --muted: #57534e;
+      --line: #e7e5e4;
+      --paper: #f7f4ee;
+      --card: #fffcf7;
+      --accent: #0f6b5c;
+      --accent-soft: #d7efe9;
+      --warn: #9a3412;
+      --warn-soft: #ffedd5;
+      --switch: #1d4ed8;
+      --switch-soft: #dbeafe;
+      --shadow: 0 1px 2px rgba(28, 25, 23, 0.06);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+      line-height: 1.45;
+    }
+    header.app {
+      padding: 1.6rem 1.25rem 1rem;
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+    header.app h1 {
+      font-family: "Iowan Old Style", Palatino, "Palatino Linotype", Georgia, serif;
+      font-weight: 600;
+      font-size: 2rem;
+      margin: 0 0 0.25rem;
+      letter-spacing: -0.02em;
+    }
+    header.app p.lede { margin: 0; color: var(--muted); max-width: 46rem; }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 0 1.25rem 3rem; }
+    .banner {
+      background: var(--warn-soft);
+      border: 1px solid #fdba74;
+      color: #7c2d12;
+      padding: 0.85rem 1rem;
+      border-radius: 10px;
+      margin-bottom: 1.1rem;
+      font-size: 0.95rem;
+    }
+    .banner strong { color: var(--warn); }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 1rem 1.1rem 1.15rem;
+      box-shadow: var(--shadow);
+      margin-bottom: 1rem;
+    }
+    .panel h2 {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin: 0 0 0.8rem;
+    }
+    form.grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.75rem 0.9rem;
+      align-items: end;
+    }
+    label { display: flex; flex-direction: column; gap: 0.28rem; font-size: 0.82rem; color: var(--muted); }
+    label span.k { color: var(--ink); font-weight: 600; }
+    input[type="number"], select {
+      font: inherit;
+      color: var(--ink);
+      background: #fff;
+      border: 1px solid #d6d3d1;
+      border-radius: 8px;
+      padding: 0.45rem 0.55rem;
+      width: 100%;
+    }
+    input[type="number"]:focus, select:focus {
+      outline: 2px solid var(--accent);
+      border-color: var(--accent);
+    }
+    .checks {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      justify-content: center;
+      padding-top: 0.4rem;
+    }
+    .checks label {
+      flex-direction: row;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.9rem;
+      color: var(--ink);
+    }
+    .checks input { width: auto; accent-color: var(--accent); }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 0.7rem;
+      margin-bottom: 1rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 0.8rem 0.9rem;
+      box-shadow: var(--shadow);
+    }
+    .card .lbl { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .card .val { font-size: 1.35rem; font-weight: 650; letter-spacing: -0.03em; margin-top: 0.15rem; }
+    .card .sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+    .scroll { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+      font-variant-numeric: tabular-nums;
+    }
+    th, td { text-align: right; padding: 0.38rem 0.45rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    th:first-child, td:first-child, th.left, td.left { text-align: left; }
+    thead th {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      font-weight: 650;
+      background: #faf8f4;
+      position: sticky;
+      top: 0;
+    }
+    tbody tr { cursor: pointer; }
+    tbody tr:hover { background: #f5f0e6; }
+    tbody tr.selected { background: var(--accent-soft); }
+    tbody tr.switch td { background: var(--switch-soft); }
+    tbody tr.warn td { background: var(--warn-soft); }
+    tbody tr.switch.selected td, tbody tr.warn.selected td { outline: 2px solid var(--accent); }
+    .pill {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      padding: 0.08rem 0.4rem;
+      border-radius: 999px;
+      margin-left: 0.3rem;
+      vertical-align: middle;
+    }
+    .pill.sw { background: var(--switch-soft); color: var(--switch); }
+    .pill.wn { background: var(--warn-soft); color: var(--warn); }
+    .legend { font-size: 0.8rem; color: var(--muted); margin: 0.5rem 0 0; }
+    .ruler-meta { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
+    .ruler-meta strong { font-size: 1.05rem; }
+    .film {
+      position: relative;
+      height: 64px;
+      border: 2px solid var(--ink);
+      border-radius: 6px;
+      display: flex;
+      overflow: hidden;
+      background: #fff;
+    }
+    .film .sliver {
+      background: repeating-linear-gradient(-45deg, #fdba74, #fdba74 6px, #ffedd5 6px, #ffedd5 12px);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.72rem; font-weight: 700; color: #7c2d12;
+      min-width: 0;
+      overflow: hidden;
+      text-align: center;
+    }
+    .film .keep {
+      background: linear-gradient(#99f6e4, #5eead4);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.78rem; font-weight: 700; color: #134e4a;
+      overflow: hidden;
+      text-align: center;
+    }
+    .ticks { position: relative; height: 1.4rem; margin-top: 0.15rem; font-size: 0.75rem; color: var(--muted); }
+    .ticks span { position: absolute; transform: translateX(-50%); }
+    .ticks span.start { left: 0; transform: none; }
+    .ticks span.end { left: 100%; transform: translateX(-100%); }
+    .ticks span.cut { color: var(--warn); font-weight: 700; }
+    .charts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.9rem;
+    }
+    @media (max-width: 820px) { .charts { grid-template-columns: 1fr; } }
+    .chart { min-width: 0; }
+    .chart h3 {
+      font-size: 0.88rem;
+      font-weight: 650;
+      margin: 0 0 0.35rem;
+      letter-spacing: -0.01em;
+    }
+    .chart .cap { font-size: 0.75rem; color: var(--muted); margin: 0.35rem 0 0; }
+    .chart-wide { grid-column: 1 / -1; }
+    svg.plot { width: 100%; height: auto; display: block; }
+    svg.plot [data-cycle] { cursor: pointer; }
+    .piece-row {
+      display: grid;
+      grid-template-columns: 2.4rem 1fr auto;
+      gap: 0.45rem;
+      align-items: center;
+      margin: 0.18rem 0;
+      cursor: pointer;
+    }
+    .piece-row .n { font-size: 0.75rem; color: var(--muted); text-align: right; }
+    .piece-track { height: 20px; display: flex; border: 1px solid var(--ink); border-radius: 4px; overflow: hidden; background: #fff; }
+    .piece-track .k { background: #5eead4; }
+    .piece-track .s {
+      background: repeating-linear-gradient(-45deg, #fdba74, #fdba74 4px, #ffedd5 4px, #ffedd5 8px);
+    }
+    .piece-row.selected .piece-track { outline: 2px solid var(--accent); outline-offset: 1px; }
+    .piece-row.warn .piece-track { border-color: var(--warn); }
+    .piece-row .mm { font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; vertical-align: -0.1rem; margin-right: 0.25rem; }
+    .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.4rem 0 0.2rem; }
+    button {
+      font: inherit;
+      font-weight: 650;
+      border: 1px solid var(--accent);
+      background: var(--accent);
+      color: #fff;
+      border-radius: 8px;
+      padding: 0.45rem 0.85rem;
+      cursor: pointer;
+    }
+    button.ghost { background: #fff; color: var(--accent); }
+    button:hover { filter: brightness(1.05); }
+    .notes { font-size: 0.92rem; color: #292524; }
+    .notes ul { margin: 0.2rem 0 0; padding-left: 1.15rem; }
+    .notes li { margin: 0.35rem 0; }
+    .foot { color: var(--muted); font-size: 0.8rem; margin-top: 1.5rem; }
+    @media print {
+      body { background: #fff; }
+      header.app { padding-top: 0; }
+      .no-print, .actions, tbody tr { cursor: default; }
+      .banner { break-inside: avoid; }
+      .panel, .card { box-shadow: none; }
+      tbody tr.selected { background: var(--accent-soft); }
+      button { display: none; }
+      .chart { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header class="app">
+    <h1>SAS-Taper</h1>
+    <p class="lede">Geometric film taper: each day cut 1/n off the current piece, save the sliver, take the rest. After n days the save jar holds one full piece — a buffer, not extra dose.</p>
+  </header>
+  <div class="wrap">
+    <div class="banner">
+      <strong>Not medical advice.</strong>
+      This is a calculator for a plan to take to your prescriber. Buprenorphine pieces are severely dangerous to children and pets — keep saved slivers locked up. Holding a cycle is allowed; cravings are the signal that matters most.
+    </div>
+
+    <section class="panel">
+      <h2>Inputs</h2>
+      <form class="grid" id="form" autocomplete="off">
+        <label><span class="k">Start dose (mg)</span>
+          <input type="number" id="startMg" min="0.1" step="0.1" value="8">
+        </label>
+        <label><span class="k">n (days &amp; cut)</span>
+          <input type="number" id="n" min="2" max="30" step="1" value="6">
+        </label>
+        <label><span class="k">8 mg film length (mm)</span>
+          <input type="number" id="filmMm" min="1" step="0.1" value="22">
+        </label>
+        <label><span class="k">2 mg film length (mm)</span>
+          <input type="number" id="film2Mm" min="1" step="0.1" value="22">
+        </label>
+        <label><span class="k">Target (mg/day)</span>
+          <input type="number" id="targetMg" min="0" step="0.1" value="1">
+        </label>
+        <label><span class="k">Strip strength (mg)</span>
+          <input type="number" id="stripMg" min="0.1" step="0.1" value="8">
+        </label>
+        <label><span class="k">Hold / stretch days</span>
+          <input type="number" id="holdDays" min="0" step="1" placeholder="blank = n">
+        </label>
+        <label><span class="k">n below 3 mg</span>
+          <input type="number" id="nBelow3" min="0" step="1" placeholder="blank = off">
+        </label>
+        <div class="checks">
+          <label><input type="checkbox" id="switch2" checked> Switch to 2 mg films at ~2.2 mg</label>
+          <label><input type="checkbox" id="showCompare" checked> Show n = 6 / 8 / 10 comparison</label>
+        </div>
+      </form>
+      <div class="actions no-print">
+        <button type="button" id="printBtn">Print / save as PDF</button>
+        <button type="button" class="ghost" id="resetBtn">Reset to n = 6 defaults</button>
+      </div>
+    </section>
+
+    <div class="cards" id="cards"></div>
+
+    <section class="panel">
+      <h2>Graphs</h2>
+      <p class="legend" style="margin-top:-0.4rem;margin-bottom:0.8rem;">Dose is constant inside a cycle, then drops — a step ladder, not a smooth slide. Click a step or a film bar to select that cycle’s cut mark.</p>
+      <div class="charts" id="charts"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Schedule</h2>
+      <div class="scroll">
+        <table id="schedTable">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="legend">Click a row to show its cut mark. Blue = restarted on a 2 mg film. Amber = sliver under 1 mm (stop shaving 8 mg films).</p>
+    </section>
+
+    <section class="panel">
+      <h2>Cut mark — selected cycle</h2>
+      <div id="ruler"></div>
+    </section>
+
+    <section class="panel" id="comparePanel">
+      <h2>Compare n = 6 / 8 / 10 at ~1 mg</h2>
+      <p class="legend" style="margin-top:-0.4rem;margin-bottom:0.7rem;">8 mg films all the way; last cycle still above 1 mg. The save-bank is not fed back into daily dose. Slower is not free: n = 10 uses about 3× the medication of n = 6 because you spend about 3× longer on the ladder.</p>
+      <div class="scroll">
+        <table id="compareTable">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Prescription quantity</h2>
+      <p class="legend" style="margin-top:-0.4rem;margin-bottom:0.7rem;">Ingested-equivalent strips per 30 days. If the script stays at 30 strips/month, the surplus is a stockpile — a diversion risk and a household hazard. Ask the prescriber to step quantity down with the dose, and return surplus through a pharmacy take-back.</p>
+      <div class="scroll">
+        <table id="monthTable">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel notes">
+      <h2>Notes that make or break this</h2>
+      <ul>
+        <li>Cut along <strong>one axis only</strong>. Keep the full width; only shorten the length. Then length fraction = dose fraction. Cutting both dimensions loses the arithmetic.</li>
+        <li>Use a fresh razor/craft blade and a ruler on a clean mat, not scissors. Mark before you cut. Cutting films is not manufacturer-sanctioned; the drug is distributed reasonably evenly, which is why this method is widely used.</li>
+        <li>Saved slivers are surplus / a safety net. Do not add them back into the daily dose or the taper never drops. Store airtight and dry, separated by wax paper, and keep them locked up.</li>
+        <li>The low end is where 8 mg films fail. Ask your prescriber for 2 mg films before you need them (around the time daily dose is heading through ~4 mg toward ~2 mg). Quartering a 2 mg film is far more accurate than shaving 1/16 off an 8 mg film.</li>
+        <li>Holding is not failure. If a cycle leaves you with bad sleep, restlessness, sweats, GI upset, or — most importantly — a spike in cravings, stay at that dose for another cycle or two before dropping again.</li>
+        <li>Once daily is fine at every level here. Buprenorphine’s half-life is long enough that splitting doses buys you nothing.</li>
+        <li>n = 6 (16.7% every 6 days) is at the fast end of typical 10–25% steps. You may not feel a drop until day 4 or 5, right as you are about to drop again. Hedge by stretching the cycle to 8–9 days (same cut, more settling time) or switch to n = 10 below 3 mg.</li>
+        <li>Bring this printout to your prescriber. A taper from 8 mg to 1–2 mg is a routine, well-supported goal, and they are the one who can write 2 mg films and match quantity to the ladder.</li>
+      </ul>
+    </section>
+    <p class="foot">SAS-Taper · local calculator, no network · same math as <code>taper.py</code></p>
+  </div>
+
+<script>
+(function () {
+  const MAX_CYCLES = 40;
+  const CUT_WARN_MM = 1.0;
+  const SWITCH_AT_MG = 2.25;
+  const MONTH_DAYS = 30;
+  const RX_STRIPS = 30;
+  const STORAGE_KEY = "sas-taper-inputs-v1";
+
+  const $ = (id) => document.getElementById(id);
+
+  function keepRatio(n) { return 1 - 1 / n; }
+  function lifetimeCeilingMg(startMg, n) { return n * (n - 1) * startMg; }
+
+  function num(id, fallback) {
+    const el = $(id);
+    const v = parseFloat(el.value);
+    return Number.isFinite(v) ? v : fallback;
+  }
+  function intOrNull(id) {
+    const raw = $(id).value;
+    if (raw === "" || raw == null) return null;
+    const v = parseInt(raw, 10);
+    return Number.isFinite(v) && v > 0 ? v : null;
+  }
+
+  function buildSchedule(opts) {
+    const startMg = opts.startMg;
+    const n0 = opts.n;
+    const filmMm = opts.filmMm;
+    const film2Mm = opts.film2Mm;
+    const targetMg = opts.targetMg;
+    const stripMg = opts.stripMg;
+    const switch2mg = opts.switch2mg;
+    const holdDays = opts.holdDays;
+    const nBelow3 = opts.nBelow3;
+    const stopMode = opts.stopMode || "reach";
+
+    let filmMg, currentFilmMm;
+    if (startMg <= 2.0 + 1e-9) {
+      filmMg = 2.0;
+      currentFilmMm = film2Mm;
+    } else {
+      filmMg = 8.0;
+      currentFilmMm = filmMm;
+    }
+
+    let D = startMg;
+    let currentN = n0;
+    let switched = false;
+    let alreadySwitchedN = false;
+    let day = 0;
+    let cumMg = 0;
+    let cumBanked = 0;
+    const rows = [];
+
+    for (let cycle = 1; cycle <= MAX_CYCLES; cycle++) {
+      let nChanged = false;
+      if (nBelow3 && nBelow3 >= 2 && D < 3.0 && currentN !== nBelow3 && !alreadySwitchedN) {
+        currentN = nBelow3;
+        alreadySwitchedN = true;
+        nChanged = true;
+      }
+
+      let justSwitched = false;
+      if (switch2mg && !switched && filmMg > 2.0 + 1e-9 && D <= SWITCH_AT_MG + 1e-12) {
+        D = 2.0;
+        filmMg = 2.0;
+        currentFilmMm = film2Mm;
+        switched = true;
+        justSwitched = true;
+      }
+
+      const r = keepRatio(currentN);
+      const daily = D * r;
+      const sliver = D / currentN;
+
+      if (stopMode === "above" && daily <= targetMg + 1e-12) break;
+
+      const days = holdDays && holdDays >= 1 ? holdDays : currentN;
+      const pieceMm = currentFilmMm * D / filmMg;
+      const cutMm = pieceMm / currentN;
+      const used = days * daily;
+      const banked = days * sliver;
+      const dayStart = day + 1;
+      const dayEnd = day + days;
+      cumMg += used;
+      cumBanked += banked;
+
+      rows.push({
+        cycle, dayStart, dayEnd, n: currentN, days, filmMg,
+        cutFromMg: D, dailyMg: daily, sliverMg: sliver,
+        pieceMm, cutMm, usedMg: used, cumMg,
+        cumStrips: cumMg / stripMg,
+        bankedMg: banked, cumBankedMg: cumBanked,
+        switched2mg: justSwitched,
+        cutWarn: cutMm < CUT_WARN_MM,
+        nChanged
+      });
+
+      D = daily;
+      day = dayEnd;
+      if (stopMode === "reach" && daily <= targetMg + 1e-12) break;
+    }
+
+    const result = {
+      startMg, n: n0, filmMm, film2Mm, targetMg, stripMg, switch2mg, holdDays, nBelow3, stopMode,
+      r: keepRatio(n0),
+      ceilingMg: lifetimeCeilingMg(startMg, n0),
+      ceilingStrips: lifetimeCeilingMg(startMg, n0) / stripMg,
+      rows
+    };
+    fillSummary(result);
+    return result;
+  }
+
+  function fillSummary(result) {
+    const rows = result.rows;
+    if (!rows.length) return;
+    const last = rows[rows.length - 1];
+    result.endDay = last.dayEnd;
+    result.endDailyMg = last.dailyMg;
+    result.totalMg = last.cumMg;
+    result.totalStrips = last.cumStrips;
+    result.totalBankedMg = last.cumBankedMg;
+    result.stayMg = result.startMg * result.endDay;
+    result.savedVsStayMg = result.stayMg - result.totalMg;
+    result.savedVsStayStrips = result.savedVsStayMg / result.stripMg;
+    result.daysTo2mg = null;
+    result.doseAt2mg = null;
+    result.daysTo1mg = null;
+    result.doseAt1mg = null;
+    for (const row of rows) {
+      if (result.daysTo2mg == null && row.dailyMg <= 2.0 + 1e-9) {
+        result.daysTo2mg = row.dayStart;
+        result.doseAt2mg = row.dailyMg;
+      }
+      if (result.daysTo1mg == null && row.dailyMg <= 1.0 + 0.12) {
+        result.daysTo1mg = row.dayEnd;
+        result.doseAt1mg = row.dailyMg;
+      }
+    }
+    result.months = monthlyUsage(rows, result.stripMg);
+  }
+
+  function monthlyUsage(rows, stripMg) {
+    if (!rows.length) return [];
+    const endDay = rows[rows.length - 1].dayEnd;
+    const nMonths = Math.ceil(endDay / MONTH_DAYS);
+    const used = Array(nMonths).fill(0);
+    for (const row of rows) {
+      for (let d = row.dayStart; d <= row.dayEnd; d++) {
+        used[Math.floor((d - 1) / MONTH_DAYS)] += row.dailyMg;
+      }
+    }
+    return used.map((mg, i) => {
+      const strips = mg / stripMg;
+      return {
+        month: i + 1,
+        dayStart: i * MONTH_DAYS + 1,
+        dayEnd: Math.min((i + 1) * MONTH_DAYS, endDay),
+        usedMg: mg,
+        usedStrips: strips,
+        rxStrips: RX_STRIPS,
+        surplusStrips: RX_STRIPS - strips
+      };
+    });
+  }
+
+  function compareClassic(startMg, targetMg, stripMg) {
+    return [6, 8, 10].map((n) => {
+      const sched = buildSchedule({
+        startMg, n, filmMm: 22, film2Mm: 22, targetMg, stripMg,
+        switch2mg: false, holdDays: null, nBelow3: null, stopMode: "above"
+      });
+      return {
+        n,
+        pct: 100 / n,
+        cycles: sched.rows.length,
+        days: sched.endDay,
+        endDailyMg: sched.endDailyMg,
+        totalMg: sched.totalMg,
+        totalStrips: sched.totalStrips,
+        ceilingMg: sched.ceilingMg,
+        ceilingStrips: sched.ceilingStrips,
+        stayStrips: sched.endDay * startMg / stripMg,
+        savedStrips: sched.savedVsStayStrips
+      };
+    });
+  }
+
+  function fmt(n, d) {
+    if (n == null || !Number.isFinite(n)) return "—";
+    return n.toFixed(d);
+  }
+  function fmtG(n) {
+    if (n == null || !Number.isFinite(n)) return "—";
+    return String(parseFloat(n.toFixed(4)));
+  }
+
+  let selectedCycle = 1;
+
+  function readOpts() {
+    return {
+      startMg: num("startMg", 8),
+      n: Math.max(2, Math.round(num("n", 6))),
+      filmMm: num("filmMm", 22),
+      film2Mm: num("film2Mm", 22),
+      targetMg: num("targetMg", 1),
+      stripMg: num("stripMg", 8),
+      switch2mg: $("switch2").checked,
+      holdDays: intOrNull("holdDays"),
+      nBelow3: intOrNull("nBelow3")
+    };
+  }
+
+  function saveInputs() {
+    const o = readOpts();
+    o.showCompare = $("showCompare").checked;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(o));
+  }
+
+  function loadInputs() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const o = JSON.parse(raw);
+      if (o.startMg != null) $("startMg").value = o.startMg;
+      if (o.n != null) $("n").value = o.n;
+      if (o.filmMm != null) $("filmMm").value = o.filmMm;
+      if (o.film2Mm != null) $("film2Mm").value = o.film2Mm;
+      if (o.targetMg != null) $("targetMg").value = o.targetMg;
+      if (o.stripMg != null) $("stripMg").value = o.stripMg;
+      if (o.holdDays) $("holdDays").value = o.holdDays;
+      if (o.nBelow3) $("nBelow3").value = o.nBelow3;
+      if (typeof o.switch2mg === "boolean") $("switch2").checked = o.switch2mg;
+      if (typeof o.showCompare === "boolean") $("showCompare").checked = o.showCompare;
+    } catch (e) { /* ignore */ }
+  }
+
+  function renderCards(s) {
+    const items = [
+      { lbl: "~2 mg", val: s.daysTo2mg != null ? "Day " + s.daysTo2mg : "—", sub: s.doseAt2mg != null ? fmt(s.doseAt2mg, 2) + " mg/day" : "not reached" },
+      { lbl: "~1 mg", val: s.daysTo1mg != null ? "Day " + s.daysTo1mg : "—", sub: s.doseAt1mg != null ? fmt(s.doseAt1mg, 2) + " mg/day" : "not reached" },
+      { lbl: "End of run", val: "Day " + s.endDay, sub: fmt(s.endDailyMg, 2) + " mg/day" },
+      { lbl: "Ingested", val: fmt(s.totalMg, 1) + " mg", sub: fmt(s.totalStrips, 1) + " × " + fmtG(s.stripMg) + " mg strips" },
+      { lbl: "Banked buffer", val: fmt(s.totalBankedMg, 1) + " mg", sub: fmt(s.totalBankedMg / s.stripMg, 1) + " strips · not extra dose" },
+      { lbl: "Lifetime ceiling", val: fmt(s.ceilingMg, 0) + " mg", sub: fmt(s.ceilingStrips, 1) + " strips if n never changes" },
+      { lbl: "Vs staying at " + fmtG(s.startMg) + " mg", val: fmt(s.savedVsStayStrips, 1) + " strips", sub: "saves " + fmt(s.savedVsStayMg, 0) + " mg over " + s.endDay + " days" }
+    ];
+    $("cards").innerHTML = items.map((c) =>
+      `<article class="card"><div class="lbl">${c.lbl}</div><div class="val">${c.val}</div><div class="sub">${c.sub}</div></article>`
+    ).join("");
+  }
+
+  function renderSchedule(s) {
+    const thead = `<tr>
+      <th class="left">Cycle</th><th>Days</th><th>Film</th>
+      <th>Cut from</th><th>Daily</th><th>Sliver</th>
+      <th>Piece mm</th><th>Cut at</th>
+      <th>Cycle mg</th><th>Cum mg</th><th>Cum strips</th><th>Banked</th>
+    </tr>`;
+    $("schedTable").querySelector("thead").innerHTML = thead;
+    const tb = $("schedTable").querySelector("tbody");
+    tb.innerHTML = s.rows.map((r) => {
+      const cls = [
+        r.cycle === selectedCycle ? "selected" : "",
+        r.switched2mg ? "switch" : "",
+        r.cutWarn ? "warn" : ""
+      ].filter(Boolean).join(" ");
+      let pills = "";
+      if (r.switched2mg) pills += `<span class="pill sw">2 mg</span>`;
+      if (r.nChanged) pills += `<span class="pill sw">n=${r.n}</span>`;
+      if (r.cutWarn) pills += `<span class="pill wn">thin</span>`;
+      return `<tr class="${cls}" data-cycle="${r.cycle}">
+        <td class="left">${r.cycle}${pills}</td>
+        <td>${r.dayStart}–${r.dayEnd}</td>
+        <td>${fmtG(r.filmMg)} mg</td>
+        <td>${fmt(r.cutFromMg, 2)}</td>
+        <td>${fmt(r.dailyMg, 2)}</td>
+        <td>${fmt(r.sliverMg, 2)}</td>
+        <td>${fmt(r.pieceMm, 1)}</td>
+        <td>${fmt(r.cutMm, 2)}</td>
+        <td>${fmt(r.usedMg, 1)}</td>
+        <td>${fmt(r.cumMg, 1)}</td>
+        <td>${fmt(r.cumStrips, 1)}</td>
+        <td>${fmt(r.bankedMg, 2)}</td>
+      </tr>`;
+    }).join("");
+    tb.querySelectorAll("tr").forEach((tr) => {
+      tr.addEventListener("click", () => {
+        selectedCycle = parseInt(tr.getAttribute("data-cycle"), 10);
+        render();
+      });
+    });
+  }
+
+  function renderRuler(s) {
+    const row = s.rows.find((r) => r.cycle === selectedCycle) || s.rows[0];
+    if (!row) {
+      $("ruler").innerHTML = "<p>No cycles.</p>";
+      return;
+    }
+    const sliverPct = Math.max(8, (row.cutMm / row.pieceMm) * 100);
+    const keepPct = 100 - sliverPct;
+    const keepMm = row.pieceMm - row.cutMm;
+    $("ruler").innerHTML = `
+      <div class="ruler-meta">
+        <div>
+          <strong>Cycle ${row.cycle}</strong> · days ${row.dayStart}–${row.dayEnd}
+          · ${fmtG(row.filmMg)} mg film · n = ${row.n}
+        </div>
+        <div>Mark the cut <strong>${fmt(row.cutMm, 2)} mm from the right end</strong> of a <strong>${fmt(row.pieceMm, 1)} mm</strong> piece. Keep full width; shorten length only.</div>
+      </div>
+      <div class="film" title="Cut along length only">
+        <div class="keep" style="width:${keepPct}%">TAKE ${fmt(row.dailyMg, 2)} mg · ${fmt(keepMm, 1)} mm</div>
+        <div class="sliver" style="width:${sliverPct}%">SAVE<br>${fmt(row.cutMm, 2)} mm<br>${fmt(row.sliverMg, 2)} mg</div>
+      </div>
+      <div class="ticks">
+        <span class="start">0</span>
+        <span class="cut" style="left:${keepPct}%">${fmt(keepMm, 1)} mm cut</span>
+        <span class="end">${fmt(row.pieceMm, 1)} mm</span>
+      </div>
+      <p class="legend">Take the long left end. Save the short right end. The saved sliver is buffer — do not swallow it as extra daily dose.</p>
+    `;
+  }
+
+  function axisNum(v) {
+    if (!Number.isFinite(v)) return "";
+    if (Math.abs(v - Math.round(v)) < 1e-6) return String(Math.round(v));
+    return v.toFixed(1);
+  }
+
+  function svgFrame(title, caption, inner, wide) {
+    return `<div class="chart${wide ? " chart-wide" : ""}">
+      <h3>${title}</h3>
+      ${inner}
+      <p class="cap">${caption}</p>
+    </div>`;
+  }
+
+  function plotBox() {
+    return { W: 560, H: 248, L: 40, R: 12, T: 14, B: 34 };
+  }
+
+  function svgOpen(box) {
+    return `<svg class="plot" viewBox="0 0 ${box.W} ${box.H}" role="img">`;
+  }
+
+  function gridAndAxes(box, xTicks, yTicks, xScale, yScale, xLabel, yLabel) {
+    const { W, H, L, R, T, B } = box;
+    const iw = W - L - R, ih = H - T - B;
+    let out = `<rect x="${L}" y="${T}" width="${iw}" height="${ih}" fill="#fff" stroke="#e7e5e4"/>`;
+    for (const t of yTicks) {
+      const y = yScale(t);
+      out += `<line x1="${L}" y1="${y}" x2="${W - R}" y2="${y}" stroke="#f0eeea" />`;
+      out += `<text x="${L - 6}" y="${y + 3}" text-anchor="end" font-size="10" fill="#57534e">${axisNum(t)}</text>`;
+    }
+    for (const t of xTicks) {
+      const x = xScale(t);
+      out += `<text x="${x}" y="${H - 12}" text-anchor="middle" font-size="10" fill="#57534e">${axisNum(t)}</text>`;
+    }
+    out += `<text x="${L + iw / 2}" y="${H - 2}" text-anchor="middle" font-size="10" fill="#57534e">${xLabel}</text>`;
+    out += `<text x="12" y="${T + ih / 2}" text-anchor="middle" font-size="10" fill="#57534e" transform="rotate(-90 12 ${T + ih / 2})">${yLabel}</text>`;
+    return out;
+  }
+
+  function evenTicks(max, n) {
+    const m = Math.max(max, 1e-6);
+    const out = [];
+    for (let i = 0; i <= n; i++) out.push(m * i / n);
+    return out;
+  }
+
+  function doseOverTimeChart(s) {
+    const box = plotBox();
+    const { W, H, L, R, T, B } = box;
+    const iw = W - L - R, ih = H - T - B;
+    const xmax = Math.max(s.endDay, 1);
+    const ymax = Math.max(s.startMg, 1);
+    const xS = (d) => L + (d / xmax) * iw;
+    const yS = (v) => T + (1 - v / ymax) * ih;
+    let path = "";
+    s.rows.forEach((r, i) => {
+      const x0 = xS(r.dayStart - (i === 0 ? 1 : 0));
+      const x1 = xS(r.dayEnd);
+      const y = yS(r.dailyMg);
+      path += i === 0 ? `M ${x0} ${y}` : `L ${x0} ${y}`;
+      path += ` L ${x1} ${y}`;
+    });
+    let inner = svgOpen(box);
+    inner += gridAndAxes(box, evenTicks(xmax, 5), evenTicks(ymax, 4), xS, yS, "Day", "Daily dose (mg)");
+    const sel = s.rows.find((r) => r.cycle === selectedCycle);
+    if (sel) {
+      inner += `<rect data-cycle="${sel.cycle}" x="${xS(sel.dayStart - 1)}" y="${T}" width="${Math.max(1, xS(sel.dayEnd) - xS(sel.dayStart - 1))}" height="${ih}" fill="#0f6b5c" opacity="0.08"/>`;
+    }
+    if (ymax >= 2) {
+      inner += `<line x1="${L}" y1="${yS(2)}" x2="${W - R}" y2="${yS(2)}" stroke="#1d4ed8" stroke-dasharray="4 3" />`;
+      inner += `<text x="${W - R - 2}" y="${yS(2) - 4}" text-anchor="end" font-size="10" fill="#1d4ed8">2 mg</text>`;
+    }
+    if (ymax >= 1) {
+      inner += `<line x1="${L}" y1="${yS(1)}" x2="${W - R}" y2="${yS(1)}" stroke="#9a3412" stroke-dasharray="4 3" />`;
+      inner += `<text x="${W - R - 2}" y="${yS(1) - 4}" text-anchor="end" font-size="10" fill="#9a3412">1 mg</text>`;
+    }
+    inner += `<path d="${path}" fill="none" stroke="#0f6b5c" stroke-width="2.2" stroke-linejoin="round"/>`;
+    for (const r of s.rows) {
+      inner += `<circle data-cycle="${r.cycle}" cx="${xS(r.dayEnd)}" cy="${yS(r.dailyMg)}" r="${r.cycle === selectedCycle ? 4.5 : 3}" fill="${r.switched2mg ? "#1d4ed8" : "#0f6b5c"}"/>`;
+    }
+    inner += "</svg>";
+    return svgFrame("Daily dose over time", "Step hold at each cycle, then a drop. Blue dot = 2 mg film restart.", inner);
+  }
+
+  function doseLadderChart(s) {
+    const box = plotBox();
+    const { W, H, L, R, T, B } = box;
+    const iw = W - L - R, ih = H - T - B;
+    const n = s.rows.length || 1;
+    const ymax = Math.max(s.startMg, 1);
+    const barW = iw / n;
+    const yS = (v) => T + (1 - v / ymax) * ih;
+    const xTicks = s.rows.filter((_, i) => n <= 12 || i % 2 === 0 || i === n - 1).map((r) => r.cycle);
+    const xS = (c) => L + (c - 0.5) * barW;
+    let inner = svgOpen(box);
+    inner += gridAndAxes(box, xTicks, evenTicks(ymax, 4), xS, yS, "Cycle", "Daily dose (mg)");
+    s.rows.forEach((r, i) => {
+      const x = L + i * barW + barW * 0.12;
+      const w = barW * 0.76;
+      const y = yS(r.dailyMg);
+      const h = yS(0) - y;
+      const fill = r.cycle === selectedCycle ? "#0f6b5c" : (r.cutWarn ? "#fdba74" : "#99f6e4");
+      const stroke = r.cycle === selectedCycle ? "#0f6b5c" : (r.switched2mg ? "#1d4ed8" : "#5eead4");
+      inner += `<rect data-cycle="${r.cycle}" x="${x}" y="${y}" width="${w}" height="${Math.max(h, 0)}" fill="${fill}" stroke="${stroke}"/>`;
+    });
+    inner += "</svg>";
+    return svgFrame("Step ladder by cycle", "Each bar is one hold. Amber = sliver under 1 mm. Click a bar to select.", inner);
+  }
+
+  function compareOverlayChart(opts) {
+    if (!$("showCompare").checked) return "";
+    const box = plotBox();
+    const { W, H, L, R, T, B } = box;
+    const iw = W - L - R, ih = H - T - B;
+    const colors = { 6: "#0f6b5c", 8: "#1d4ed8", 10: "#b45309" };
+    const series = [6, 8, 10].map((n) => ({
+      n,
+      sched: buildSchedule({
+        startMg: opts.startMg, n, filmMm: 22, film2Mm: 22,
+        targetMg: opts.targetMg, stripMg: opts.stripMg,
+        switch2mg: false, holdDays: null, nBelow3: null, stopMode: "above"
+      })
+    }));
+    const xmax = Math.max(...series.map((s) => s.sched.endDay), 1);
+    const ymax = Math.max(opts.startMg, 1);
+    const xS = (d) => L + (d / xmax) * iw;
+    const yS = (v) => T + (1 - v / ymax) * ih;
+    let inner = svgOpen(box);
+    inner += gridAndAxes(box, evenTicks(xmax, 5), evenTicks(ymax, 4), xS, yS, "Day", "Daily dose (mg)");
+    for (const s of series) {
+      let path = "";
+      s.sched.rows.forEach((r, i) => {
+        const x0 = xS(r.dayStart - (i === 0 ? 1 : 0));
+        const x1 = xS(r.dayEnd);
+        const y = yS(r.dailyMg);
+        path += i === 0 ? `M ${x0} ${y}` : `L ${x0} ${y}`;
+        path += ` L ${x1} ${y}`;
+      });
+      inner += `<path d="${path}" fill="none" stroke="${colors[s.n]}" stroke-width="2" />`;
+    }
+    inner += `</svg>
+      <div class="cap" style="margin-top:0.25rem">
+        <span><span class="swatch" style="background:#0f6b5c"></span>n=6</span>
+        &nbsp;&nbsp;<span><span class="swatch" style="background:#1d4ed8"></span>n=8</span>
+        &nbsp;&nbsp;<span><span class="swatch" style="background:#b45309"></span>n=10</span>
+      </div>`;
+    return svgFrame("n = 6 / 8 / 10 ladders over time", "Classic 8 mg films all the way, stopping just above 1 mg. Slower n stays higher for longer — and costs more total mg.", inner);
+  }
+
+  function cumulativeChart(s) {
+    const box = plotBox();
+    const { W, H, L, R, T, B } = box;
+    const iw = W - L - R, ih = H - T - B;
+    const xmax = Math.max(s.endDay, 1);
+    const stayEnd = s.startMg * s.endDay;
+    const ymax = Math.max(stayEnd, s.totalMg, 1);
+    const xS = (d) => L + (d / xmax) * iw;
+    const yS = (v) => T + (1 - v / ymax) * ih;
+    let taper = `M ${xS(0)} ${yS(0)}`;
+    for (const r of s.rows) {
+      taper += ` L ${xS(r.dayEnd)} ${yS(r.cumMg)}`;
+    }
+    const stay = `M ${xS(0)} ${yS(0)} L ${xS(xmax)} ${yS(stayEnd)}`;
+    const fill = `${taper} L ${xS(xmax)} ${yS(stayEnd)} L ${xS(0)} ${yS(0)} Z`;
+    let inner = svgOpen(box);
+    inner += gridAndAxes(box, evenTicks(xmax, 5), evenTicks(ymax, 4), xS, yS, "Day", "Cumulative mg");
+    inner += `<path d="${fill}" fill="#d7efe9" opacity="0.85"/>`;
+    inner += `<path d="${stay}" fill="none" stroke="#a8a29e" stroke-dasharray="5 4" stroke-width="1.6"/>`;
+    inner += `<path d="${taper}" fill="none" stroke="#0f6b5c" stroke-width="2.2"/>`;
+    inner += "</svg>";
+    return svgFrame("Cumulative ingested vs staying put", `Shaded gap is medication not taken vs ${fmtG(s.startMg)} mg/day for ${s.endDay} days (${fmt(s.savedVsStayStrips, 1)} strips).`);
+  }
+
+  function cutPrecisionChart(s) {
+    const box = plotBox();
+    const { W, H, L, R, T, B } = box;
+    const iw = W - L - R, ih = H - T - B;
+    const n = s.rows.length || 1;
+    const ymax = Math.max(...s.rows.map((r) => r.cutMm), 4);
+    const barW = iw / n;
+    const yS = (v) => T + (1 - v / ymax) * ih;
+    const xTicks = s.rows.filter((_, i) => n <= 12 || i % 2 === 0 || i === n - 1).map((r) => r.cycle);
+    const xS = (c) => L + (c - 0.5) * barW;
+    let inner = svgOpen(box);
+    inner += gridAndAxes(box, xTicks, evenTicks(ymax, 4), xS, yS, "Cycle", "Sliver (mm)");
+    const y1 = yS(1);
+    if (1 <= ymax) {
+      inner += `<line x1="${L}" y1="${y1}" x2="${W - R}" y2="${y1}" stroke="#9a3412" stroke-dasharray="4 3"/>`;
+      inner += `<text x="${W - R - 2}" y="${y1 - 4}" text-anchor="end" font-size="10" fill="#9a3412">1 mm</text>`;
+    }
+    s.rows.forEach((r, i) => {
+      const x = L + i * barW + barW * 0.12;
+      const w = barW * 0.76;
+      const y = yS(r.cutMm);
+      const h = yS(0) - y;
+      inner += `<rect data-cycle="${r.cycle}" x="${x}" y="${y}" width="${w}" height="${Math.max(h, 0)}" fill="${r.cutWarn ? "#fb923c" : (r.cycle === selectedCycle ? "#0f6b5c" : "#99f6e4")}" stroke="${r.switched2mg ? "#1d4ed8" : "#5eead4"}"/>`;
+    });
+    inner += "</svg>";
+    return svgFrame("Cut sliver length", "Below the 1 mm line, cutting error rivals the dose change. Switch film strength before that.", inner);
+  }
+
+  function rxMonthChart(s) {
+    const months = s.months || [];
+    if (!months.length) return "";
+    const box = plotBox();
+    const { W, H, L, R, T, B } = box;
+    const iw = W - L - R, ih = H - T - B;
+    const n = months.length;
+    const ymax = Math.max(RX_STRIPS, ...months.map((m) => m.usedStrips), 1);
+    const slot = iw / n;
+    const yS = (v) => T + (1 - v / ymax) * ih;
+    const xS = (m) => L + (m - 0.5) * slot;
+    let inner = svgOpen(box);
+    inner += gridAndAxes(box, months.map((m) => m.month), evenTicks(ymax, 4), xS, yS, "Month", "Strips");
+    inner += `<line x1="${L}" y1="${yS(RX_STRIPS)}" x2="${W - R}" y2="${yS(RX_STRIPS)}" stroke="#9a3412" stroke-dasharray="4 3"/>`;
+    months.forEach((m, i) => {
+      const x = L + i * slot + slot * 0.18;
+      const w = slot * 0.64;
+      const y = yS(m.usedStrips);
+      inner += `<rect x="${x}" y="${y}" width="${w}" height="${Math.max(yS(0) - y, 0)}" fill="#0f6b5c"/>`;
+    });
+    inner += "</svg>";
+    return svgFrame("Monthly strips used vs a 30-strip script", "Green bars are ingested-equivalent strips. Dashed line is an unchanged 30/month Rx — everything above the bar is surplus stockpile.", inner);
+  }
+
+  function pieceLadderChart(s) {
+    const maxMm = Math.max(...s.rows.map((r) => r.pieceMm), 1);
+    const rows = s.rows.map((r) => {
+      const widthPct = (r.pieceMm / maxMm) * 100;
+      const savePct = (r.cutMm / r.pieceMm) * 100;
+      const keepPct = 100 - savePct;
+      const cls = [
+        r.cycle === selectedCycle ? "selected" : "",
+        r.cutWarn ? "warn" : ""
+      ].filter(Boolean).join(" ");
+      return `<div class="piece-row ${cls}" data-cycle="${r.cycle}">
+        <div class="n">C${r.cycle}</div>
+        <div class="piece-track" style="width:${widthPct}%">
+          <div class="k" style="width:${keepPct}%"></div>
+          <div class="s" style="width:${savePct}%"></div>
+        </div>
+        <div class="mm">${fmt(r.dailyMg, 2)} mg · ${fmt(r.pieceMm, 1)} mm</div>
+      </div>`;
+    }).join("");
+    const inner = `${rows}
+      <p class="cap" style="margin-top:0.45rem">
+        <span class="swatch" style="background:#5eead4"></span>TAKE (left)
+        &nbsp;&nbsp;<span class="swatch" style="background:#fdba74"></span>SAVE (right)
+        · bar length = piece length that cycle
+      </p>`;
+    return svgFrame("Physical film ladder", "Same geometry as the cut mark: long take on the left, short save on the right. Bars shrink each cycle.", inner, true);
+  }
+
+  function renderCharts(s, opts) {
+    $("charts").innerHTML = [
+      doseOverTimeChart(s),
+      doseLadderChart(s),
+      compareOverlayChart(opts),
+      cumulativeChart(s),
+      cutPrecisionChart(s),
+      rxMonthChart(s),
+      pieceLadderChart(s)
+    ].join("");
+    $("charts").querySelectorAll("[data-cycle]").forEach((el) => {
+      el.addEventListener("click", () => {
+        selectedCycle = parseInt(el.getAttribute("data-cycle"), 10);
+        render();
+      });
+    });
+  }
+
+  function renderCompare(opts) {
+    const panel = $("comparePanel");
+    if (!$("showCompare").checked) {
+      panel.style.display = "none";
+      return;
+    }
+    panel.style.display = "";
+    const rows = compareClassic(opts.startMg, opts.targetMg, opts.stripMg);
+    $("compareTable").querySelector("thead").innerHTML = `<tr>
+      <th class="left">n</th><th>Cut</th><th>Cycles</th><th>Days</th><th>End mg/d</th>
+      <th>Total mg</th><th>Strips</th><th>Ceiling mg</th><th>Stay strips</th><th>Saved strips</th>
+    </tr>`;
+    $("compareTable").querySelector("tbody").innerHTML = rows.map((c) => `<tr>
+      <td class="left">${c.n}</td>
+      <td>${fmt(c.pct, 1)}%</td>
+      <td>${c.cycles}</td>
+      <td>${c.days}</td>
+      <td>${fmt(c.endDailyMg, 2)}</td>
+      <td>${fmt(c.totalMg, 1)}</td>
+      <td>${fmt(c.totalStrips, 1)}</td>
+      <td>${fmt(c.ceilingMg, 0)}</td>
+      <td>${fmt(c.stayStrips, 0)}</td>
+      <td>${fmt(c.savedStrips, 1)}</td>
+    </tr>`).join("");
+  }
+
+  function renderMonths(s) {
+    $("monthTable").querySelector("thead").innerHTML = `<tr>
+      <th class="left">Month</th><th>Days</th><th>Used mg</th><th>Used strips</th><th>If Rx = 30</th><th>Surplus</th>
+    </tr>`;
+    $("monthTable").querySelector("tbody").innerHTML = (s.months || []).map((m) => `<tr>
+      <td class="left">${m.month}</td>
+      <td>${m.dayStart}–${m.dayEnd}</td>
+      <td>${fmt(m.usedMg, 1)}</td>
+      <td>${fmt(m.usedStrips, 1)}</td>
+      <td>${m.rxStrips}</td>
+      <td>${m.surplusStrips >= 0 ? "+" : ""}${fmt(m.surplusStrips, 1)}</td>
+    </tr>`).join("");
+  }
+
+  function render() {
+    const opts = readOpts();
+    saveInputs();
+    const s = buildSchedule(Object.assign({ stopMode: "reach" }, opts));
+    if (!s.rows.some((r) => r.cycle === selectedCycle)) {
+      selectedCycle = s.rows.length ? s.rows[0].cycle : 1;
+    }
+    renderCards(s);
+    renderCharts(s, opts);
+    renderSchedule(s);
+    renderRuler(s);
+    renderCompare(opts);
+    renderMonths(s);
+  }
+
+  function resetDefaults() {
+    $("startMg").value = 8;
+    $("n").value = 6;
+    $("filmMm").value = 22;
+    $("film2Mm").value = 22;
+    $("targetMg").value = 1;
+    $("stripMg").value = 8;
+    $("holdDays").value = "";
+    $("nBelow3").value = "";
+    $("switch2").checked = true;
+    $("showCompare").checked = true;
+    selectedCycle = 1;
+    localStorage.removeItem(STORAGE_KEY);
+    render();
+  }
+
+  $("form").addEventListener("input", () => { selectedCycle = 1; render(); });
+  $("form").addEventListener("change", () => render());
+  $("printBtn").addEventListener("click", () => window.print());
+  $("resetBtn").addEventListener("click", resetDefaults);
+
+  loadInputs();
+  render();
+})();
+</script>
+</body>
+</html>
