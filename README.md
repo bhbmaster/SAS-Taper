@@ -9,17 +9,21 @@ Live site: [bhbmaster.github.io/SAS-Taper](https://bhbmaster.github.io/SAS-Taper
 
 Each day you cut `1/n` off the current piece, **save** the short right sliver, and **take** the long left piece. After `n` days the save jar holds one full piece — a buffer, not extra daily dose. Next cycle the new “whole strip” is `dose × (1 − 1/n)`.
 
-Default: start 8 mg, **n = 6** (16.7% every 6 days), switch to 2 mg films around 2.2 mg.
+Default: start 8 mg, **n = 6** (16.7% every 6 days), switch to 2 mg films once the strip reaches 2.25 mg.
 
 ## Why save-a-sliver
 
-The demanding part of a taper is often not the milligrams but the sense of getting less. SAS frames each day’s remaining piece as a complete strip — the dose you have — while the cut-off sliver leaves the daily ritual.
+The demanding part of a taper is often not the milligrams but the sense of getting less. SAS frames each day’s remaining piece as a complete strip — the dose you have — while the cut-off sliver leaves the daily routine.
 
 People tend to work with what is in hand. Surplus that stays in view is easier to use; once the sliver is saved, it is no longer part of today’s dose. The bank is a safety net if you need to step back up, not a second supply for the same day.
 
 ## Site
 
-Open the calculator at **[bhbmaster.github.io/SAS-Taper](https://bhbmaster.github.io/SAS-Taper/)**, or open `index.html` in a browser. Measure your film **length only**, put that in the inputs, and the schedule / cut marks / graphs update live. Click a cycle for that day’s ruler (TAKE left, SAVE right). Print it for your prescriber.
+The calculator lives at **[bhbmaster.github.io/SAS-Taper](https://bhbmaster.github.io/SAS-Taper/)**.
+
+There is no build step and no server. `index.html` is one self-contained file — all the CSS and JavaScript are inline, nothing is fetched over the network — so opening it straight from disk in any browser gives you the identical calculator, working offline. Clone the repo, or just save that one file and double-click it.
+
+Either way: measure your film **length only**, put that in the inputs, and the schedule / cut marks / graphs update live. Click a cycle for that day’s ruler (TAKE left, SAVE right). Print it for your prescriber.
 
 ## CLI
 
@@ -52,4 +56,8 @@ To plan a different start, change the inputs and recalc — for example start do
 All four Suboxone strengths measure 22 mm on the side this tool cuts, so the film-length input is the same number whichever you start on. The two low strengths (2 and 4 mg) share one density and the two high ones (8 and 12 mg) share another that is 4× as concentrated — which is why moving from 8 mg to 2 mg films makes the same dose four times longer, and the same cut four times more forgiving.
 
 If a run stops at the 40-cycle cap before reaching the target, or the 2 mg switch cannot fire without raising the dose, both the site and the CLI say so instead of quietly returning a short ladder.
+
+---
+
+Strictly unofficially, the method is **Sub-minning** — same energy as looksmaxing, except the stat you are grinding down is Suboxone. The one leaderboard where the lowest score wins.
 

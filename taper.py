@@ -95,7 +95,8 @@ The method — every day of a cycle
 
 If it gets rough: hold this dose another cycle (cravings matter most). Stretch the
 cycle to 8–9 days or switch n to 10 below 3 mg. When the sliver is under ~1 mm,
-switch to 2 mg films. Lock up saved pieces. Step the Rx quantity down with the dose.
+switch to 2 mg films. Lock up saved pieces. Step the prescribed quantity down
+with the dose.
 
 Limitation: the schedule starts on one given film size and either stays there or
 switches only to 2 mg films (not 12→8→4). The official size table is a reference;
@@ -113,11 +114,12 @@ Practical notes
   distributed reasonably evenly, which is why this method is widely used.
 - Saved slivers are surplus / a safety net. Do not add them back into the daily
   dose or the taper never drops. Store airtight and dry, separated by wax paper,
-  and keep them genuinely secured. Buprenorphine is severely dangerous to kids
-  and pets.
+  and keep them locked up. Buprenorphine is severely dangerous to kids and pets.
 - The low end is where cutting 8 mg films breaks down. A ~1 mm sliver is already
   in the noise. Ask your prescriber for 2 mg films before you need them (around
-  the time daily dose is heading through ~4 mg toward ~2 mg).
+  the time daily dose is heading through ~4 mg toward ~2 mg). A 2 mg film is one
+  quarter the density, so the same dose is four times longer on it and the same
+  cut is four times more forgiving.
 - Holding is not failure. If a cycle leaves you with bad sleep, restlessness,
   sweats, GI upset, or — most importantly — a spike in cravings, stay at that
   dose for another cycle or two before dropping again.
@@ -128,11 +130,15 @@ Practical notes
   by stretching the cycle to 8–9 days (same cut, more settling time) or switch
   to n=10 below 3 mg.
 - Tell your prescriber this schedule so quantity can step down with the dose.
-  A 30-strips/month script on a falling taper builds a stockpile — a diversion
-  risk and a household hazard. Return surplus through a pharmacy take-back.
+  A 30-strips-a-month prescription on a falling taper builds a stockpile — a
+  diversion risk and a household hazard. Return surplus via pharmacy take-back.
 
 Bring this to your prescriber. A taper from 8 mg to 1–2 mg is a routine goal;
 they are the one who can write 2 mg films and match the quantity to the ladder.
+
+Strictly unofficially, the method is Sub-minning: same energy as looksmaxing,
+except the stat you are grinding down is Suboxone. The one leaderboard where
+the lowest score wins.
 """
 
 
@@ -780,8 +786,8 @@ def print_schedule(sched: ScheduleResult, selected_cycle: Optional[int] = None) 
     print()
 
     print(f"Prescription quantity (ingested-equivalent strips per {DEFAULT_MONTH_DAYS} days)")
-    print("If the script stays at 30 strips/month, the surplus is a stockpile — "
-          "ask to step quantity down; take-back the rest.")
+    print(f"If the prescription stays at {DEFAULT_RX_STRIPS} strips a month, the surplus is a "
+          "stockpile — ask to step quantity down; return the rest via take-back.")
     print()
     mheaders = ["Month", "Days", "Used mg", "Used strips", "If Rx=30", "Surplus"]
     mtable = []

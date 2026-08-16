@@ -604,23 +604,23 @@
         <a class="gh" href="https://github.com/bhbmaster/SAS-Taper">GitHub: bhbmaster/SAS-Taper</a>
       </div>
     </div>
-    <p class="lede"><strong>SAS</strong> means <em>save-a-sliver</em>. Each day you cut 1/n off the current piece, save that sliver, and take the rest — treating what remains as a complete strip. After n days the save jar holds one full piece: a buffer, not extra dose. Open this file in a browser; numbers update as you change the inputs.</p>
+    <p class="lede"><strong>SAS</strong> means <em>save-a-sliver</em>. Each day you cut 1/n off the current piece, save that sliver, and take the rest — treating what remains as a complete strip. After n days the save jar holds one full piece: a buffer, not extra dose. Numbers update as you change the inputs.</p>
   </header>
   <div class="wrap">
     <div class="banner">
       <strong>Not medical advice.</strong>
-      This is a calculator for a plan to take to your prescriber. Buprenorphine pieces are severely dangerous to children and pets — keep saved slivers locked up. Holding a cycle is allowed; cravings are the signal that matters most.
+      This is a calculator for a plan to take to your prescriber. Buprenorphine pieces are severely dangerous to children and pets — keep saved slivers locked up. Holding a cycle is fine; cravings are the signal that matters most.
     </div>
 
     <section class="panel howto">
       <h2>How to use this</h2>
 
       <h3>Why save-a-sliver</h3>
-      <p>The demanding part of a taper is often not the milligrams but the sense of getting less. SAS frames each day’s remaining piece as a whole strip — the dose you have — while the cut-off sliver leaves the ritual. People tend to work with what is in hand. Surplus that stays in view is easier to use; once the sliver is saved, it is no longer part of today’s dose. The bank is a safety net if you need to step back up, not a second supply for the same day.</p>
+      <p>The demanding part of a taper is often not the milligrams but the sense of getting less. SAS frames each day’s remaining piece as a whole strip — the dose you have — while the cut-off sliver leaves the daily routine. People tend to work with what is in hand. Surplus that stays in view is easier to use; once the sliver is saved, it is no longer part of today’s dose. The bank is a safety net if you need to step back up, not a second supply for the same day.</p>
 
       <h3>Instructions</h3>
       <ol>
-        <li>You can use this site, or run the Python app from this folder with <code>python3 taper.py</code>. Same math either way. Offline: open <code>index.html</code> in any browser (double-click the file).</li>
+        <li>Use the calculator on this page, or run the same math in a terminal with <code>python3 taper.py</code> from the <a href="https://github.com/bhbmaster/SAS-Taper">repo</a>. To keep a copy offline, save this page — it is one self-contained file and needs no connection.</li>
         <li>Measure your film with a ruler along its <strong>length only</strong> — the 22 mm side, the one you will be cutting. Put that number in “Start film length.” All four Suboxone strengths are 22 mm on that side, so it is the same number whichever you start on. Default n = 6 (16.7% every 6 days). If you want a gentler taper, raise n to 8 or 10.</li>
         <li>The cards, graphs, and schedule recalculate live. Click a cycle row (or a graph step) to see that day’s cut mark and a life-size film: <strong>TAKE on the left, SAVE on the right</strong>. The cut-mark bar is a full unused film; later cycles hash the rest that is already off.</li>
         <li>Print / save as PDF and take it to your prescriber <em>before day 1</em> so they can match quantity and write 2 mg films for the back half.</li>
@@ -634,7 +634,7 @@
         <ol>
           <li>Start the cycle with a piece that is the current “whole strip” (cycle 1: a full 8 mg film).</li>
           <li>Keep the full width. Cut only along the length. Mark, then cut with a fresh razor on a mat — not scissors.</li>
-          <li>Cut 1/n off the <strong>right</strong> end. That short sliver goes in the save container. Take the long left piece. Once daily is enough.</li>
+          <li>Cut 1/n off the <strong>right</strong> end. That short sliver goes in the save jar. Take the long left piece. Once daily is enough.</li>
           <li>Do that for n days. The save jar now holds one full piece of this cycle’s size. That is a <strong>buffer / safety net, not extra daily dose</strong>. If you eat the bank, the dose never drops.</li>
           <li>Next cycle, the leftover size is the new whole strip: dose × (1 − 1/n). Repeat until you hit the target (default 1 mg).</li>
         </ol>
@@ -644,7 +644,7 @@
       <ol>
         <li>Hold: stay at this cycle’s daily dose for another n days. Cravings, bad sleep, restlessness, sweats, or GI upset are data — especially cravings. Holding is not failure.</li>
         <li>Optional hedges: stretch each cycle to 8–9 days (same 1/n cut, more settling time), or switch n to 10 once you are below 3 mg.</li>
-        <li>When the sliver is under ~1 mm, stop shaving 8 mg films. Switch to 2 mg films (on by default here around 2.2 mg) so the same cut is four times more precise.</li>
+        <li>When the sliver is under ~1 mm, stop shaving 8 mg films. Switch to 2 mg films — on by default once the strip reaches 2.25 mg — so the same cut is four times more forgiving.</li>
         <li>Store saved pieces airtight, dry, separated by wax paper, and locked up. Ask the prescriber to step the monthly quantity down; return surplus via pharmacy take-back.</li>
       </ol>
     </section>
@@ -677,7 +677,7 @@
           <input type="number" id="nBelow3" min="0" step="1" placeholder="blank = off">
         </label>
         <div class="checks">
-          <label><input type="checkbox" id="switch2" checked> Switch to 2 mg films at ~2.2 mg</label>
+          <label><input type="checkbox" id="switch2" checked> Switch to 2 mg films at or below 2.25 mg</label>
           <label><input type="checkbox" id="showCompare" checked> Show n = 6 / 8 / 10 comparison</label>
         </div>
       </form>
@@ -784,7 +784,7 @@
 
     <section class="panel" id="comparePanel">
       <h2>Compare n = 6 / 8 / 10 at ~1 mg</h2>
-      <p class="legend" style="margin-top:-0.4rem;margin-bottom:0.7rem;">8 mg films all the way; last cycle still above 1 mg. The save-bank is not fed back into daily dose. Slower is not free: n = 10 uses about 3× the medication of n = 6 because you spend about 3× longer on the ladder.</p>
+      <p class="legend" style="margin-top:-0.4rem;margin-bottom:0.7rem;">8 mg films all the way; last cycle still above 1 mg. The save jar is not fed back into the daily dose. Slower is not free: n = 10 uses about 3× the medication of n = 6 because you spend about 3× longer on the ladder.</p>
       <div class="scroll">
         <table id="compareTable">
           <thead></thead>
@@ -795,7 +795,7 @@
 
     <section class="panel">
       <h2>Prescription quantity</h2>
-      <p class="legend" style="margin-top:-0.4rem;margin-bottom:0.7rem;">Ingested-equivalent strips per 30 days. If the script stays at 30 strips/month, the surplus is a stockpile — a diversion risk and a household hazard. Ask the prescriber to step quantity down with the dose, and return surplus through a pharmacy take-back.</p>
+      <p class="legend" style="margin-top:-0.4rem;margin-bottom:0.7rem;">Ingested-equivalent strips per 30 days. If the prescription stays at 30 strips a month, the surplus is a stockpile — a diversion risk and a household hazard. Ask the prescriber to step quantity down with the dose, and return surplus through a pharmacy take-back.</p>
       <div class="scroll">
         <table id="monthTable">
           <thead></thead>
@@ -810,12 +810,13 @@
         <li>Cut along <strong>one axis only</strong>. Keep the full width; only shorten the length. Then length fraction = dose fraction. Cutting both dimensions loses the arithmetic.</li>
         <li>Use a fresh razor/craft blade and a ruler on a clean mat, not scissors. Mark before you cut. Cutting films is not manufacturer-sanctioned; the drug is distributed reasonably evenly, which is why this method is widely used.</li>
         <li>Saved slivers are surplus / a safety net. Do not add them back into the daily dose or the taper never drops. Store airtight and dry, separated by wax paper, and keep them locked up.</li>
-        <li>The low end is where 8 mg films fail. Ask your prescriber for 2 mg films before you need them (around the time daily dose is heading through ~4 mg toward ~2 mg). Quartering a 2 mg film is far more accurate than shaving 1/16 off an 8 mg film.</li>
+        <li>The low end is where 8 mg films fail. Ask your prescriber for 2 mg films before you need them (around the time daily dose is heading through ~4 mg toward ~2 mg). A 2 mg film is one quarter the density of an 8 mg one, so the same dose is four times longer and the same cut is four times more forgiving.</li>
         <li>Holding is not failure. If a cycle leaves you with bad sleep, restlessness, sweats, GI upset, or — most importantly — a spike in cravings, stay at that dose for another cycle or two before dropping again.</li>
         <li>Once daily is fine at every level here. Buprenorphine’s half-life is long enough that splitting doses buys you nothing.</li>
         <li>n = 6 (16.7% every 6 days) is at the fast end of typical 10–25% steps. You may not feel a drop until day 4 or 5, right as you are about to drop again. Hedge by stretching the cycle to 8–9 days (same cut, more settling time) or switch to n = 10 below 3 mg.</li>
         <li>The schedule starts from one given film size and either stays there or switches only to 2 mg films. It will not auto-change 12 → 8 → 4 mg. Clicking those rows only redraws the strip. Change Start dose / strip strength and the tool recalculates the whole ladder.</li>
-        <li>Bring this printout to your prescriber. A taper from 8 mg to 1–2 mg is a routine, well-supported goal, and they are the one who can write 2 mg films and match quantity to the ladder.</li>
+        <li>Bring this schedule to your prescriber. A taper from 8 mg to 1–2 mg is a routine, well-supported goal, and they are the one who can write 2 mg films and match quantity to the ladder.</li>
+        <li>Strictly unofficially, the method is <strong>Sub-minning</strong> — same energy as looksmaxing, except the stat you are grinding down is Suboxone. The one leaderboard where the lowest score wins.</li>
       </ul>
     </section>
     <p class="foot">SAS-Taper (save-a-sliver) · <a href="https://github.com/bhbmaster/SAS-Taper">github.com/bhbmaster/SAS-Taper</a> · same math as <code>taper.py</code></p>
