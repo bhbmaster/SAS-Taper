@@ -32,6 +32,7 @@ python3 taper.py
 python3 taper.py --compare
 python3 taper.py --cycle 6
 python3 taper.py --n 10 --no-switch-2mg
+python3 taper.py --start-date 2026-03-01
 python3 test_taper.py          # math checks
 ```
 
@@ -44,7 +45,7 @@ node test_parity.js
 
 It skips with exit 0 if no browser is available, so a checkout without one still passes.
 
-No extra packages. Python 3.11 is fine. Same math as the site. Cut marks are a full unused film: TAKE left, SAVE, then the already-off remainder. `--cycle N` prints only that cycle’s cut with the extra note. `--stop-mode above` matches the classic n=6/8/10 comparison (last cycle still strictly above target).
+No extra packages. Python 3.11 is fine. Same math as the site. Cut marks are a full unused film: TAKE left, SAVE, then the already-off remainder. `--cycle N` prints only that cycle’s cut with the extra note. `--stop-mode above` matches the classic n=6/8/10 comparison (last cycle still strictly above target). `--start-date` adds real dates to the schedule, the same ones the site's calendar shows.
 
 ## Method (every day of a cycle)
 
