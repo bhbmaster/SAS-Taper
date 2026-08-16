@@ -36,16 +36,65 @@ python3 taper.py --start-date 2026-03-01
 python3 test_taper.py          # math checks
 ```
 
-The ladder maths exists twice — `buildSchedule()` in `index.html` and `build_schedule()` in `taper.py` — and the site claims the two agree. `test_parity.js` checks that claim: it loads the page in a headless browser, runs both implementations over the same inputs, and diffs every row.
+No extra packages. Python 3.11 is fine. Same math as the site. Cut marks are a full unused film: TAKE left, SAVE, then the already-off remainder. `--cycle N` prints only that cycle’s cut with the extra note. `--stop-mode above` matches the classic n=6/8/10 comparison (last cycle still strictly above target). `--start-date` adds real dates to the schedule, the same ones the site's calendar shows.
+
+## Tests
+
+Two suites. The first needs nothing but Python; the second needs Node and a browser.
 
 ```bash
-npm i -D playwright-core     # once
+python3 test_taper.py       # schedule maths
+node test_parity.js         # index.html vs taper.py
+```
+
+### `test_taper.py`
+
+23 checks over the arithmetic the schedule is built on — the closed forms against the simulation, the per-cycle invariants (dose splits exactly, length fraction equals dose fraction, the bank is one whole piece per cycle), that the daily dose never rises across a film switch, and the published film geometry. Standard library only.
+
+### `test_parity.js` — what it tests and why
+
+The taper maths is written **twice**: `buildSchedule()` in `index.html` and `build_schedule()` in `taper.py`. The site tells people the two agree, and `test_taper.py` only covers the Python one. This test checks the claim, because the two had already drifted once.
+
+It loads `index.html` in a headless browser, runs both implementations over the same inputs, and diffs the results — **19 schedules** (start doses 0.1–12 mg, `n` from 3 to 30, the 2 mg switch on and off, stretched cycles, `n`-below-3, non-default film lengths, clamp boundaries), comparing all 19 fields of every cycle row plus 9 summary figures, then `baseFilmMg` across 8 film sizes.
+
+It exits **0** on a match, **1** with a list of mismatches otherwise. If Node or a browser is missing it prints `skipped` and exits 0, so a plain checkout still passes.
+
+#### Setup — Linux and macOS
+
+`playwright-core` deliberately ships without a browser, so you need one. Easiest route, and what CI uses:
+
+```bash
+npm install                          # installs playwright-core from package.json
+npx --yes playwright install chromium   # ~150 MB, downloads once
 node test_parity.js
 ```
 
-It skips with exit 0 if no browser is available, so a checkout without one still passes.
+On Linux, if Chromium refuses to start over missing system libraries:
 
-No extra packages. Python 3.11 is fine. Same math as the site. Cut marks are a full unused film: TAKE left, SAVE, then the already-off remainder. `--cycle N` prints only that cycle’s cut with the extra note. `--stop-mode above` matches the classic n=6/8/10 comparison (last cycle still strictly above target). `--start-date` adds real dates to the schedule, the same ones the site's calendar shows.
+```bash
+npx --yes playwright install --with-deps chromium   # needs sudo
+```
+
+**Already have Chrome?** Skip the download and point at it:
+
+```bash
+# macOS
+CHROMIUM_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" node test_parity.js
+
+# Linux
+CHROMIUM_PATH=/usr/bin/google-chrome node test_parity.js
+```
+
+The script also finds a browser on its own in the usual places — the Playwright cache (`~/.cache/ms-playwright` on Linux, `~/Library/Caches/ms-playwright` on macOS) and installed Chrome or Chromium — so `CHROMIUM_PATH` is only needed for something in an unusual location.
+
+Via npm scripts:
+
+```bash
+npm test        # parity only
+npm run test:all   # both suites
+```
+
+Both run in GitHub Actions on every push and pull request.
 
 ## Method (every day of a cycle)
 
@@ -66,6 +115,16 @@ To plan a different start, change the inputs and recalc — for example start do
 All four Suboxone strengths measure 22 mm on the side this tool cuts, so the film-length input is the same number whichever you start on. The two low strengths (2 and 4 mg) share one density and the two high ones (8 and 12 mg) share another that is 4× as concentrated — which is why moving from 8 mg to 2 mg films makes the same dose four times longer, and the same cut four times more forgiving.
 
 If a run stops at the 40-cycle cap before reaching the target, or the 2 mg switch cannot fire without raising the dose, both the site and the CLI say so instead of quietly returning a short ladder.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). The short version: `index.html` stays one self-contained file, `taper.py` stays standard-library only, and if you touch the maths in one you touch it in both and run `node test_parity.js`.
+
+## License
+
+[MIT](LICENSE) © 2026 Kostia K.
+
+The licence covers the code. It is not medical advice and carries no warranty — that is the "AS IS" clause doing real work here, not boilerplate. Take the schedule to a prescriber before day 1.
 
 ---
 
