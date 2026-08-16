@@ -902,16 +902,61 @@
     return 12;
   }
 
+  /* Writes the fallback back into the field. Without this an empty or junk box
+     silently computed on the default: the start-dose input could read blank
+     while the whole page showed an 8 mg schedule. */
   function num(id, fallback) {
     const el = $(id);
     const v = parseFloat(el.value);
-    return Number.isFinite(v) ? v : fallback;
+    if (Number.isFinite(v)) return v;
+    if (document.activeElement !== el) el.value = String(fallback);
+    return fallback;
   }
   function intOrNull(id) {
     const raw = $(id).value;
     if (raw === "" || raw == null) return null;
     const v = parseInt(raw, 10);
     return Number.isFinite(v) && v > 0 ? v : null;
+  }
+
+  /* The HTML min/max attributes only drive the spinner arrows — the form is
+     never submitted and checkValidity() is never called, so a typed or pasted
+     value reached buildSchedule unchecked. taper.py:277-281 raises ValueError
+     for these; the page cannot throw at the reader, so it clamps and says so.
+     Returns the adjustments for renderWarnings() to surface. */
+  function clampOpts(o) {
+    const notes = [];
+    const fix = (key, label, lo, hi) => {
+      const v = o[key];
+      if (!Number.isFinite(v)) return;
+      const c = Math.min(hi, Math.max(lo, v));
+      if (Math.abs(c - v) > 1e-12) {
+        o[key] = c;
+        notes.push(`${label} ${fmtG(v)} is out of range — using ${fmtG(c)}.`);
+        const el = $(key);
+        if (el && document.activeElement !== el) el.value = String(c);
+      }
+    };
+    fix("n", "n of", 2, 30);
+    fix("startMg", "Start dose", 0.1, 64);
+    fix("filmMm", "Start film length", 1, 200);
+    fix("film2Mm", "2 mg film length", 1, 200);
+    fix("stripMg", "Strip strength", 0.1, 64);
+    fix("targetMg", "Target", 0, 64);
+    /* target >= start is the trigger for the compare table printing the string
+       "undefined": stop-mode "above" yields zero rows, fillSummary bails, and
+       compareClassic reads an endDay that was never assigned. */
+    if (o.targetMg >= o.startMg) {
+      const c = Math.max(0, Math.round((o.startMg * 0.5) * 100) / 100);
+      notes.push(
+        `Target ${fmtG(o.targetMg)} mg is not below the ${fmtG(o.startMg)} mg start dose, ` +
+        `so there is no ladder to build — using ${fmtG(c)} mg.`
+      );
+      o.targetMg = c;
+      const el = $("targetMg");
+      if (el && document.activeElement !== el) el.value = String(c);
+    }
+    return notes;
   }
 
   function buildSchedule(opts) {
@@ -1074,7 +1119,10 @@
         n,
         pct: 100 / n,
         cycles: sched.rows.length,
-        days: sched.endDay,
+        /* fillSummary bails on an empty ladder, leaving endDay unassigned —
+           which rendered as the literal string "undefined". taper.py:187
+           defaults it to 0; match that. */
+        days: sched.endDay == null ? 0 : sched.endDay,
         endDailyMg: sched.endDailyMg,
         totalMg: sched.totalMg,
         totalStrips: sched.totalStrips,
@@ -1100,10 +1148,12 @@
   let stripScalePct = 100;
   let vizFilmMg = null;
 
+  let lastClampNotes = [];
+
   function readOpts() {
-    return {
+    const o = {
       startMg: num("startMg", 8),
-      n: Math.max(2, Math.round(num("n", 6))),
+      n: Math.round(num("n", 6)),
       filmMm: num("filmMm", 22),
       film2Mm: num("film2Mm", 22),
       targetMg: num("targetMg", 1),
@@ -1112,10 +1162,15 @@
       holdDays: intOrNull("holdDays"),
       nBelow3: intOrNull("nBelow3")
     };
+    lastClampNotes = clampOpts(o);
+    return o;
   }
 
-  function saveInputs() {
-    const o = readOpts();
+  /* Takes the opts render() already read. Re-reading here would run clampOpts a
+     second time against the values it just corrected, find nothing to fix, and
+     wipe the notes before renderWarnings could show them. */
+  function saveInputs(opts) {
+    const o = Object.assign({}, opts || readOpts());
     o.showCompare = $("showCompare").checked;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(o));
   }
@@ -1170,6 +1225,7 @@
       msgs.push(`Day 1 needs ${fmt(s.rows[0].pieceMm, 1)} mm, which is longer than one
         ${fmtG(s.filmMm)} mm film — that start dose does not fit on a single strip.`);
     }
+    lastClampNotes.forEach((m) => msgs.push(m));
     $("warnings").innerHTML = msgs.length
       ? msgs.map((m) => `<div class="banner"><strong>Heads up.</strong> ${m}</div>`).join("")
       : "";
@@ -1797,7 +1853,7 @@
 
   function render() {
     const opts = readOpts();
-    saveInputs();
+    saveInputs(opts);
     const s = buildSchedule(Object.assign({ stopMode: "reach" }, opts));
     if (!s.rows.some((r) => r.cycle === selectedCycle)) {
       selectedCycle = s.rows.length ? s.rows[0].cycle : 1;
