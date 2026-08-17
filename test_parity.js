@@ -33,6 +33,7 @@ const FLAGS = {
   film2Mm: "--film-2mg-mm",
   holdDays: "--hold-days",
   nBelow3: "--n-below-3",
+  stopMode: "--stop-mode",
 };
 
 const CASES = [
@@ -56,6 +57,11 @@ const CASES = [
   // clamp boundaries from clampOpts()
   { n: 30 },
   { startMg: 0.1, stripMg: 0.1 },
+  // Empty ladder: target too close to the start dose. Both sides must report
+  // zeroed summary fields rather than leaving them undefined — an undefined
+  // endDay turned Math.max(endDay, 1) into NaN and broke the comparison chart.
+  { startMg: 1.1, targetMg: 1, stopMode: "above" },
+  { startMg: 8, targetMg: 8, stopMode: "above" },
 ];
 
 function pyRun(c) {
