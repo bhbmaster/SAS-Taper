@@ -30,6 +30,14 @@ SITE_URL = "https://bhbmaster.github.io/SAS-Taper/"
 
 @dataclass(frozen=True)
 class FilmSpec:
+    """One official Suboxone film size.
+
+    mg / nal are the buprenorphine and naloxone content. cut_mm is the side this
+    tool cuts along (22 mm on every strength, which is why the film-length input
+    is the same number whichever you start on); keep_mm is the side kept at full
+    width.
+    """
+
     mg: float
     nal: float
     cut_mm: float
@@ -38,10 +46,15 @@ class FilmSpec:
 
     @property
     def area_mm2(self) -> float:
+        """Footprint of one whole film in mm². cut_mm × keep_mm."""
         return self.cut_mm * self.keep_mm
 
     @property
     def density(self) -> float:
+        """Buprenorphine per mm² of film. Constant within a strength family:
+        the 2 and 4 mg films share one value, the 8 and 12 mg another that is
+        four times higher.
+        """
         return self.mg / self.area_mm2
 
 
@@ -55,6 +68,14 @@ FILM_SPECS: dict[int, FilmSpec] = {
 
 
 def spec_key_for_mg(film_mg: float) -> int:
+    """Round a film strength to the nearest official one at or above it.
+
+    Args:
+        film_mg: strength being cut, in mg.
+    Returns:
+        One of 2, 4, 8, 12 — the key into FILM_SPECS. Tolerances of 0.01 absorb
+        float drift from the geometric ladder, so 1.9999 still keys to 2.
+    """
     if film_mg <= 2.01:
         return 2
     if film_mg <= 4.01:
@@ -65,6 +86,7 @@ def spec_key_for_mg(film_mg: float) -> int:
 
 
 def film_spec_for_mg(film_mg: float) -> FilmSpec:
+    """FilmSpec for a strength. Convenience wrapper over spec_key_for_mg."""
     return FILM_SPECS[spec_key_for_mg(film_mg)]
 
 
@@ -145,6 +167,15 @@ are grinding down is Suboxone.
 
 @dataclass
 class CycleRow:
+    """One cycle of the ladder — n days at a fixed dose and a fixed cut.
+
+    cut_from_mg is the piece you start the cycle holding; daily_mg is what you
+    take each day after removing sliver_mg. piece_mm and cut_mm are the same two
+    quantities in millimetres of film. banked_mg is what the save jar gains over
+    the cycle, which equals one whole piece when days == n. cut_warn flags a
+    sliver under CUT_WARN_MM, where hand-cutting stops being meaningful.
+    """
+
     cycle: int
     day_start: int
     day_end: int
@@ -168,6 +199,12 @@ class CycleRow:
 
 @dataclass
 class MonthRow:
+    """One 30-day bucket of the run, for matching the prescription to the dose.
+
+    used_strips is ingested-equivalent, not strips dispensed; surplus_strips is
+    what a static rx_strips prescription would leave over — the stockpile.
+    """
+
     month: int
     day_start: int
     day_end: int
@@ -179,6 +216,17 @@ class MonthRow:
 
 @dataclass
 class ScheduleResult:
+    """A built ladder: the inputs it came from, the cycles, and the totals.
+
+    Everything from base_film_mg down is derived. The summary fields default to
+    0/None so an empty ladder still answers every question asked of it —
+    index.html mirrors these exact defaults, and test_parity.js checks that.
+
+    truncated means the run hit MAX_CYCLES before reaching the target;
+    switch_never_fired means the 2 mg switch was wanted but could not fire
+    without raising the dose. Both are reported rather than hidden.
+    """
+
     start_mg: float
     n: int
     film_mm: float
@@ -212,6 +260,11 @@ class ScheduleResult:
 
 
 def keep_ratio(n: int) -> float:
+    """Fraction of the piece kept after one day's cut: 1 − 1/n.
+
+    The whole taper is this number applied once per cycle. n = 6 keeps 5/6, so
+    each cycle is 16.7% lower than the one before.
+    """
     return 1.0 - 1.0 / n
 
 
@@ -412,6 +465,17 @@ def _fill_summary(
     rx_strips: float = DEFAULT_RX_STRIPS,
     month_days: int = DEFAULT_MONTH_DAYS,
 ) -> None:
+    """Fill in the whole-run totals on a built schedule, in place.
+
+    Args:
+        result: a ScheduleResult whose .rows are already populated.
+        rx_strips: strips per month the prescription currently supplies, used
+            for the surplus column.
+        month_days: days per billing month, normally 30.
+    Returns:
+        None — result is mutated. On an empty ladder every summary field keeps
+        its dataclass default of 0/None, which is what index.html matches.
+    """
     rows = result.rows
     if not rows:
         return
@@ -443,6 +507,18 @@ def monthly_usage(
     month_days: int = DEFAULT_MONTH_DAYS,
     rx_strips: float = DEFAULT_RX_STRIPS,
 ) -> list[MonthRow]:
+    """Bucket the ladder into fixed 30-day months.
+
+    Args:
+        rows: the cycle rows, which may straddle month boundaries.
+        strip_mg: strength of one dispensed film, for the mg→strips conversion.
+        month_days: length of a bucket, normally 30.
+        rx_strips: strips the prescription supplies per bucket.
+    Returns:
+        One MonthRow per bucket. Cycles are split across buckets day by day
+        rather than assigned whole, so a cycle spanning a boundary contributes
+        to both.
+    """
     if not rows:
         return []
     end_day = rows[-1].day_end
@@ -549,6 +625,17 @@ def ascii_ruler(
 
 
 def cut_context(row: CycleRow, sched: ScheduleResult) -> dict[str, Any]:
+    """Everything needed to describe one cycle's cut, in one dict.
+
+    Args:
+        row: the cycle to describe.
+        sched: its parent schedule, for the film lengths.
+    Returns:
+        A dict of the three regions of a full unused film — take, save, and the
+        part already gone from earlier cycles — in both mm and mg, plus an
+        ASCII ruler. Shared by the CLI's cut block and the --json payload so
+        the two cannot disagree.
+    """
     spec = film_spec_for_mg(row.film_mg)
     full_mm = sched.film_2mg_mm if row.film_mg <= 2.01 else sched.film_mm
     take_mm = row.piece_mm - row.cut_mm
@@ -573,6 +660,12 @@ def cut_context(row: CycleRow, sched: ScheduleResult) -> dict[str, Any]:
 
 
 def film_specs_payload() -> list[dict[str, Any]]:
+    """The official film size table as plain dicts, for --json.
+
+    Returns:
+        One dict per strength, ascending, with dimensions, area and density.
+        Reference data only — it never affects the ladder.
+    """
     out = []
     for key in (2, 4, 8, 12):
         spec = FILM_SPECS[key]
@@ -591,6 +684,7 @@ def film_specs_payload() -> list[dict[str, Any]]:
 
 
 def print_film_table() -> None:
+    """Print the official size table. Reference only; changes nothing."""
     print("Official Suboxone film sizes (buprenorphine / naloxone)")
     print("Cut along the 22 mm side; keep the other side as full width.")
     print("This table is a reference. It does not change the taper math.")
@@ -613,6 +707,15 @@ def print_film_table() -> None:
 
 
 def print_cut_block(ctx: dict[str, Any], row: CycleRow, detailed: bool = False) -> None:
+    """Print one cycle's cut mark and ASCII ruler.
+
+    Args:
+        ctx: a cut_context() dict for the cycle.
+        row: the cycle itself, for the day range and film strength.
+        detailed: add the note explaining the ruler is a full unused film rather
+            than a zoomed leftover — used by --cycle N, where no surrounding
+            table makes that obvious.
+    """
     warn = "  << sliver under 1 mm — switch film strength" if row.cut_warn else ""
     extra = ""
     if row.switched_2mg:
@@ -652,6 +755,12 @@ def print_cut_block(ctx: dict[str, Any], row: CycleRow, detailed: bool = False) 
 
 
 def print_table(headers: list[str], rows: list[list[str]]) -> None:
+    """Print a plain-text table, each column padded to its widest cell.
+
+    Args:
+        headers: column titles.
+        rows: pre-formatted cells; no number formatting happens here.
+    """
     widths = [len(h) for h in headers]
     for row in rows:
         for i, cell in enumerate(row):
@@ -676,6 +785,16 @@ def print_schedule(
     selected_cycle: Optional[int] = None,
     start_date: Optional[date] = None,
 ) -> None:
+    """Print the whole human-readable report: how-to, warnings, the cycle
+    table, film sizes, cut marks, headline figures and monthly quantity.
+
+    Args:
+        sched: the built schedule.
+        selected_cycle: print only this cycle's cut mark, with the extra note.
+            None prints every cycle's.
+        start_date: day 1. When given, the table gains a Dates column carrying
+            the same dates the site's calendar shows.
+    """
     n = sched.n
     r = sched.r
     print("SAS-Taper")
@@ -824,6 +943,7 @@ def print_schedule(
 
 
 def print_compare(rows: list[dict[str, Any]]) -> None:
+    """Print the n = 6 / 8 / 10 comparison from compare_classic() rows."""
     print("Compare n = 6 / 8 / 10 at ~1 mg")
     print("8 mg films all the way; last cycle still above 1 mg. Bank is not re-dosed.")
     print()
@@ -855,6 +975,16 @@ def print_compare(rows: list[dict[str, Any]]) -> None:
 
 
 def result_to_json(sched: ScheduleResult, compare: Optional[list[dict[str, Any]]]) -> dict[str, Any]:
+    """Flatten a schedule to a JSON-safe dict for --json.
+
+    Args:
+        sched: the built schedule.
+        compare: optional compare_classic() rows to include under "compare".
+    Returns:
+        asdict(sched), plus the optional compare key. This is the surface
+        test_parity.js diffs against index.html, so these field names are part
+        of the contract between the two implementations.
+    """
     payload: dict[str, Any] = asdict(sched)
     if compare is not None:
         payload["compare"] = compare
@@ -862,6 +992,7 @@ def result_to_json(sched: ScheduleResult, compare: Optional[list[dict[str, Any]]
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """The CLI. Defaults mirror the site's, so both produce the same ladder."""
     p = argparse.ArgumentParser(
         description="SAS-Taper: geometric Suboxone film-taper calculator "
         "(not medical advice)."
@@ -902,6 +1033,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    """Entry point.
+
+    Args:
+        argv: argument list, defaulting to sys.argv[1:].
+    Returns:
+        Exit code — 0 on success, 2 for a malformed date, an out-of-range input,
+        or a --cycle not on this run. Invalid input is rejected here rather than
+        corrected; the web version clamps instead, because a page cannot throw
+        at its reader.
+    """
     args = build_parser().parse_args(argv)
     try:
         start_date = parse_start_date(args.start_date)

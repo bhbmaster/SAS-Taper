@@ -116,6 +116,7 @@
       --gone-ink: #78716c;
       --film-mark: #9a3412;
     }
+    /* ---- Page frame: reset, body, header ------------------------------ */
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
     body {
@@ -199,6 +200,7 @@
       color: var(--muted);
       margin: 0 0 0.8rem;
     }
+    /* ---- Inputs: the form grid, fields, buttons, banners --------------- */
     form.grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -295,6 +297,8 @@
        fixed palette in both themes — themed tokens would recolour the product.
        The film outline's own backdrop is only ever visible through the
        "already off" region, so it uses the themed absence tokens. */
+    /* ---- Cut-mark bar: the schematic full film, TAKE / SAVE / already off
+           Fixed orange palette, see the note below. --------------------- */
     .film {
       position: relative;
       height: 64px;
@@ -343,6 +347,7 @@
       border-left: 2px dashed #9a3412;
       pointer-events: none;
     }
+    /* ---- Ruler captions and the life-size drawing ---------------------- */
     .ticks { position: relative; height: 1.55rem; margin-top: 0.15rem; font-size: 0.75rem; color: var(--muted); }
     .ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
     .ticks span.start { left: 0; transform: none; }
@@ -520,6 +525,7 @@
     }
     /* Calendar. auto-fill rather than a fixed column count so a phone gets one
        month and a desktop gets three, without a breakpoint per size. */
+    /* ---- Calendar: month grids, day cells, mode controls --------------- */
     .cal-months {
       display: grid;
       /* min() so the track can drop below 17rem on a very narrow screen — a
@@ -647,6 +653,7 @@
     .dim-table tbody tr:hover { background: var(--row-hover); }
     .dim-table tbody tr.selected { background: var(--accent-soft); }
     .viz-nav { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    /* ---- Charts: the grid they sit in, plus the HTML piece ladder ------ */
     .charts {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -1027,18 +1034,61 @@
   </div>
 
 <script>
+/* SAS-Taper — the whole application.
+ *
+ * One self-contained file by design: no build step, no network, no
+ * dependencies. People open it from disk, offline, and it has to work.
+ *
+ * Layout of what follows:
+ *   constants and film specs   the four official Suboxone sizes
+ *   maths                      buildSchedule and friends — the ladder itself
+ *   input handling             reading, clamping and persisting the form
+ *   renderers                  cards, warnings, schedule, calendar, rulers
+ *   chart infrastructure       shared SVG plumbing, then the eight charts
+ *   wiring                     event listeners and first paint
+ *
+ * Two things to know before changing anything here:
+ *
+ * 1. The ladder maths exists twice, here and in taper.py, and the page tells
+ *    people the two agree. Change one, change the other, and run
+ *    test_parity.js — they have drifted before.
+ *
+ * 2. Several parts are positioned from measured pixels rather than by flow:
+ *    the ruler tick captions, the life-size cut label, the calendar grid.
+ *    That is this page's most frequent source of bugs. Run test_layout.js
+ *    after touching any of it.
+ *
+ * Everything is inside one IIFE; nothing leaks to the global scope except
+ * SASTaperInternals at the very bottom, which exists purely so the tests can
+ * reach the maths.
+ */
 (function () {
+  /* MAX_CYCLES caps a run that would otherwise never reach its target; hitting
+     it is reported rather than hidden. CUT_WARN_MM is where a hand-cut sliver
+     stops being meaningful. SWITCH_AT_MG is the strip size that triggers the
+     restart on 2 mg film. MONTH_DAYS and RX_STRIPS drive the prescription
+     table. All five match taper.py. */
   const MAX_CYCLES = 40;
   const CUT_WARN_MM = 1.0;
   const SWITCH_AT_MG = 2.25;
   const MONTH_DAYS = 30;
   const RX_STRIPS = 30;
+  /* Versioned so a future change of shape can ignore stale entries. */
   const STORAGE_KEY = "sas-taper-inputs-v1";
   const SCALE_KEY = "sas-taper-strip-scale";
   const CAL_MODE_KEY = "sas-taper-cal-mode";
   const CAL_DENSITY_KEY = "sas-taper-cal-density";
   /* CSS reference: 1 in = 96 px, 1 in = 25.4 mm. True size on a 96 PPI screen. */
   const CSS_MM = "mm";
+  /* The four official Suboxone film sizes. mg / nal are buprenorphine and
+     naloxone; cutMm is the side this tool cuts along and keepMm the side kept
+     at full width.
+
+     Every strength is 22 mm on the cut side, which is why the film-length
+     input is the same number whichever you start on. The 2 and 4 mg films
+     share one density and the 8 and 12 mg another that is four times higher —
+     that ratio is the whole reason switching to 2 mg film makes the same cut
+     four times more forgiving. Must match FILM_SPECS in taper.py. */
   const FILM_SPECS = {
     2: { mg: 2, nal: 0.5, cutMm: 22.0, keepMm: 12.8, label: "2 mg / 0.5 mg" },
     4: { mg: 4, nal: 1, cutMm: 22.0, keepMm: 25.6, label: "4 mg / 1 mg" },
@@ -1046,6 +1096,10 @@
     12: { mg: 12, nal: 3, cutMm: 22.0, keepMm: 19.2, label: "12 mg / 3 mg" }
   };
 
+  /* Round a film strength to the nearest official one at or above it.
+     filmMg -> 2, 4, 8 or 12, the key into FILM_SPECS. The 0.01 tolerances
+     absorb float drift from the geometric ladder, so 1.9999 still keys to 2.
+     Mirrors spec_key_for_mg in taper.py. */
   function specKeyForMg(filmMg) {
     if (filmMg <= 2.01) return 2;
     if (filmMg <= 4.01) return 4;
@@ -1053,16 +1107,21 @@
     return 12;
   }
 
+  /* The side kept at full width, in mm, for a given film strength. */
   function filmWidthMm(filmMg) {
     return FILM_SPECS[specKeyForMg(filmMg)].keepMm;
   }
 
+  /* Display label for a strength, e.g. "8 mg / 2 mg" (bup / naloxone). */
   function filmSpecLabel(filmMg) {
     return FILM_SPECS[specKeyForMg(filmMg)].label;
   }
 
   const $ = (id) => document.getElementById(id);
 
+  /* Fraction of the piece kept after one day's cut: 1 − 1/n. The whole taper
+     is this number applied once per cycle — n = 6 keeps 5/6, so each cycle
+     lands 16.7% below the one before. */
   function keepRatio(n) { return 1 - 1 / n; }
 
   /* Σ_k days·D0·r^k = days·D0·r/(1−r) = days·(n−1)·D0. With the default cycle
@@ -1091,6 +1150,9 @@
     if (document.activeElement !== el) el.value = String(fallback);
     return fallback;
   }
+  /* An optional positive integer field. Returns null for blank, non-numeric
+     or non-positive input, which callers read as "unset" — that is how a blank
+     Hold days falls back to n and a blank n-below-3 stays off. */
   function intOrNull(id) {
     const raw = $(id).value;
     if (raw === "" || raw == null) return null;
@@ -1140,6 +1202,21 @@
     return notes;
   }
 
+  /* Build the whole ladder. This is the core of the tool, and the half of it
+     that is written twice — build_schedule() in taper.py must produce the same
+     rows, which test_parity.js checks field by field.
+
+     Takes an opts object: startMg, n, filmMm, film2Mm, targetMg, stripMg,
+     switch2mg (bool), holdDays (or null for n), nBelow3 (or null for off) and
+     stopMode — "reach" includes the first cycle at or under the target,
+     "above" stops before it, which is what the n = 6/8/10 comparison wants.
+
+     Returns a schedule: the echoed inputs, the derived r/ceiling/baseFilmMg,
+     a rows array of cycles, and the summary totals filled in by fillSummary.
+     Also two honesty flags — truncated when the run hit MAX_CYCLES before the
+     target, switchNeverFired when the 2 mg switch was wanted but could not
+     fire without raising the dose. Both surface as banners rather than
+     silently returning a short ladder. */
   function buildSchedule(opts) {
     const startMg = opts.startMg;
     const n0 = opts.n;
@@ -1236,6 +1313,9 @@
     return result;
   }
 
+  /* Add the whole-run totals to a schedule, in place. Takes the result whose
+     .rows are already built; returns nothing. Also finds the first day at or
+     under ~2 mg and ~1 mg, and buckets the run into months. */
   function fillSummary(result) {
     const rows = result.rows;
     /* Defined even for an empty ladder, matching the dataclass defaults in
@@ -1276,6 +1356,11 @@
     result.months = monthlyUsage(rows, result.stripMg);
   }
 
+  /* Bucket the ladder into fixed 30-day months. Takes the cycle rows and the
+     strip strength; returns one entry per month with mg used, ingested-
+     equivalent strips, and the surplus a static 30-strip prescription would
+     leave over. Cycles straddling a boundary are split day by day rather than
+     assigned whole. */
   function monthlyUsage(rows, stripMg) {
     if (!rows.length) return [];
     const endDay = rows[rows.length - 1].dayEnd;
@@ -1300,6 +1385,10 @@
     });
   }
 
+  /* The n = 6 / 8 / 10 comparison. Rebuilds the ladder three times on 8 mg
+     films the whole way with stopMode "above", so every row ends strictly
+     above the target and the three are compared on equal terms.
+     Returns one row per n with cycles, days, end dose, totals and ceiling. */
   function compareClassic(startMg, targetMg, stripMg) {
     return [6, 8, 10].map((n) => {
       const sched = buildSchedule({
@@ -1325,15 +1414,24 @@
     });
   }
 
+  /* Fixed-decimal number for display. Returns an em dash for null, undefined
+     or non-finite input, so a missing figure reads as "—" rather than NaN. */
   function fmt(n, d) {
     if (n == null || !Number.isFinite(n)) return "—";
     return n.toFixed(d);
   }
+  /* Number without trailing zeros: 8 not 8.00, 2.25 stays 2.25. For doses and
+     strengths, where a fixed decimal count would look wrong. */
   function fmtG(n) {
     if (n == null || !Number.isFinite(n)) return "—";
     return String(parseFloat(n.toFixed(4)));
   }
 
+  /* Module state. selectedCycle is the cycle the rulers and charts highlight;
+     lastSched caches the most recent schedule so a redraw that changes nothing
+     about the maths (a resize, a calendar toggle) need not rebuild it;
+     stripScalePct is the life-size zoom; vizFilmMg is the film strength picked
+     in the size table, or null to follow the cycle's own. */
   let selectedCycle = 1;
   let lastSched = null;
   let stripScalePct = 100;
@@ -1341,6 +1439,13 @@
 
   let lastClampNotes = [];
 
+  /* Read every input into an opts object, clamping anything out of range and
+     stashing the adjustments in lastClampNotes for renderWarnings to show.
+
+     Returns the opts buildSchedule wants, plus three display-only extras —
+     cutTolMm, halfLifeH and startDate — which buildSchedule ignores. Keeping
+     them out of the maths is what stops a chart control from moving the
+     ladder or breaking parity with taper.py. */
   function readOpts() {
     const o = {
       startMg: num("startMg", 8),
@@ -1371,6 +1476,9 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(o));
   }
 
+  /* Restore the saved inputs into the form on page load. Silently does
+     nothing if localStorage is unavailable or the stored JSON is unreadable —
+     a corrupt entry should not stop the page from working. */
   function loadInputs() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -1392,6 +1500,9 @@
     } catch (e) { /* ignore */ }
   }
 
+  /* The seven headline tiles: days to ~2 mg and ~1 mg, end of run, total
+     ingested, banked buffer, lifetime ceiling, and the saving against staying
+     put. Takes the schedule, writes into #cards, then renders the warnings. */
   function renderCards(s) {
     const items = [
       { lbl: "~2 mg", val: s.daysTo2mg != null ? "Day " + s.daysTo2mg : "—", sub: s.doseAt2mg != null ? fmt(s.doseAt2mg, 2) + " mg/day" : "not reached" },
@@ -1408,6 +1519,10 @@
     renderWarnings(s);
   }
 
+  /* The #warnings banners. Takes the schedule and reports the three states
+     the tool must not hide — the run hit the cycle cap short of target, the
+     2 mg switch could not fire, day 1 does not fit on one film — followed by
+     any input clamped by clampOpts. Writes nothing when all is well. */
   function renderWarnings(s) {
     const msgs = [];
     if (s.truncated) {
@@ -1430,6 +1545,9 @@
       : "";
   }
 
+  /* The cycle table. Takes the schedule, writes into #schedTable and wires
+     each row to select that cycle. Rows carry pills for a 2 mg restart, an n
+     change, and a sliver under 1 mm. */
   function renderSchedule(s) {
     const thead = `<tr>
       <th class="left">Cycle</th><th>Days</th><th>Film</th>
@@ -1495,6 +1613,15 @@
   let calMode = "off";
   let calCompact = false;
 
+  /* The three ways of stating one cycle's cut, for the calendar.
+     Takes a cycle row and its schedule; returns { full, take, save, off,
+     value } in mm, where value is whichever calMode is showing.
+
+     take is the piece taken — also the cut position measured from the LEFT end
+     of a fresh film. off is everything gone from the original film once
+     today's sliver is off, measured from its RIGHT end. take + off = full, so
+     the two are the same mark approached from opposite ends. The 2 mg switch
+     restarts on a fresh film, so off resets with it. */
   function calMeasure(row, s) {
     const full = row.filmMg <= 2.01 ? s.film2Mm : s.filmMm;
     const take = row.pieceMm - row.cutMm;
@@ -1503,6 +1630,8 @@
     return { full, take, save, off, value: { off, take, save }[calMode] };
   }
 
+  /* Sync the two calendar buttons to calMode / calCompact, including their
+     aria labels. Called after either is toggled and on load. */
   function applyCalChrome() {
     const b = $("calModeBtn");
     if (b) {
@@ -1516,6 +1645,8 @@
     }
   }
 
+  /* Restore the calendar's measurement mode and density from localStorage,
+     then update the buttons. Falls back to the defaults if unavailable. */
   function loadCalPrefs() {
     try {
       const m = localStorage.getItem(CAL_MODE_KEY);
@@ -1525,6 +1656,7 @@
     applyCalChrome();
   }
 
+  /* Persist the calendar's mode and density. Silent if storage is blocked. */
   function saveCalPrefs() {
     try {
       localStorage.setItem(CAL_MODE_KEY, calMode);
@@ -1637,6 +1769,15 @@
     });
   }
 
+  /* The cut-mark bar for the selected cycle. Takes the schedule and draws a
+     FULL UNUSED FILM — not a zoomed leftover — split into TAKE, SAVE and the
+     part already gone in earlier cycles, with the cut line between the first
+     two. Labels degrade by size via fitBandLabels; the captions beneath are
+     positioned by pinRulerTickLabels.
+
+     Drawing the whole film is deliberate: the cut is measured from the right
+     of the piece in hand, not of the original strip, and showing both makes
+     the difference visible instead of something to read about. */
   function renderRuler(s) {
     const row = s.rows.find((r) => r.cycle === selectedCycle) || s.rows[0];
     if (!row) {
@@ -1712,6 +1853,14 @@
     });
   }
 
+  /* Place the captions under the cut-mark bar so each sits over the point it
+     describes without any two touching.
+
+     "0" and "N mm unused" are pinned to the ends by CSS and act as bounds; the
+     middle captions are clamped between them and against each other. A caption
+     with no gap wide enough is hidden rather than stacked — its numbers are
+     also in the row below the bar. Under 640px the row becomes a plain wrapped
+     line and this clears the offsets instead. */
   function pinRulerTickLabels() {
     const box = $("ruler").querySelector(".ticks");
     if (!box) return;
@@ -1764,6 +1913,10 @@
     return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
   }
 
+  /* Switch between dark and light. Takes "dark" or "light" and whether to
+     remember it — printing flips the theme without persisting, so a print job
+     does not silently change what the reader chose. Callers re-render
+     afterwards because chart colours are baked into the SVG. */
   function applyTheme(theme, persist) {
     const light = theme === "light";
     document.documentElement.setAttribute("data-theme", light ? "light" : "dark");
@@ -1777,10 +1930,13 @@
     }
   }
 
+  /* The life-size drawing's zoom as a multiplier: 100% -> 1. */
   function scaleFactor() {
     return stripScalePct / 100;
   }
 
+  /* Sync the zoom slider, its percentage readout and the 20 mm calibration
+     bar to the current scale. */
   function applyScaleChrome() {
     const k = scaleFactor();
     $("calBar").style.width = (20 * k) + CSS_MM;
@@ -1788,6 +1944,7 @@
     $("stripScaleVal").textContent = stripScalePct + "%";
   }
 
+  /* Set the life-size zoom, clamped to 50–300%, then persist and redraw. */
   function setStripScale(pct) {
     stripScalePct = Math.max(50, Math.min(300, Math.round(pct)));
     localStorage.setItem(SCALE_KEY, String(stripScalePct));
@@ -1795,11 +1952,18 @@
     else applyScaleChrome();
   }
 
+  /* Restore the saved zoom, defaulting to 100% (true CSS millimetres). */
   function loadStripScale() {
     const v = parseInt(localStorage.getItem(SCALE_KEY), 10);
     if (Number.isFinite(v) && v >= 50 && v <= 300) stripScalePct = v;
   }
 
+  /* The life-size film drawing, in real millimetres.
+
+     Takes the schedule and draws the selected cycle at the chosen zoom, on
+     whichever film strength the reader picked in the size table (vizFilmMg) or
+     the cycle's own. Sizes are in CSS mm, which is true size only on a 96 PPI
+     screen — hence the calibration bar and the zoom slider. */
   function renderStripViz(s) {
     lastSched = s;
     applyScaleChrome();
@@ -1864,6 +2028,14 @@
     pinStripCutLabel(takePct);
   }
 
+  /* Place the "today's cut" caption over the cut line on the life-size drawing.
+
+     Takes the cut position as a percentage of the strip. The caption is
+     absolutely positioned, so it contributes nothing to the mat's width and is
+     wider than the strip at any modest zoom — the mat is widened from the
+     caption's measured width, and the caption itself is clamped so it never
+     hangs off either end. Measured rather than set in CSS because the text
+     length moves with the numbers in it. */
   function pinStripCutLabel(takePct) {
     const strip = $("stripViz").querySelector(".strip-full");
     const label = $("stripViz").querySelector(".strip-cut-label");
@@ -1886,6 +2058,8 @@
     label.style.left = left + "px";
   }
 
+  /* Move the selection by delta cycles, clamped to the run. Drives the
+     Previous/Next buttons — the only keyboard path to change cycle. */
   function shiftCycle(delta) {
     if (!lastSched || !lastSched.rows.length) return;
     const idx = lastSched.rows.findIndex((r) => r.cycle === selectedCycle);
@@ -1894,12 +2068,17 @@
     render();
   }
 
+  /* Axis tick label: integers bare, everything else to one decimal. */
   function axisNum(v) {
     if (!Number.isFinite(v)) return "";
     if (Math.abs(v - Math.round(v)) < 1e-6) return String(Math.round(v));
     return v.toFixed(1);
   }
 
+  /* Wrap chart markup in its heading and caption.
+     Takes the title, the caption beneath, the chart markup itself, and whether
+     it spans both grid columns. inner does not have to be SVG — the physical
+     film ladder passes HTML divs. Returns the finished chart element. */
   function svgFrame(title, caption, inner, wide) {
     return `<div class="chart${wide ? " chart-wide" : ""}">
       <h3>${title}</h3>
@@ -1908,6 +2087,9 @@
     </div>`;
   }
 
+  /* Chart geometry, shared by every plot so they line up: overall viewBox
+     size and the left/right/top/bottom margins the axes live in. Charts
+     compute their own inner width and height from it. */
   function plotBox() {
     return { W: 560, H: 248, L: 40, R: 12, T: 14, B: 34 };
   }
@@ -1916,6 +2098,10 @@
      chart palette is pulled off the root element once per render and the
      charts are redrawn when the theme flips. */
   let C = {};
+  /* Load the chart colours from CSS custom properties into C, once per
+     render. SVG attributes cannot read CSS variables reliably across engines,
+     so colours are baked into the markup at draw time — which is why flipping
+     the theme has to redraw rather than just restyle. */
   function readChartPalette() {
     const cs = getComputedStyle(document.documentElement);
     const get = (name, fallback) => (cs.getPropertyValue(name).trim() || fallback);
@@ -1936,10 +2122,16 @@
     };
   }
 
+  /* Opening <svg> tag for a chart. The caller appends "</svg>". */
   function svgOpen(box) {
     return `<svg class="plot" viewBox="0 0 ${box.W} ${box.H}" role="img">`;
   }
 
+  /* The shared backdrop for every chart: plot background, horizontal grid
+     lines with y labels, x tick labels, and both axis titles.
+     Takes the box from plotBox(), the tick values for each axis, the two scale
+     functions mapping data to pixels, and the axis titles.
+     Returns the SVG string; the caller draws its marks on top. */
   function gridAndAxes(box, xTicks, yTicks, xScale, yScale, xLabel, yLabel) {
     const { W, H, L, R, T, B } = box;
     const iw = W - L - R, ih = H - T - B;
@@ -1958,6 +2150,9 @@
     return out;
   }
 
+  /* n + 1 evenly spaced tick values from 0 to max. Floors max at a hair above
+     zero so an empty series still yields a usable axis rather than dividing by
+     zero. */
   function evenTicks(max, n) {
     const m = Math.max(max, 1e-6);
     const out = [];
@@ -1976,6 +2171,12 @@
     "July", "August", "September", "October", "November", "December"];
   const DOW = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+  /* Parse a YYYY-MM-DD string to a Date anchored at UTC noon, or null.
+
+     Noon UTC, not midnight: new Date("2026-03-08") parses as UTC midnight and
+     renders in local time, landing on the previous day for anyone west of
+     Greenwich, while local midnight breaks across a DST changeover where
+     adding 24h can hit the same date twice. Noon is clear of both. */
   function parseDay(iso) {
     if (!iso) return null;
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
@@ -1989,6 +2190,8 @@
   const daysBetween = (a, b) => Math.round((b.getTime() - a.getTime()) / DAY_MS);
   const isoDay = (d) => d.toISOString().slice(0, 10);
   const fmtDay = (d) => `${DOW[(d.getUTCDay() + 6) % 7]} ${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()].slice(0, 3)}`;
+  /* Today's local calendar date, as a UTC-noon anchor, so it can be compared
+     with parseDay() values by whole days. */
   function todayUTCNoon() {
     const n = new Date();
     return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate(), 12));
@@ -2022,6 +2225,10 @@
     return out;
   }
 
+  /* Daily dose against day: the ladder as a step line, with threshold lines
+     at 2 and 1 mg and a dot at each cycle end. When a half-life is set it also
+     draws the dashed exposure-lag curve from lagSeries.
+     Takes the schedule and opts (for halfLifeH); returns the chart markup. */
   function doseOverTimeChart(s, opts) {
     const box = plotBox();
     const { W, H, L, R, T, B } = box;
@@ -2087,6 +2294,9 @@
     return svgFrame("Daily dose over time", cap, inner);
   }
 
+  /* One bar per cycle at its daily dose — the same data as the dose-over-time
+     chart, but by cycle rather than by day, so the steps are countable.
+     Bars are amber when the sliver drops under 1 mm. Click selects. */
   function doseLadderChart(s) {
     const box = plotBox();
     const { W, H, L, R, T, B } = box;
@@ -2112,6 +2322,11 @@
     return svgFrame("Step ladder by cycle", "Each bar is one hold. Amber = sliver under 1 mm. Click a bar to select.", inner);
   }
 
+  /* Three ladders overlaid — n = 6, 8 and 10 — on 8 mg films the whole way,
+     each stopping just above the target. Shows what slowing down costs in
+     time. Rebuilds the schedules rather than reusing the current one, since
+     the point is to hold everything but n constant. Hidden with the
+     comparison checkbox. */
   function compareOverlayChart(opts) {
     if (!$("showCompare").checked) return "";
     const box = plotBox();
@@ -2152,6 +2367,8 @@
     return svgFrame("n = 6 / 8 / 10 ladders over time", "Classic 8 mg films all the way, stopping just above 1 mg. Slower n stays higher for longer — and costs more total mg.", inner);
   }
 
+  /* Cumulative milligrams taken, against the straight line of never tapering.
+     The shaded gap between them is the medication not taken. */
   function cumulativeChart(s) {
     const box = plotBox();
     const { W, H, L, R, T, B } = box;
@@ -2176,6 +2393,9 @@
     return svgFrame("Cumulative ingested vs staying put", `Shaded gap is medication not taken vs ${fmtG(s.startMg)} mg/day for ${s.endDay} days (${fmt(s.savedVsStayStrips, 1)} strips).`, inner);
   }
 
+  /* Sliver length per cycle in millimetres, with a line at 1 mm — the point
+     where a razor and ruler stop resolving the difference. Says how thin the
+     cut gets; the chart after it says whether that matters. */
   function cutPrecisionChart(s) {
     const box = plotBox();
     const { W, H, L, R, T, B } = box;
@@ -2262,6 +2482,9 @@
     );
   }
 
+  /* Ingested-equivalent strips per month against an unchanged 30-strip
+     prescription. Everything between the bar and the dashed line is surplus
+     accumulating at home. Empty runs render nothing. */
   function rxMonthChart(s) {
     const months = s.months || [];
     if (!months.length) return "";
@@ -2286,6 +2509,9 @@
     return svgFrame("Monthly strips used vs a 30-strip script", "Green bars are ingested-equivalent strips. Dashed line is an unchanged 30/month Rx — everything above the bar is surplus stockpile.", inner);
   }
 
+  /* The film itself, cycle by cycle: each bar is the piece in hand, split
+     into the long TAKE and the short SAVE. Built from HTML rather than SVG so
+     the bars can reuse the page's own film colours. Full width. */
   function pieceLadderChart(s) {
     const maxMm = Math.max(...s.rows.map((r) => r.pieceMm), 1);
     const rows = s.rows.map((r) => {
@@ -2314,6 +2540,9 @@
     return svgFrame("Physical film ladder", "Same geometry as the cut mark: long take on the left, short save on the right. Bars shrink each cycle.", inner, true);
   }
 
+  /* Draw all eight charts into #charts and wire click-to-select on any mark
+     carrying data-cycle. Reads the palette first, since colours are baked into
+     the SVG at draw time. */
   function renderCharts(s, opts) {
     readChartPalette();
     $("charts").innerHTML = [
@@ -2334,6 +2563,8 @@
     });
   }
 
+  /* The n = 6 / 8 / 10 table beneath the comparison chart. Hidden with the
+     same checkbox. */
   function renderCompare(opts) {
     const panel = $("comparePanel");
     if (!$("showCompare").checked) {
@@ -2360,6 +2591,8 @@
     </tr>`).join("");
   }
 
+  /* The prescription-quantity table: per month, mg used, strips used, and the
+     surplus a static prescription would leave. */
   function renderMonths(s) {
     $("monthTable").querySelector("thead").innerHTML = `<tr>
       <th class="left">Month</th><th>Days</th><th>Used mg</th><th>Used strips</th><th>If Rx = 30</th><th>Surplus</th>
@@ -2374,6 +2607,13 @@
     </tr>`).join("");
   }
 
+  /* Redraw everything from the current inputs. Reads and clamps the inputs,
+     saves them, builds the schedule, clamps the selected cycle to the new run,
+     then repaints every panel in order.
+
+     Called on any input change, theme flip, cycle selection and before/after
+     printing. It is a full rebuild each time — the page is small enough that
+     this costs less than tracking what actually changed. */
   function render() {
     const opts = readOpts();
     saveInputs(opts);
@@ -2391,6 +2631,7 @@
     renderMonths(s);
   }
 
+  /* Put every input back to its documented default and redraw. */
   function resetDefaults() {
     $("startMg").value = 8;
     $("n").value = 6;

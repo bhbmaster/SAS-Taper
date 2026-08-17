@@ -28,6 +28,13 @@ FILM_SPECS = {
 
 
 class TestClosedForms(unittest.TestCase):
+    """The ladder simulated cycle by cycle must equal the algebra.
+
+    build_schedule walks the cycles; ingested_closed_form and lifetime_ceiling_mg
+    answer the same questions in one step. If the two ever disagree, one of them
+    is wrong — and the closed forms are what the summary cards quote.
+    """
+
     def test_simulation_matches_closed_form(self):
         for n in (2, 3, 6, 8, 10, 20):
             for start in (2.0, 8.0, 12.0):
@@ -69,7 +76,16 @@ class TestClosedForms(unittest.TestCase):
 
 
 class TestCycleInvariants(unittest.TestCase):
+    """Properties that must hold for every cycle of every run.
+
+    These are the method itself, stated as arithmetic: the dose splits exactly
+    into take and save, length fraction equals dose fraction (which is only
+    true while cutting one axis), the jar gains exactly one whole piece per n
+    days, and the day numbering has no gaps.
+    """
+
     def rows(self, **kw):
+        """Cycle rows for a schedule built from the defaults plus kw."""
         return build_schedule(**kw).rows
 
     def test_dose_splits_exactly(self):
@@ -116,7 +132,21 @@ class TestCycleInvariants(unittest.TestCase):
 
 
 class TestDoseNeverGoesUp(unittest.TestCase):
+    """A taper must never step upward, at any setting.
+
+    This is the one failure that would actively harm someone following the
+    schedule. It has happened: restarting on a 2 mg film below the switch point
+    used to walk the daily dose back up, so --switch-at 1.5 went 1.29 -> 1.67
+    mg/day. The switch now only fires while the result is still a step down.
+    """
+
     def assert_monotone(self, sched, label):
+        """Fail if any cycle's daily dose exceeds the one before it.
+
+        Args:
+            sched: the schedule to walk.
+            label: printed on failure, to identify which setting broke it.
+        """
         for a, b in zip(sched.rows, sched.rows[1:]):
             self.assertLessEqual(
                 b.daily_mg, a.daily_mg + 1e-12,
@@ -146,6 +176,13 @@ class TestDoseNeverGoesUp(unittest.TestCase):
 
 
 class TestFilmGeometry(unittest.TestCase):
+    """The physical facts the millimetre figures rest on.
+
+    Every cut mark on the page is derived from the published film dimensions
+    and the rule that day 1 fits on one whole film. If the geometry is wrong,
+    every measurement the reader is asked to make is wrong with it.
+    """
+
     def test_base_film_is_the_smallest_that_holds_the_start_dose(self):
         self.assertEqual(base_film_mg(2.0), 2.0)
         self.assertEqual(base_film_mg(2.5), 4.0)
@@ -168,6 +205,7 @@ class TestFilmGeometry(unittest.TestCase):
 
     def test_the_two_film_families_share_a_density(self):
         def density(mg):
+            """mg of buprenorphine per mm² for one official strength."""
             cut_mm, other_mm, _ = FILM_SPECS[mg]
             return mg / (cut_mm * other_mm)
 
@@ -183,6 +221,13 @@ class TestFilmGeometry(unittest.TestCase):
 
 
 class TestSummary(unittest.TestCase):
+    """The headline figures and the n = 6 / 8 / 10 comparison.
+
+    Mostly about consistency of convention — the ~2 mg and ~1 mg milestones
+    once reported opposite ends of their cycle, five days apart on the default
+    run — and about the comparison being an honest like-for-like.
+    """
+
     def test_milestones_use_the_same_convention(self):
         sched = build_schedule()
         first2 = next(r for r in sched.rows if r.daily_mg <= 2.0 + 1e-9)
