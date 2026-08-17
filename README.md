@@ -40,11 +40,12 @@ No extra packages. Python 3.11 is fine. Same math as the site. Cut marks are a f
 
 ## Tests
 
-Two suites. The first needs nothing but Python; the second needs Node and a browser.
+Three suites. The first needs nothing but Python; the other two need Node and a browser.
 
 ```bash
 python3 test_taper.py       # schedule maths
 node test_parity.js         # index.html vs taper.py
+node test_layout.js         # viewport sweep, 280px to 1920px
 ```
 
 ### `test_taper.py`
@@ -55,7 +56,7 @@ node test_parity.js         # index.html vs taper.py
 
 The taper maths is written **twice**: `buildSchedule()` in `index.html` and `build_schedule()` in `taper.py`. The site tells people the two agree, and `test_taper.py` only covers the Python one. This test checks the claim, because the two had already drifted once.
 
-It loads `index.html` in a headless browser, runs both implementations over the same inputs, and diffs the results — **19 schedules** (start doses 0.1–12 mg, `n` from 3 to 30, the 2 mg switch on and off, stretched cycles, `n`-below-3, non-default film lengths, clamp boundaries), comparing all 19 fields of every cycle row plus 9 summary figures, then `baseFilmMg` across 8 film sizes.
+It loads `index.html` in a headless browser, runs both implementations over the same inputs, and diffs the results — **21 schedules** (start doses 0.1–12 mg, `n` from 3 to 30, the 2 mg switch on and off, stretched cycles, `n`-below-3, non-default film lengths, clamp boundaries, empty ladders), comparing all 19 fields of every cycle row plus 9 summary figures, then `baseFilmMg` across 8 film sizes.
 
 It exits **0** on a match, **1** with a list of mismatches otherwise. If Node or a browser is missing it prints `skipped` and exits 0, so a plain checkout still passes.
 
@@ -87,14 +88,29 @@ CHROMIUM_PATH=/usr/bin/google-chrome node test_parity.js
 
 The script also finds a browser on its own in the usual places — the Playwright cache (`~/.cache/ms-playwright` on Linux, `~/Library/Caches/ms-playwright` on macOS) and installed Chrome or Chromium — so `CHROMIUM_PATH` is only needed for something in an unusual location.
 
+### `test_layout.js` — what it tests and why
+
+Several parts of the page are positioned from measured pixels rather than by normal flow: the ruler tick captions, the life-size cut label, the calendar grid. Those have broken four separate times — captions stacked on each other, a percentage painted over a button, "SAVE" sliced in half, the page scrolling sideways on a narrow phone. Each was found by sweeping viewports by hand, then lost again, because nothing re-ran the sweep.
+
+This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus five reshaping input cases — **239 viewport states** — and checks four things at each:
+
+| Failure | Detected by |
+|---|---|
+| **overflow** — the page scrolls sideways | `scrollWidth > clientWidth` on the document |
+| **overlap** — two pieces of text drawn on top of each other | pairwise rectangle intersection within each positioned group |
+| **clipping** — a box too small for its text | `scrollWidth`/`scrollHeight` vs `clientWidth`/`clientHeight` |
+| **spill** — an absolute label escaping its container | bounding box against its parent's |
+
+Any console or page error fails it too. Same setup as the parity test; same skip behaviour without a browser.
+
 Via npm scripts:
 
 ```bash
-npm test        # parity only
-npm run test:all   # both suites
+npm test           # parity + layout
+npm run test:all   # all three suites
 ```
 
-Both run in GitHub Actions on every push and pull request.
+All three run in GitHub Actions on every push and pull request.
 
 ## Method (every day of a cycle)
 
