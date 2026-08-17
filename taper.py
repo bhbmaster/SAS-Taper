@@ -159,7 +159,11 @@ Practical notes
 
 Bring this to your prescriber. A taper from 8 mg to 1–2 mg is a routine goal;
 they are the one who can write 2 mg films and match the quantity to the ladder.
+"""
 
+# Printed at the end of every run, --no-notes included: this names the method
+# rather than advising anything, so it does not belong in the notes block.
+FOOTER = """\
 Strictly unofficially, the method can be called SAS-Sub-minning — the stat you
 are grinding down is Suboxone.
 """
@@ -844,7 +848,9 @@ def print_schedule(
     for row in sched.rows:
         flags = []
         if row.switched_2mg:
-            flags.append("→2mg")
+            # Just an arrow pointing at the strength beside it. "→2mg" next to a
+            # Film column already reading "2mg" looked like "2 mg to 2 mg".
+            flags.append("←")
         if row.n_changed:
             flags.append(f"n={row.n}")
         if row.cut_warn:
@@ -872,6 +878,9 @@ def print_schedule(
             cells.insert(2, f"{d0:%d %b}–{d1:%d %b}")
         table.append(cells)
     print_table(headers, table)
+    if any(r.switched_2mg or r.n_changed or r.cut_warn for r in sched.rows):
+        print("Film column: ←  restart on a fresh 2 mg film    "
+              "n=N  cycle length changed    thin  sliver under 1 mm")
     print()
     print_film_table()
     print("Cut marks (full unused film: TAKE left, SAVE, then already-off original)")
@@ -1098,6 +1107,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     if not args.no_notes:
         print(NOTES)
+    print(FOOTER)
     return 0
 
 
