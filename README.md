@@ -17,6 +17,21 @@ The demanding part of a taper is often not the milligrams but the sense of getti
 
 People tend to work with what is in hand. Surplus that stays in view is easier to use; once the sliver is saved, it is no longer part of today’s dose. The bank is a safety net if you need to step back up, not a second supply for the same day.
 
+## Pace
+
+Every step is held for days on purpose. Buprenorphine’s half-life is long — usually quoted as 24–42 hours — so a new dose needs most of a cycle to fully land: about 88–91% of the way there on day 1, 98–100% by day 6. That is why the ladder moves in cycles instead of shaving a little off every day, and it puts a floor under how fast this can honestly go. The default is roughly two months from 8 mg to 1 mg.
+
+Plenty of people need longer than that, and the tool is built for it. Hold a cycle, raise `n`, or stretch the cycle length:
+
+| Settings | Cycle | Step | 8 mg → ~1 mg |
+|---|---|---|---|
+| default (`n = 6`) | 6 days | 16.7% | 66 days (~2.2 months) |
+| `--hold-days 9` | 9 days | 16.7% | 99 days (~3.3 months) |
+| `--n 10 --hold-days 9` | 9 days | 10.0% | 180 days (~5.9 months) |
+| `--n 10` | 10 days | 10.0% | 200 days (~6.6 months) |
+
+Going slower is a plan, not a failure.
+
 ## Site
 
 The calculator lives at **[bhbmaster.github.io/SAS-Taper](https://bhbmaster.github.io/SAS-Taper/)**.

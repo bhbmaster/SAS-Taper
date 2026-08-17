@@ -149,6 +149,14 @@ Practical notes
   dose for another cycle or two before dropping again.
 - Once daily is fine at every level here. Buprenorphine's half-life is long
   enough that splitting doses buys you nothing.
+- Every step is held for days on purpose. That same long half-life means a new
+  dose needs most of a cycle to fully land — about 88–91% of the way there on
+  day 1 and 98–100% by day 6, across the usual 24–42 hour range. It is why the
+  ladder moves in cycles instead of shaving a little off daily, and it puts a
+  floor under how fast this can honestly go: the default is roughly two months
+  from 8 mg to 1 mg. Plenty of people need longer than that, and the tool is
+  built for it — hold a cycle, raise --n, or stretch --hold-days. --n 10
+  --hold-days 9 is about six months. Going slower is a plan, not a failure.
 - 16.7% every 6 days (n=6) is at the fast end of typical 10–25% steps. You may
   not feel a drop until day 4 or 5, right as you are about to drop again. Hedge
   by stretching the cycle to 8–9 days (same cut, more settling time) or switch
