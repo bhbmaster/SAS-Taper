@@ -38,3 +38,9 @@ jobs:
       # ladder. Without this the JS half of the maths is untested.
       - name: JS/Python parity
         run: node test_parity.js
+
+      # Sweeps viewports from 280px to 1920px looking for overflow, overlapping
+      # text, clipped boxes and escaped labels — the failure mode this page has
+      # had most often, and the one no other test can see.
+      - name: Layout
+        run: node test_layout.js

@@ -1696,7 +1696,12 @@
      short form, then to nothing, rather than showing a clipped word. */
   function fitBandLabels(scope) {
     scope.querySelectorAll("[data-short]").forEach((band) => {
-      const fits = () => band.scrollWidth <= band.clientWidth + 1;
+      /* Height as well as width. The cut-mark bar's labels are three lines
+         ("SAVE / 3.67 mm / 1.33 mg") in a fixed 60px box, so on a phone they
+         were cut off vertically while fitting horizontally — checking width
+         alone let that through. */
+      const fits = () => band.scrollWidth <= band.clientWidth + 1
+        && band.scrollHeight <= band.clientHeight + 1;
       if (!band.textContent.trim() || fits()) return;
       const short = band.getAttribute("data-short");
       if (short && band.textContent.trim() !== short) {

@@ -19,9 +19,12 @@ Thanks for looking. This is a small project with an unusual constraint or two â€
 ```bash
 python3 test_taper.py      # schedule maths, stdlib only
 node test_parity.js        # index.html vs taper.py â€” see README for setup
+node test_layout.js        # viewport sweep for overflow, overlap and clipping
 ```
 
-Both run in CI on every pull request.
+All three run in CI on every pull request.
+
+`test_layout.js` is the one to remember when touching CSS or anything that positions text by measured pixels. This page's most frequent bug by far has been text colliding or overflowing at some viewport width nobody checked, and it is invisible to the other two suites.
 
 ## Health content
 

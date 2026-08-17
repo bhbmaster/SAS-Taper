@@ -13,11 +13,9 @@
 "use strict";
 
 const { execFileSync } = require("child_process");
-const fs = require("fs");
-const path = require("path");
+const { launchOrSkip, PAGE } = require("./test_browser");
 
 const REPO = __dirname;
-const PAGE = "file://" + path.join(REPO, "index.html");
 const TOL = 1e-9;
 
 /* dailyMg -> daily_mg. The two sides name the same 19 row fields in their own
@@ -73,51 +71,6 @@ function pyRun(c) {
   return JSON.parse(execFileSync("python3", args, { cwd: REPO, maxBuffer: 1 << 28 }));
 }
 
-/* playwright-core deliberately ships no browser, so find one: an explicit
-   CHROMIUM_PATH first, then a Playwright download cache (Linux and macOS
-   defaults), then whatever Chrome or Chromium is already installed. */
-function findBrowser() {
-  const envPath = process.env.CHROMIUM_PATH;
-  if (envPath && fs.existsSync(envPath)) return envPath;
-
-  const home = process.env.HOME || "";
-  const caches = [
-    process.env.PLAYWRIGHT_BROWSERS_PATH,
-    "/opt/pw-browsers",
-    home && path.join(home, ".cache/ms-playwright"),
-    home && path.join(home, "Library/Caches/ms-playwright"),
-  ].filter(Boolean);
-  const rels = [
-    "chrome-linux/chrome",
-    "chrome-linux/headless_shell",
-    "chrome-mac/Chromium.app/Contents/MacOS/Chromium",
-    "chrome-mac-arm64/Chromium.app/Contents/MacOS/Chromium",
-    "chrome-headless-shell-mac/chrome-headless-shell",
-  ];
-  for (const root of caches) {
-    if (!fs.existsSync(root)) continue;
-    for (const d of fs.readdirSync(root)) {
-      for (const rel of rels) {
-        const p = path.join(root, d, rel);
-        if (fs.existsSync(p)) return p;
-      }
-    }
-  }
-
-  for (const p of [
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/Applications/Chromium.app/Contents/MacOS/Chromium",
-    "/usr/bin/google-chrome",
-    "/usr/bin/google-chrome-stable",
-    "/usr/bin/chromium",
-    "/usr/bin/chromium-browser",
-    "/snap/bin/chromium",
-  ]) {
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
-}
-
 function compareRows(label, js, py, fail) {
   if (js.rows.length !== py.rows.length) {
     fail(`${label}: row count ${js.rows.length} (js) vs ${py.rows.length} (py)`);
@@ -171,23 +124,11 @@ function compareSummary(label, js, py, fail) {
 }
 
 (async () => {
-  let chromium;
-  try {
-    ({ chromium } = require("playwright-core"));
-  } catch (e) {
-    console.log("skipped: playwright-core is not installed (npm i -D playwright-core)");
-    process.exit(0);
-  }
-  const executablePath = findBrowser();
-  if (!executablePath) {
-    console.log("skipped: no Chromium found (set CHROMIUM_PATH or PLAYWRIGHT_BROWSERS_PATH)");
-    process.exit(0);
-  }
+  const browser = await launchOrSkip();
+  if (!browser) process.exit(0);
 
   const failures = [];
   const fail = (m) => failures.push(m);
-
-  const browser = await chromium.launch({ executablePath, args: ["--no-sandbox"] });
   const page = await browser.newPage();
   const pageErrors = [];
   page.on("pageerror", (e) => pageErrors.push(String(e)));

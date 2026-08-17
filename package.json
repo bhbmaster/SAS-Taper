@@ -10,9 +10,11 @@
   },
   "license": "MIT",
   "scripts": {
-    "test": "node test_parity.js",
+    "test": "node test_parity.js && node test_layout.js",
     "test:py": "python3 test_taper.py",
-    "test:all": "python3 test_taper.py && node test_parity.js"
+    "test:parity": "node test_parity.js",
+    "test:layout": "node test_layout.js",
+    "test:all": "python3 test_taper.py && node test_parity.js && node test_layout.js"
   },
   "devDependencies": {
     "playwright-core": "^1.49.0"
