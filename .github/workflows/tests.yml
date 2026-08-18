@@ -12,6 +12,9 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    # The whole suite is ~3 minutes. Anything past 15 is wedged, not slow, and
+    # should fail where someone will see it rather than sit for six hours.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -27,12 +30,42 @@ jobs:
         with:
           node-version: '20'
 
-      # playwright-core ships no browser, so fetch one. This is the only
-      # network dependency in the whole suite.
+      # ~150 MB, and identical from run to run. The key covers both places the
+      # Playwright version is written down.
+      - name: Cache the browser
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package.json', '.github/workflows/tests.yml') }}
+
+      # playwright-core ships no browser, so fetch one. This is the only network
+      # dependency in the whole suite.
+      #
+      # Deliberately NOT --with-deps. That flag runs apt-get update against the
+      # Azure Ubuntu mirrors on every run, which has hung for 10+ minutes when
+      # they are unhealthy, and it buys nothing here: the ubuntu-latest image
+      # already ships Chrome and Chromium, so the shared libraries Playwright's
+      # Chromium needs are installed. If that ever stops being true the browser
+      # fails to launch and both Node suites exit 1 — launchOrSkip only skips
+      # when no browser binary exists, never when one fails to start — so this
+      # cannot turn into a silent pass.
       - name: Install browser
+        timeout-minutes: 5
         run: |
           npm install --no-save playwright-core@^1.49.0 playwright@^1.49.0
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
+
+      # Both Node suites print "skipped" and exit 0 without a browser, which is
+      # right for a bare checkout and wrong for CI: it would be a green tick
+      # over a page nobody tested. Fail here instead, before they can.
+      - name: Check a browser was found
+        run: |
+          node -e '
+            const { findBrowser } = require("./test_browser");
+            const p = findBrowser();
+            if (!p) { console.error("no browser found — the suites would skip and pass"); process.exit(1); }
+            console.log("browser: " + p);
+          '
 
       # Guards the promise that index.html and taper.py compute the same
       # ladder. Without this the JS half of the maths is untested.
@@ -40,7 +73,8 @@ jobs:
         run: node test_parity.js
 
       # Sweeps viewports from 280px to 1920px looking for overflow, overlapping
-      # text, clipped boxes and escaped labels — the failure mode this page has
-      # had most often, and the one no other test can see.
+      # text, clipped boxes, escaped labels and drawings that disagree with the
+      # schedule — the failure mode this page has had most often, and the one no
+      # other test can see.
       - name: Layout
         run: node test_layout.js
