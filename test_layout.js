@@ -39,6 +39,8 @@ const OVERLAP_GROUPS = {
   "ruler ticks": "#ruler .ticks span",
   "scale row": ".scale-row label span.k, .scale-row .pct, .scale-row button, .viz-nav button",
   "strip dims": "#ruler .strip-dims span",
+  "film bars": "#ruler .film",
+  "life-size bars": "#stripViz .strip-full",
   "calendar controls": ".cal-controls .k, .cal-controls button",
   "calendar cells": ".cal-cell[data-cycle]",
 };
@@ -50,14 +52,37 @@ const CLIP_SELECTORS = [
   ".cal-cell[data-cycle]",
 ];
 
+/* One bar per film the day needs, in both drawings. If the two disagree the
+   reader is being shown two different days on one page. */
+const BAR_COUNT_PAIR = ["#ruler .film", "#stripViz .strip-full"];
+
 /* Absolutely positioned labels that must stay inside the named container. */
 const SPILL_PAIRS = [[".strip-cut-label", ".strip-draw"]];
 
 const probe = () => {
   const de = document.documentElement;
-  const out = { scrollX: de.scrollWidth - de.clientWidth, overlaps: [], clipped: [], spills: [] };
+  const out = { scrollX: de.scrollWidth - de.clientWidth, overlaps: [], clipped: [], spills: [], bars: [] };
   const vis = (n) => n.offsetWidth > 0 && n.offsetHeight > 0
     && getComputedStyle(n).display !== "none" && getComputedStyle(n).visibility !== "hidden";
+
+  /* Both drawings show one bar per film the day needs — always, for every
+     cycle of every run. The number changing between cycles of the same ladder,
+     or the two panels disagreeing, means the reader is looking at a picture
+     that is not the day in front of them. */
+  {
+    const row = window.__selectedRow && window.__selectedRow();
+    if (row) {
+      const ruler = document.querySelectorAll("#ruler .film").length;
+      const life = document.querySelectorAll("#stripViz .strip-full").length;
+      if (ruler !== row.filmsOut) out.bars.push(`cut-mark panel drew ${ruler} bars for a ${row.filmsOut}-film day`);
+      if (life !== row.filmsOut) out.bars.push(`life-size panel drew ${life} bars for a ${row.filmsOut}-film day`);
+      const marked = document.querySelectorAll("#ruler .film.marked").length;
+      const wantMarked = row.cutTakeMm + row.cutSaveMm > 0 ? 1 : 0;
+      if (marked !== wantMarked) out.bars.push(`${marked} marked bars, expected ${wantMarked}`);
+      const ticks = document.querySelectorAll("#ruler .ticks").length;
+      if (ticks !== wantMarked) out.bars.push(`${ticks} tick rows, expected ${wantMarked}`);
+    }
+  }
 
   for (const [name, sel] of Object.entries(window.__groups)) {
     const els = [...document.querySelectorAll(sel)].filter(vis);
@@ -108,6 +133,7 @@ const probe = () => {
     r.overlaps.forEach((m) => failures.push(`${where}: ${m}`));
     r.clipped.forEach((m) => failures.push(`${where}: clipped ${m}`));
     r.spills.forEach((m) => failures.push(`${where}: ${m}`));
+    (r.bars || []).forEach((m) => failures.push(`${where}: ${m}`));
     errs.forEach((m) => failures.push(`${where}: ${m}`));
   };
 
@@ -123,6 +149,7 @@ const probe = () => {
     await page.waitForFunction(() => !!window.SASTaperInternals, null, { timeout: 10000 });
     await page.evaluate(([g, c, s]) => {
       window.__groups = g; window.__clip = c; window.__spill = s;
+      window.__selectedRow = window.SASTaperInternals.currentRow;
     }, [OVERLAP_GROUPS, CLIP_SELECTORS, SPILL_PAIRS]);
     if (theme === "light") {
       await page.click("#themeBtn");
@@ -213,6 +240,17 @@ const probe = () => {
     ["two-strip on 12 mg film", { startMg: 20, filmStrengthMg: 12 }, [1, 3]],
     ["four-strip start", { startMg: 30, stripMg: 8, n: 3 }, [1, 2]],
     ["sliver over one film", { startMg: 40, n: 2, targetMg: 8 }, [1, 2]],
+    /* Every official strength at the top of the dose range. On 2 mg film a
+       32 mg day is sixteen bars stacked in both drawings — the widest the
+       inputs allow, and the case most likely to overflow something. */
+    ["32 mg on 2 mg film", { startMg: 32, filmStrengthMg: 2, targetMg: 2 }, [1, 3, 6]],
+    ["32 mg on 4 mg film", { startMg: 32, filmStrengthMg: 4, targetMg: 2 }, [1, 3, 6]],
+    ["32 mg on 8 mg film", { startMg: 32, filmStrengthMg: 8, targetMg: 2 }, [1, 3, 6]],
+    ["32 mg on 12 mg film", { startMg: 32, filmStrengthMg: 12, targetMg: 2 }, [1, 3, 6]],
+    /* Nothing to cut: dose and sliver both land on whole-film boundaries, so
+       the drawing is whole films only and there is no marked bar or tick row. */
+    ["whole films, no cut", { startMg: 8, n: 4, filmStrengthMg: 2 }, [1]],
+    ["whole films, long run", { startMg: 24, n: 3, filmStrengthMg: 2, targetMg: 2 }, [1, 2]],
     ["empty ladder", { startMg: 1.1, targetMg: 1 }, [1]],
     ["max cycles", { n: 30, targetMg: 0.1 }, [1]],
     ["stretched cycles", { holdDays: 30 }, [1]],
@@ -221,6 +259,14 @@ const probe = () => {
     for (const width of [320, 768, 1280]) {
       for (const theme of THEMES) {
         const { ctx, page, errs } = await openPage(width, theme);
+        if (fields.filmStrengthMg && fields.filmStrengthMg <= 2) {
+          // On 2 mg film the switch would restart the ladder immediately.
+          await page.evaluate(() => {
+            const c = document.getElementById("switch2");
+            c.checked = false;
+            c.dispatchEvent(new Event("input", { bubbles: true }));
+          });
+        }
         for (const [k, v] of Object.entries(fields)) await setField(page, k, v);
         await page.waitForTimeout(200);
         for (const cycle of cycles) {
@@ -273,7 +319,9 @@ const probe = () => {
     }
     process.exit(1);
   }
-  console.log(`OK — no overflow, overlap, clipping or spill across ${checks} viewport states`);
+  console.log(
+    `OK — no overflow, overlap, clipping, spill or bar-count mismatch across ${checks} viewport states`
+  );
 })().catch((e) => {
   console.error(e);
   process.exit(1);

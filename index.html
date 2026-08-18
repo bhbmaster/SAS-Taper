@@ -321,10 +321,13 @@
       background: var(--gone-bg);
     }
     .film.has-rest { border-style: dashed; }
-    /* The second film of a multi-strip day: same bar, shorter, no cut line —
-       nothing is measured on it, so it does not earn full height or ticks. */
-    .film.second { height: 44px; margin-top: 0.1rem; }
-    .legend.second-cap { margin-top: 0.7rem; margin-bottom: 0.25rem; }
+    /* One bar per film the day needs. The film carrying the cut is drawn tall
+       and keeps the tick captions under it; the rest are short, because there
+       is nothing on them to measure. Consistent per kind, so the picture does
+       not change shape from one cycle to the next. */
+    .film.plain { height: 40px; }
+    .film + .film { margin-top: 3px; }
+    .ticks + .film { margin-top: 0.5rem; }
     .film .sliver {
       background: repeating-linear-gradient(-45deg, #fdba74, #fdba74 6px, #ffedd5 6px, #ffedd5 12px);
       display: flex; align-items: center; justify-content: center;
@@ -454,6 +457,11 @@
       background: var(--gone-bg);
     }
     .strip-full.is-full { border-style: solid; }
+    /* One bar per film the day needs, stacked. The gap is generous because the
+       marked bar's cut label sits above it in the flow. */
+    .strip-full + .strip-full { margin-top: 0.5rem; }
+    .strip-full.marked + .strip-full { margin-top: 1.4rem; }
+    .strip-full + .strip-full.marked { margin-top: 1.4rem; }
     .strip-life .take, .strip-full .take {
       background: linear-gradient(#f3c38a, #e3943c);
       display: flex;
@@ -1230,9 +1238,18 @@
       cutTakeMm = (filmMg - saveRem) * mmPerMg;
       shortTakeMm = (takeRem - (filmMg - saveRem)) * mmPerMg;
     }
+    /* Snap the float dust to zero. An exact multiple — 18 mg of 2 mg films at
+       n = 3 — can leave a 1e-14 mm remainder, and "a 0.00000000000001 mm
+       sliver" is not a thing anyone can cut. Every consumer would have to carry
+       the same epsilon otherwise; this way zero means zero. */
+    const snap = (v) => (Math.abs(v) < 1e-9 ? 0 : v);
+    cutTakeMm = snap(cutTakeMm);
+    cutSaveMm = snap(cutSaveMm);
+    shortTakeMm = snap(shortTakeMm);
+
     let filmsOut = takeFilms + saveFilms;
-    if (cutTakeMm + cutSaveMm > 1e-9) filmsOut += 1;
-    if (shortTakeMm > 1e-9) filmsOut += 1;
+    if (cutTakeMm + cutSaveMm > 0) filmsOut += 1;
+    if (shortTakeMm > 0) filmsOut += 1;
     return { filmsOut, takeFilms, saveFilms, cutTakeMm, cutSaveMm, shortTakeMm };
   }
 
@@ -1754,7 +1771,14 @@
     const take = row.cutTakeMm;
     const save = row.cutSaveMm;
     const off = Math.max(0, full - take);
-    return { full, take, save, off, films: row.filmsOut, value: { off, take, save }[calMode] };
+    /* A day that divides into whole films has no mark on any of them, so there
+       is no millimetre figure to show — an "off 22.00" there would be a
+       measurement the reader cannot make. */
+    const noCut = take + save <= 1e-9;
+    return {
+      full, take, save, off, films: row.filmsOut, noCut,
+      value: noCut ? null : { off, take, save }[calMode],
+    };
   }
 
   /* Sync the two calendar buttons to calMode / calCompact, including their
@@ -1829,7 +1853,9 @@
         now = `<p class="cal-now"><strong>Today is day ${cur.day} — cycle ${r.cycle}, `
           + `day ${cur.day - r.dayStart + 1} of ${r.days}.</strong> `
           + `Take ${fmt(r.dailyMg, 2)} mg: ` + (r.filmsOut > 1
-            ? `${r.filmsOut} films, cut ${fmt(r.cutSaveMm, 2)} mm off the right of the marked one and save it. `
+            ? (r.cutTakeMm + r.cutSaveMm <= 1e-9
+              ? `${r.filmsOut} whole films, no cutting — take ${r.takeFilms} and bank ${r.saveFilms}. `
+              : `${r.filmsOut} films, cut ${fmt(r.cutSaveMm, 2)} mm off the right of the marked one and save it. `)
             : `cut ${fmt(r.cutMm, 2)} mm off the right of the ${fmt(r.pieceMm, 1)} mm piece and save it. `)
           + `Next drop on ${fmtDay(addDays(start, r.dayEnd))}.</p>`;
       }
@@ -1870,8 +1896,10 @@
         const tag = `${dnum}${hit.first ? ` · c${r.cycle}` : ""}`;
         const title = `Day ${hit.day} · cycle ${r.cycle} · ${fmtG(r.filmMg)} mg film`
           + (mm.films > 1 ? ` × ${mm.films} a day` : "") + ` · `
-          + `on the marked film: take ${fmt(mm.take, 2)} mm, save ${fmt(mm.save, 2)} mm, `
-          + `${fmt(mm.off, 2)} mm off the original ${fmt(mm.full, 1)} mm film`;
+          + (mm.noCut
+            ? `no cut — take ${r.takeFilms} whole, bank ${r.saveFilms}`
+            : `on the marked film: take ${fmt(mm.take, 2)} mm, save ${fmt(mm.save, 2)} mm, `
+              + `${fmt(mm.off, 2)} mm off the original ${fmt(mm.full, 1)} mm film`);
         html += `<div class="${cls.join(" ")}" data-cycle="${r.cycle}" title="${title}">`;
         html += `<div class="d">${tag}</div>`
           /* ×2 rides on the dose line rather than taking a line of its own:
@@ -1880,7 +1908,9 @@
           /* Compact drops the label word, not the number: a 44 mm-wide cell
              cannot hold "take 12.73" on one line at a readable size, and the
              word is the redundant part once the legend names the mode. */
-          + `<div class="cut">${calCompact ? "" : CAL_MODES[calMode].short + " "}${fmt(mm.value, 2)}</div>`;
+          + `<div class="cut">${mm.noCut
+              ? "no cut"
+              : (calCompact ? "" : CAL_MODES[calMode].short + " ") + fmt(mm.value, 2)}</div>`;
         html += `</div>`;
       }
       html += `</div></div>`;
@@ -1943,80 +1973,138 @@
       return;
     }
     const fullMm = row.filmMg <= 2.01 ? s.film2Mm : s.filmMm;
-    /* The bar is one film — the one carrying the cut — so every band is that
-       film's share, not the day's total. On a single-film day the two are the
-       same number, which is why this drawing did not need to know the
-       difference until doses bigger than one film arrived. */
     const perMg = fullMm ? row.filmMg / fullMm : 0;
-    const takeMm = row.cutTakeMm;
-    const saveMm = row.cutSaveMm;
-    const ghostMm = Math.max(0, fullMm - takeMm - saveMm);
-    const takeMg = takeMm * perMg;
-    const saveMg = saveMm * perMg;
-    const ghostMg = ghostMm * perMg;
-    const multi = row.filmsOut > 1;
-    const shortMm = row.shortTakeMm;
-    const hasShort = shortMm > 0.05;
-    const takePct = (takeMm / fullMm) * 100;
-    const savePct = (saveMm / fullMm) * 100;
-    const ghostPct = (ghostMm / fullMm) * 100;
+    const films = dayFilms(row, fullMm);
+    const cut = films.find((f) => f.kind === "cut");
+    const multi = films.length > 1;
+    /* Length of the strip ON the marked film. The sliver is measured from the
+       right of THIS, not of the film: on a later cycle the film's right end is
+       past the already-off mark, and measuring from there would put the cut
+       millimetres out. Equals pieceMm on a single-film day. */
+    const markedPieceMm = cut ? cut.take + cut.save : 0;
+    const takePct = cut ? (cut.take / fullMm) * 100 : 0;
+    const savePct = cut ? (cut.save / fullMm) * 100 : 0;
     const piecePct = takePct + savePct;
-    const hasGhost = ghostMm > 0.05;
-    const takeLabel = takePct >= 16 ? `TAKE ${fmt(takeMg, 2)} mg · ${fmt(takeMm, 1)} mm` : (takePct >= 8 ? "TAKE" : "");
-    const saveLabel = savePct >= 12 ? `SAVE<br>${fmt(saveMm, 2)} mm<br>${fmt(saveMg, 2)} mg` : (savePct >= 7 ? "SAVE" : "");
-    const restLabel = ghostPct >= 18 ? `already off original<br>${fmt(ghostMm, 1)} mm · ${fmt(ghostMg, 2)} mg` : (ghostPct >= 10 ? "already off" : "");
-    const shortPct = hasShort ? (shortMm / fullMm) * 100 : 0;
-    const shortMg = shortMm * perMg;
-    /* A lower tier than the main bar's: this band is small by nature, and
-       fitBandLabels steps it down to "TAKE" and then to nothing anyway. */
-    const shortLabel = shortPct >= 10 ? `TAKE ${fmt(shortMg, 2)} mg · ${fmt(shortMm, 1)} mm` : (shortPct >= 5 ? "TAKE" : "");
-    const shortRestLabel = 100 - shortPct >= 18 ? "not needed today" : "";
+    const hasGhost = cut ? cut.off > 0.05 : false;
+
+    const bars = films.map((f) => filmBar(f, fullMm, perMg)).join("");
+    const ticks = cut ? `
+      <div class="ticks">
+        ${takePct >= 12 ? `<span class="start">0</span>` : ""}
+        <span class="cut" data-left="${takePct}">today’s cut · ${fmt(cut.save, 2)} mm · total off ${fmt(Math.max(0, fullMm - cut.take), 2)} mm</span>
+        ${hasGhost && (cut.off / fullMm) * 100 >= 14 ? `<span class="piece" data-left="${piecePct}">${fmt(markedPieceMm, 1)} mm ${multi ? "of this film" : "in hand"}</span>` : ""}
+        <span class="end">${fmt(fullMm, 1)} mm unused</span>
+      </div>` : "";
+
     $("ruler").innerHTML = `
       <div class="ruler-meta">
         <div>
           <strong>Cycle ${row.cycle}</strong> · days ${row.dayStart}–${row.dayEnd}
           · ${fmtG(row.filmMg)} mg film · n = ${row.n}
         </div>
-        <div>Mark the cut <strong>${fmt(saveMm, 2)} mm from the right of ${multi
-          ? "the marked film"
-          : `the ${fmt(row.pieceMm, 1)} mm piece in hand`}</strong> (the TAKE/SAVE line). Keep full width; shorten length only.</div>
+        <div>${cut
+          ? `Mark the cut <strong>${fmt(cut.save, 2)} mm from the right of the ${fmt(markedPieceMm, 1)} mm
+             piece ${multi ? "on the marked film" : "in hand"}</strong> (the TAKE/SAVE line). Keep full width; shorten length only.`
+          : `<strong>No cut this cycle.</strong> Every film today is whole — nothing to measure.`}</div>
       </div>
       ${multi ? `<p class="kit"><strong>${kitLine(row)}</strong> One day's dose is more than one
-        ${fmtG(row.filmMg)} mg film here, so the day is several strips — but the sliver only ever comes
-        off the one marked below. Day total: take ${fmt(row.dailyMg, 2)} mg, save ${fmt(row.sliverMg, 2)} mg.</p>` : ""}
-      <p class="legend" style="margin-top:-0.15rem;margin-bottom:0.65rem;">This bar is a <strong>full unused ${fmtG(row.filmMg)} mg film</strong> (${fmt(fullMm, 1)} mm), not a zoomed leftover. TAKE + SAVE is ${multi ? "this film's share of what you hold this cycle" : "what you are holding this cycle"}. ${hasGhost
-        ? `The hashed end is the rest of that original Suboxone — already reduced in earlier cycles (${fmt(ghostMm, 1)} mm / ${fmt(ghostMg, 2)} mg). If you start from a fresh strip, trim that end first and bank it. It is extra buffer, not extra daily dose.`
+        ${fmtG(row.filmMg)} mg film here, so the day is several strips${cut ? " — but the sliver only ever comes off the one marked below" : ""}.
+        Day total: take ${fmt(row.dailyMg, 2)} mg, save ${fmt(row.sliverMg, 2)} mg.</p>` : ""}
+      <p class="legend" style="margin-top:-0.15rem;margin-bottom:0.65rem;">${multi
+        ? `Every bar is one <strong>full unused ${fmtG(row.filmMg)} mg film</strong> (${fmt(fullMm, 1)} mm) — one bar per film the day needs, in the order you handle them. ${cut
+          ? "Only the tall one is cut."
+          : "None of them is cut."}`
+        : `This bar is a <strong>full unused ${fmtG(row.filmMg)} mg film</strong> (${fmt(fullMm, 1)} mm), not a zoomed leftover. TAKE + SAVE is what you are holding this cycle.`} ${hasGhost
+        ? `${multi ? "A" : "The"} hashed end is the rest of that original Suboxone — already reduced in earlier cycles (${fmt(cut.off, 1)} mm / ${fmt(cut.off * perMg, 2)} mg). If you start from a fresh strip, trim that end first and bank it. It is extra buffer, not extra daily dose.`
         : (row.cycle === 1 && !multi
           ? `Cycle 1 uses the whole unused strip, so there is no leftover from earlier cuts.`
-          : `This film is used end to end, so there is nothing hashed off.`)}</p>
-      <div class="film${hasGhost ? " has-rest" : ""}" title="Full unused film; cut along length only">
-        <div class="keep" data-short="TAKE" style="width:${takePct}%">${takeLabel}</div>
-        <div class="sliver" data-short="SAVE" style="width:${savePct}%">${saveLabel}</div>
-        ${hasGhost ? `<div class="rest" data-short="already off" style="width:${ghostPct}%">${restLabel}</div>` : ""}
-        <div class="film-cut" style="left:${takePct}%"></div>
-      </div>
-      <div class="ticks">
-        ${takePct >= 12 ? `<span class="start">0</span>` : ""}
-        <span class="cut" data-left="${takePct}">today’s cut · ${fmt(saveMm, 2)} mm · total off ${fmt(Math.max(0, fullMm - takeMm), 2)} mm</span>
-        ${hasGhost && ghostPct >= 14 ? `<span class="piece" data-left="${piecePct}">${fmt(takeMm + saveMm, 1)} mm ${multi ? "of this film" : "in hand"}</span>` : ""}
-        <span class="end">${fmt(fullMm, 1)} mm unused</span>
-      </div>
-      ${hasShort ? `
-      <p class="legend second-cap">Second film — cut a <strong>${fmt(shortMm, 1)} mm piece</strong> and take that as well. No sliver comes off this one; the whole of today’s cut is on the film above.</p>
-      <div class="film second has-rest" title="Second film: a piece taken, no sliver">
-        <div class="keep" data-short="TAKE" style="width:${shortPct}%">${shortLabel}</div>
-        <div class="rest" data-short="" style="width:${100 - shortPct}%">${shortRestLabel}</div>
-      </div>` : ""}
+          : ``)}</p>
+      ${bars}
+      ${ticks}
       <div class="strip-dims">
-        <span>TAKE ${fmt(takeMg, 2)} mg · ${fmt(takeMm, 1)} mm</span>
-        <span>SAVE ${fmt(saveMg, 2)} mg · ${fmt(saveMm, 2)} mm</span>
-        ${hasGhost ? `<span>Already off original ${fmt(ghostMm, 1)} mm · ${fmt(ghostMg, 2)} mg</span>` : `<span>Full unused film ${fmt(fullMm, 1)} mm · ${fmtG(row.filmMg)} mg</span>`}
-        ${multi ? `<span>Day total ${fmt(row.dailyMg, 2)} mg · ${row.filmsOut} films</span>` : ""}
+        <span>TAKE ${fmt(row.dailyMg, 2)} mg · ${fmt(row.pieceMm - row.cutMm, 1)} mm</span>
+        <span>SAVE ${fmt(row.sliverMg, 2)} mg · ${fmt(row.cutMm, 2)} mm</span>
+        ${hasGhost ? `<span>Already off original ${fmt(cut.off, 1)} mm · ${fmt(cut.off * perMg, 2)} mg</span>` : `<span>Full unused film ${fmt(fullMm, 1)} mm · ${fmtG(row.filmMg)} mg</span>`}
+        ${multi ? `<span>${films.length} films this day · ${fmtG(row.filmMg)} mg each</span>` : ""}
       </div>
-      <p class="legend">Take the long left end. Save the short sliver as buffer — do not swallow it as extra daily dose. Do not measure today’s cut from the right of the original film; measure from the right of ${multi ? "the marked film" : "the piece in hand"}.</p>
+      <p class="legend">${cut ? `Take the long left end${multi ? " of the marked bar" : ""}. Save the short sliver as buffer — do not swallow it as extra daily dose. ` : "Banked whole films are buffer — do not swallow them as extra daily dose. "}${cut
+        ? `Do not measure today’s cut from the right of the original film; measure from the right of the ${multi ? `${fmt(markedPieceMm, 1)} mm piece on the marked film` : "piece in hand"}.`
+        : `Lock them up with the rest.`}</p>
     `;
     fitBandLabels($("ruler"));
     pinRulerTickLabels();
+  }
+
+  /* Every film one day of a cycle needs, in the order you handle them.
+
+     Takes a cycle row and the length of one whole film; returns one entry per
+     film — { kind, take, save, off } in millimetres, summing across the list to
+     the day's whole strip. Four kinds:
+
+       take   a whole film swallowed untouched
+       short  a piece taken off an otherwise unused film, no sliver
+       cut    the one film carrying today's sliver: TAKE | SAVE | already off
+       bank   a whole film straight to the jar, untouched
+
+     Ordered take → short → cut → bank so the run of bars reads monotonically
+     from "all take" to "all save", with the single measured film sitting at the
+     boundary. The list is what both drawings render, which is what keeps the
+     schematic bar and the life-size panel showing the same day. */
+  function dayFilms(row, fullMm) {
+    const out = [];
+    for (let i = 0; i < row.takeFilms; i++) out.push({ kind: "take", take: fullMm, save: 0, off: 0 });
+    if (row.shortTakeMm > 1e-9) {
+      out.push({ kind: "short", take: row.shortTakeMm, save: 0, off: Math.max(0, fullMm - row.shortTakeMm) });
+    }
+    if (row.cutTakeMm + row.cutSaveMm > 1e-9) {
+      out.push({
+        kind: "cut",
+        take: row.cutTakeMm,
+        save: row.cutSaveMm,
+        off: Math.max(0, fullMm - row.cutTakeMm - row.cutSaveMm),
+      });
+    }
+    for (let i = 0; i < row.saveFilms; i++) out.push({ kind: "bank", take: 0, save: fullMm, off: 0 });
+    return out;
+  }
+
+  /* One film of dayFilms() as a schematic bar.
+
+     Takes the entry, the whole-film length and mg per mm; returns the markup
+     for a .film bar with its TAKE / SAVE / already-off bands. The cut film is
+     drawn tall and carries the cut line; every other film is drawn short,
+     because there is nothing on it to measure. Band labels are set by size tier
+     and then stepped down by fitBandLabels if they still do not fit. */
+  function filmBar(f, fullMm, perMg) {
+    const pct = (mm) => (mm / fullMm) * 100;
+    const marked = f.kind === "cut";
+    const label = (mm, word) => {
+      const p = pct(mm);
+      if (p >= 26) return `${word} ${fmt(mm * perMg, 2)} mg · ${fmt(mm, 1)} mm`;
+      return p >= 8 ? word : "";
+    };
+    const bands = [];
+    if (f.take > 0.001) {
+      bands.push(`<div class="keep" data-short="TAKE" style="width:${pct(f.take)}%">${
+        f.kind === "take" ? `WHOLE FILM — TAKE ${fmt(f.take * perMg, 2)} mg` : label(f.take, "TAKE")}</div>`);
+    }
+    if (f.save > 0.001) {
+      bands.push(`<div class="sliver" data-short="SAVE" style="width:${pct(f.save)}%">${
+        f.kind === "bank"
+          ? `WHOLE FILM — SAVE ${fmt(f.save * perMg, 2)} mg`
+          : (pct(f.save) >= 12 ? `SAVE<br>${fmt(f.save, 2)} mm<br>${fmt(f.save * perMg, 2)} mg` : (pct(f.save) >= 7 ? "SAVE" : ""))}</div>`);
+    }
+    if (f.off > 0.05) {
+      bands.push(`<div class="rest" data-short="${marked ? "already off" : ""}" style="width:${pct(f.off)}%">${
+        marked
+          ? (pct(f.off) >= 18 ? `already off original<br>${fmt(f.off, 1)} mm · ${fmt(f.off * perMg, 2)} mg` : (pct(f.off) >= 10 ? "already off" : ""))
+          : (pct(f.off) >= 18 ? "not needed today" : "")}</div>`);
+    }
+    const cls = `film${marked ? " marked" : " plain"}${f.off > 0.05 ? " has-rest" : ""}`;
+    return `<div class="${cls}" title="One full unused film; cut along length only">`
+      + bands.join("")
+      + (marked ? `<div class="film-cut" style="left:${pct(f.take)}%"></div>` : "")
+      + `</div>`;
   }
 
   /* One sentence naming every film a day needs, or "" when it needs one.
@@ -2031,7 +2119,11 @@
     if (row.saveFilms) parts.push(plural(row.saveFilms, "film") + " straight to the jar");
     if (row.cutTakeMm + row.cutSaveMm > 1e-9) parts.push("the marked film below");
     if (row.shortTakeMm > 1e-9) parts.push(`a ${fmt(row.shortTakeMm, 1)} mm piece off one more`);
-    return `${row.filmsOut} × ${fmtG(row.filmMg)} mg films a day: ${parts.join(", plus ")}.`;
+    let line = `${row.filmsOut} × ${fmtG(row.filmMg)} mg films a day: ${parts.join(", plus ")}.`;
+    /* Dose and sliver both land on whole-film boundaries, so the day divides
+       with no cutting at all — take some films, bank the others. */
+    if (row.cutTakeMm + row.cutSaveMm <= 1e-9) line += " Nothing to cut today.";
+    return line;
   }
 
   /* The label tiers above are chosen by percentage of the bar, but whether a
@@ -2178,75 +2270,75 @@
     const cycleKey = specKeyForMg(row.filmMg);
     const spec = FILM_SPECS[vizFilmMg || cycleKey];
     const scheduleFull = row.filmMg <= 2.01 ? s.film2Mm : s.filmMm;
-    /* Fractions of the film that carries the cut, so they always sum to 1. The
-       day can span several strips; only this one is marked. */
-    const fracTake = row.cutTakeMm / scheduleFull;
-    const fracSave = row.cutSaveMm / scheduleFull;
-    const fracGhost = Math.max(0, 1 - fracTake - fracSave);
-    const fracShort = row.shortTakeMm / scheduleFull;
-    const multi = row.filmsOut > 1;
+    /* The same list the schematic bar draws, so the two panels can never show a
+       different day. Lengths are re-expressed as fractions of the schedule's
+       film and then scaled onto whichever official size is selected here. */
+    const films = dayFilms(row, scheduleFull);
     const k = scaleFactor();
     const fullMm = spec.cutMm;
     const widthMm = spec.keepMm;
-    const takeMm = fullMm * fracTake;
-    const saveMm = fullMm * fracSave;
-    const ghostMm = fullMm * fracGhost;
-    const takeMg = spec.mg * fracTake;
-    const saveMg = spec.mg * fracSave;
-    const ghostMg = spec.mg * fracGhost;
-    const hasGhost = ghostMm > 0.05;
-    const takePct = fracTake * 100;
-    const savePct = fracSave * 100;
-    const ghostPct = fracGhost * 100;
-    const shortPct = fracShort * 100;
-    const shortMm = fullMm * fracShort;
-    const shortMg = spec.mg * fracShort;
-    const hasShort = shortMm > 0.05;
     const w = fullMm * k;
     const h = widthMm * k;
     const showInner = h >= 8;
-    const ghostLabel = showInner && ghostPct > 10 ? "already off" : "";
     const mismatch = spec.mg !== cycleKey;
+    const perMg = spec.mg / fullMm;
+    const cut = films.find((f) => f.kind === "cut");
+    const multi = films.length > 1;
+    const scale = (mm) => (mm / scheduleFull) * fullMm;
+    const cutTakeMm = cut ? scale(cut.take) : 0;
+    const cutSaveMm = cut ? scale(cut.save) : 0;
+    const takePct = cut ? (cut.take / scheduleFull) * 100 : 0;
+    const ghost = cut ? cut.off > 0.05 : false;
+
     document.querySelectorAll("#dimTable tbody tr").forEach((tr) => {
       tr.classList.toggle("selected", parseInt(tr.getAttribute("data-spec"), 10) === spec.mg);
     });
+
+    const draw = films.map((f) => {
+      const marked = f.kind === "cut";
+      const pct = (mm) => (mm / scheduleFull) * 100;
+      const bands = [];
+      if (f.take > 0.001) {
+        bands.push(`<div class="take" data-short="" style="width:${pct(f.take)}%">${
+          showInner && pct(f.take) > 10 ? "TAKE" : ""}</div>`);
+      }
+      if (f.save > 0.001) {
+        bands.push(`<div class="save" data-short="" style="width:${pct(f.save)}%">${
+          showInner && pct(f.save) > 10 ? "SAVE" : ""}</div>`);
+      }
+      if (f.off > 0.05) {
+        bands.push(`<div class="strip-ghost" data-short="" style="width:${pct(f.off)}%">${
+          showInner && pct(f.off) > 10 ? (marked ? "already off" : "not needed") : ""}</div>`);
+      }
+      return `<div class="strip-full${f.off > 0.05 ? "" : " is-full"}${marked ? " marked" : ""}"
+        style="width:${w}${CSS_MM};height:${h}${CSS_MM}">${bands.join("")}${marked
+          ? `<div class="strip-cut" style="left:${pct(f.take)}%"></div>
+             <div class="strip-cut-label">today’s cut · ${fmt(cutSaveMm, 2)} mm · total off ${fmt(Math.max(0, fullMm - cutTakeMm), 2)} mm</div>`
+          : ""}</div>`;
+    }).join("");
+
     $("stripViz").innerHTML = `
       <p class="strip-side">
-        Cycle ${row.cycle} drawn on a <strong>${spec.label}</strong> film
-        · unused ${fmt(fullMm, 1)} × ${fmt(widthMm, 1)} mm
-        · current piece ${fmt(fullMm - ghostMm, 1)} mm
-        ${hasGhost ? " · dashed box is the original unused strip"
-          : (row.cycle === 1 && !multi ? " · this cycle uses the full unused strip" : " · this film is used end to end")}
+        Cycle ${row.cycle} drawn on ${multi ? films.length + " ×" : "a"}
+        <strong>${spec.label}</strong> film${multi ? "s" : ""}
+        · unused ${fmt(fullMm, 1)} × ${fmt(widthMm, 1)} mm${multi ? " each" : ""}
+        ${cut ? ` · current piece ${fmt(cutTakeMm + cutSaveMm, 1)} mm` : " · no cut this cycle"}
+        ${cut ? (ghost ? " · dashed box is the original unused strip" : (row.cycle === 1 && !multi ? " · this cycle uses the full unused strip" : "")) : ""}
       </p>
-      ${multi ? `<p class="kit"><strong>${kitLine(row)}</strong> Only the film drawn here is cut.</p>` : ""}
-      <div class="strip-draw">
-      <div class="strip-full${hasGhost ? "" : " is-full"}" style="width:${w}${CSS_MM};height:${h}${CSS_MM}">
-        <div class="take" data-short="" style="width:${takePct}%">${showInner ? "TAKE" : ""}</div>
-        <div class="save" data-short="" style="width:${savePct}%">${showInner && savePct > 10 ? "SAVE" : ""}</div>
-        ${hasGhost ? `<div class="strip-ghost" data-short="" style="width:${ghostPct}%">${ghostLabel}</div>` : ""}
-        <div class="strip-cut" style="left:${takePct}%"></div>
-        <div class="strip-cut-label">today’s cut · ${fmt(saveMm, 2)} mm · total off ${fmt(Math.max(0, fullMm - takeMm), 2)} mm</div>
-      </div>
-      </div>
-      ${hasShort ? `
-      <p class="strip-side">Second film — cut a <strong>${fmt(shortMm, 1)} mm piece</strong> and take that too. No sliver comes off this one.</p>
-      <div class="strip-draw">
-      <div class="strip-full" style="width:${w}${CSS_MM};height:${h}${CSS_MM}">
-        <div class="take" data-short="" style="width:${shortPct}%">${showInner && shortPct > 10 ? "TAKE" : ""}</div>
-        <div class="strip-ghost" data-short="" style="width:${100 - shortPct}%">${showInner && 100 - shortPct > 10 ? "not needed today" : ""}</div>
-      </div>
-      </div>` : ""}
+      ${multi ? `<p class="kit"><strong>${kitLine(row)}</strong> One bar per film, at true size,
+        in the order you handle them. ${cut ? "Only the marked one is cut." : "None of them is cut."}</p>` : ""}
+      <div class="strip-draw">${draw}</div>
       <div class="strip-dims" style="max-width:${Math.max(w, 40)}${CSS_MM}">
-        <span>TAKE ${fmt(takeMg, 2)} mg · ${fmt(takeMm, 1)} mm</span>
-        <span>SAVE ${fmt(saveMg, 2)} mg · ${fmt(saveMm, 2)} mm</span>
-        ${hasGhost ? `<span>Already off original ${fmt(ghostMm, 1)} mm · ${fmt(ghostMg, 2)} mg</span>` : ""}
-        ${hasShort ? `<span>Second film ${fmt(shortMg, 2)} mg · ${fmt(shortMm, 1)} mm</span>` : ""}
+        <span>TAKE ${fmt(scale(row.pieceMm - row.cutMm) * perMg, 2)} mg · ${fmt(scale(row.pieceMm - row.cutMm), 1)} mm</span>
+        <span>SAVE ${fmt(scale(row.cutMm) * perMg, 2)} mg · ${fmt(scale(row.cutMm), 2)} mm</span>
+        ${ghost ? `<span>Already off original ${fmt(scale(cut.off), 1)} mm · ${fmt(scale(cut.off) * perMg, 2)} mg</span>` : ""}
+        ${multi ? `<span>${films.length} films this day · ${fmtG(spec.mg)} mg each</span>` : ""}
       </div>
-      <p class="legend">${mismatch ? `The taper cycle is on an ${fmtG(row.filmMg)} mg film (${fmt(row.dailyMg, 2)} mg/day planned). This drawing uses the <strong>${spec.label}</strong> size you selected — same cut fractions, milligrams scaled to that film.` : ""} ${hasGhost
-        ? `The dashed outline is a full unused ${spec.label} film. The empty end was already reduced in earlier cycles. If you start from a fresh strip, trim that end first and save it — it is extra bank, not extra daily dose. Today’s cut is still 1/${row.n} of the <em>current</em> piece: mark <strong>${fmt(saveMm, 2)} mm from the right of that piece</strong> (the TAKE/SAVE line).`
-        : `Mark <strong>${fmt(saveMm, 2)} mm from the right end</strong>, then cut straight across the ${fmt(widthMm, 1)} mm width. ${row.cycle === 1 && !multi
-          ? "Cycle 1 uses the full unused film."
-          : "This film is used end to end, so the mark is measured from the film's own right end."}`}</p>
+      <p class="legend">${mismatch ? `The taper cycle is on an ${fmtG(row.filmMg)} mg film (${fmt(row.dailyMg, 2)} mg/day planned). This drawing uses the <strong>${spec.label}</strong> size you selected — same cut fractions, milligrams scaled to that film.` : ""} ${!cut
+        ? `Nothing is measured today: take ${row.takeFilms} whole ${fmtG(row.filmMg)} mg film${row.takeFilms === 1 ? "" : "s"} and put ${row.saveFilms} straight in the jar. Banked whole films are buffer, not extra daily dose.`
+        : (ghost
+          ? `The dashed outline is a full unused ${spec.label} film. The empty end was already reduced in earlier cycles. If you start from a fresh strip, trim that end first and save it — it is extra bank, not extra daily dose. Today’s cut is still 1/${row.n} of the <em>current</em> piece: mark <strong>${fmt(cutSaveMm, 2)} mm from the right of that piece</strong>${multi ? " on the marked bar" : ""} (the TAKE/SAVE line).`
+          : `Mark <strong>${fmt(cutSaveMm, 2)} mm from the right end</strong>${multi ? " of the marked bar" : ""}, then cut straight across the ${fmt(widthMm, 1)} mm width. ${row.cycle === 1 && !multi ? "Cycle 1 uses the full unused film." : "That bar is used end to end."}`)}</p>
     `;
     fitBandLabels($("stripViz"));
     pinStripCutLabel(takePct);
@@ -2261,7 +2353,7 @@
      hangs off either end. Measured rather than set in CSS because the text
      length moves with the numbers in it. */
   function pinStripCutLabel(takePct) {
-    const strip = $("stripViz").querySelector(".strip-full");
+    const strip = $("stripViz").querySelector(".strip-full.marked");
     const label = $("stripViz").querySelector(".strip-cut-label");
     if (!strip || !label) return;
     const stripW = strip.getBoundingClientRect().width;
@@ -2949,7 +3041,13 @@
      browser, calls this, and diffs every row against `taper.py --json`.
      Read-only and unused by the page itself. */
   window.SASTaperInternals = Object.freeze({
-    buildSchedule, compareClassic, baseFilmMg, keepRatio,
+    buildSchedule, compareClassic, baseFilmMg, keepRatio, filmLayout, dayFilms,
+    /* The cycle row the two drawings are currently showing. test_layout.js
+       asserts both panels drew exactly one bar per film of this row — the
+       thing that used to change shape from one cycle to the next. */
+    currentRow: () => (lastSched
+      ? lastSched.rows.find((r) => r.cycle === selectedCycle) || lastSched.rows[0] || null
+      : null),
   });
 
   applyTheme(currentTheme(), false);

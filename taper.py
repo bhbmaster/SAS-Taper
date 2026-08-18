@@ -393,10 +393,19 @@ def film_layout(
         cut_take_mm = (film_mg - save_rem) * mm_per_mg
         short_take_mm = (take_rem - (film_mg - save_rem)) * mm_per_mg
 
+    # Snap the float dust to zero. An exact multiple — 18 mg of 2 mg films at
+    # n=3 — can leave a 1e-14 mm remainder, and "a 0.00000000000001 mm sliver"
+    # is not a thing anyone can cut. Every consumer would have to carry the same
+    # epsilon otherwise; this way zero means zero.
+    snap = lambda v: 0.0 if abs(v) < 1e-9 else v
+    cut_take_mm = snap(cut_take_mm)
+    cut_save_mm = snap(cut_save_mm)
+    short_take_mm = snap(short_take_mm)
+
     films_out = take_films + save_films
-    if cut_take_mm + cut_save_mm > 1e-9:
+    if cut_take_mm + cut_save_mm > 0:
         films_out += 1
-    if short_take_mm > 1e-9:
+    if short_take_mm > 0:
         films_out += 1
     return FilmLayout(
         films_out=films_out,
@@ -804,6 +813,12 @@ def cut_context(row: CycleRow, sched: ScheduleResult) -> dict[str, Any]:
         "short_take_mm": row.short_take_mm,
         "short_take_mg": row.short_take_mm * per_mm,
         "short_ghost_mm": short_ghost_mm,
+        # Length of the strip ON the marked film. The sliver is measured from
+        # the right of THIS, not of the film: on a later cycle the film's right
+        # end is past the already-off mark, and measuring from there would put
+        # the cut millimetres out. Equals piece_mm on a single-film day.
+        "marked_piece_mm": row.cut_take_mm + row.cut_save_mm,
+        "no_cut": row.cut_take_mm + row.cut_save_mm <= 1e-9,
         "kit": kit_line(row, full_mm),
         "ruler": ascii_ruler(row.cut_take_mm, row.cut_save_mm, ghost_mm),
         "short_ruler": (
@@ -835,9 +850,12 @@ def kit_line(row: CycleRow, full_mm: float) -> str:
         parts.append("the marked film below")
     if row.short_take_mm > 1e-9:
         parts.append(f"a {row.short_take_mm:.1f} mm piece off one more")
-    return (
-        f"{row.films_out} × {row.film_mg:g} mg films a day: " + ", plus ".join(parts) + "."
-    )
+    line = f"{row.films_out} × {row.film_mg:g} mg films a day: " + ", plus ".join(parts) + "."
+    if row.cut_take_mm + row.cut_save_mm <= 1e-9:
+        # Dose and sliver both land on whole-film boundaries, so the day divides
+        # with no cutting at all — take some films, bank the others.
+        line += " Nothing to cut today."
+    return line
 
 
 def film_specs_payload() -> list[dict[str, Any]]:
@@ -910,6 +928,15 @@ def print_cut_block(ctx: dict[str, Any], row: CycleRow, detailed: bool = False) 
     )
     if multi:
         print(f"           {ctx['kit']}")
+    if ctx["no_cut"]:
+        print("           no cut this cycle — every film today is whole")
+        print(
+            f"           day total: TAKE {ctx['take_mm']:.1f} mm ({ctx['take_mg']:.2f} mg)"
+            f"  |  SAVE {ctx['save_mm']:.2f} mm ({ctx['save_mg']:.2f} mg)"
+        )
+        if detailed:
+            print(f"           Keep full width ({ctx['keep_mm']:.1f} mm); shorten length only.")
+        return
     print(f"           {ctx['ruler']}")
     # The ruler is one film, so its TAKE/SAVE are that film's. Only when the day
     # spans several does that differ from the day's total, and then both print.
@@ -938,8 +965,9 @@ def print_cut_block(ctx: dict[str, Any], row: CycleRow, detailed: bool = False) 
             if row.take_films + row.save_films else ""
         )
         print(
-            f"           mark {ctx['cut_save_mm']:.2f} mm from the right of the marked "
-            f"film (TAKE/SAVE line){tail}"
+            f"           mark {ctx['cut_save_mm']:.2f} mm from the right of the "
+            f"{ctx['marked_piece_mm']:.1f} mm piece on the marked film "
+            f"(TAKE/SAVE line){tail}"
         )
         if ctx["short_ruler"]:
             print(

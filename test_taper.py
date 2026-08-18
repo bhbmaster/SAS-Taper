@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import math
 import unittest
+from collections import Counter
 
 from taper import (
     base_film_mg,
     build_schedule,
+    cut_context,
     film_layout,
+    kit_line,
     compare_classic,
     ingested_closed_form,
     keep_ratio,
@@ -350,6 +353,185 @@ class TestMultiFilmDays(unittest.TestCase):
         row = build_schedule(start_mg=40.0, n=2, target_mg=8.0).rows[0]
         self.assertEqual(row.save_films, 2)
         self.assertAlmostEqual(row.cut_save_mm, 4.0 * 22.0 / 8.0, places=9)
+
+
+class TestMultiFilmMatrix(unittest.TestCase):
+    """Every invariant, over the whole space of doses up to 32 mg.
+
+    TestMultiFilmDays covers named cases a reader can follow. This covers the
+    space: start doses from 1 to 32 mg against all four official film
+    strengths, n from 2 to 30, three film lengths, the 2 mg switch both ways —
+    and it checks every cycle of every one of those ladders, not just the
+    first. A 32 mg start on 2 mg films is sixteen strips a day, which is the
+    far corner of what the inputs allow.
+
+    The schedules are built once in setUpClass because each property below
+    walks the whole grid.
+    """
+
+    STARTS = [1.0, 2.0, 3.0, 4.0, 6.0, 8.0, 9.26, 10.0, 12.0, 13.0,
+              16.0, 18.0, 20.0, 24.0, 28.0, 32.0]
+    NS = [2, 3, 4, 6, 10, 30]
+    STRENGTHS = [None, 2.0, 4.0, 8.0, 12.0]
+
+    @classmethod
+    def setUpClass(cls):
+        cls.grid = []
+        for start in cls.STARTS:
+            for n in cls.NS:
+                for strength in cls.STRENGTHS:
+                    cls.grid.append(cls._build(start, n, strength, 22.0, True))
+        # Non-default film lengths, and the 2 mg switch off, on a thinner slice:
+        # the length only scales millimetres, so it does not need the full cross.
+        for start in cls.STARTS:
+            for strength in cls.STRENGTHS:
+                for length in (20.0, 30.0):
+                    cls.grid.append(cls._build(start, 6, strength, length, True))
+                cls.grid.append(cls._build(start, 8, strength, 22.0, False))
+
+    @classmethod
+    def _build(cls, start, n, strength, length, switch):
+        sched = build_schedule(
+            start_mg=start, n=n, film_strength_mg=strength, film_mm=length,
+            film_2mg_mm=length, switch_2mg=switch, strip_mg=8.0,
+            target_mg=min(1.0, start / 2),
+        )
+        label = f"start={start:g} n={n} strength={strength} len={length:g} switch={switch}"
+        return label, sched
+
+    def each_row(self):
+        """(label, schedule, row, whole-film length) for every cycle in the grid."""
+        for label, sched in self.grid:
+            for row in sched.rows:
+                full = sched.film_2mg_mm if row.film_mg <= 2.01 else sched.film_mm
+                yield f"{label} cycle={row.cycle}", sched, row, full
+
+    def test_the_matrix_reaches_the_cases_it_claims_to(self):
+        """A grid that only ever produced one-film days would pass everything
+        below while testing nothing. Pin the shapes it has to contain."""
+        seen = Counter()
+        widest = 0
+        for _, _, row, _ in self.each_row():
+            seen["rows"] += 1
+            widest = max(widest, row.films_out)
+            if row.films_out > 1:
+                seen["multi-film days"] += 1
+            if row.short_take_mm > 1e-9:
+                seen["days needing a second cut film"] += 1
+            if row.cut_take_mm + row.cut_save_mm <= 1e-9:
+                seen["days with nothing to cut"] += 1
+            if row.save_films:
+                seen["days banking whole films"] += 1
+            if row.films_out == 1:
+                seen["single-film days"] += 1
+        self.assertGreater(seen["rows"], 5000, seen)
+        self.assertGreater(seen["single-film days"], 1000, seen)
+        self.assertGreater(seen["multi-film days"], 1000, seen)
+        self.assertGreater(seen["days needing a second cut film"], 100, seen)
+        self.assertGreater(seen["days with nothing to cut"], 10, seen)
+        self.assertGreater(seen["days banking whole films"], 50, seen)
+        # 32 mg on 2 mg films is sixteen strips a day.
+        self.assertGreaterEqual(widest, 16, f"widest day was {widest} films")
+
+    def test_nothing_is_lost_between_the_films(self):
+        for tag, _, row, full in self.each_row():
+            take = row.take_films * full + row.cut_take_mm + row.short_take_mm
+            save = row.save_films * full + row.cut_save_mm
+            self.assertAlmostEqual(take, row.piece_mm - row.cut_mm, places=8, msg=tag)
+            self.assertAlmostEqual(save, row.cut_mm, places=8, msg=tag)
+            self.assertAlmostEqual(take + save, row.piece_mm, places=8, msg=tag)
+
+    def test_the_milligrams_match_the_millimetres(self):
+        # Length fraction = dose fraction is the whole basis of the method, and
+        # it has to survive being spread over several films.
+        for tag, _, row, full in self.each_row():
+            per_mm = row.film_mg / full
+            take = row.take_films * full + row.cut_take_mm + row.short_take_mm
+            self.assertAlmostEqual(take * per_mm, row.daily_mg, places=8, msg=tag)
+            self.assertAlmostEqual(
+                (row.save_films * full + row.cut_save_mm) * per_mm,
+                row.sliver_mg, places=8, msg=tag,
+            )
+
+    def test_no_mark_ever_runs_off_the_end_of_a_film(self):
+        for tag, _, row, full in self.each_row():
+            self.assertLessEqual(row.cut_take_mm + row.cut_save_mm, full + 1e-9, msg=tag)
+            self.assertLessEqual(row.short_take_mm, full + 1e-9, msg=tag)
+            for name, v in (("cut_take", row.cut_take_mm), ("cut_save", row.cut_save_mm),
+                            ("short_take", row.short_take_mm)):
+                self.assertGreaterEqual(v, -1e-12, msg=f"{tag} {name}")
+
+    def test_the_sliver_is_never_split(self):
+        for tag, _, row, full in self.each_row():
+            self.assertAlmostEqual(
+                row.cut_save_mm, row.cut_mm - row.save_films * full, places=8, msg=tag
+            )
+
+    def test_exactly_one_film_is_ever_marked(self):
+        # Two marked films would mean two measurements a day, which is the thing
+        # the layout exists to avoid. The short film is a single straight cut
+        # with no sliver, so it does not count as a mark.
+        for tag, _, row, _ in self.each_row():
+            marked = 1 if row.cut_take_mm + row.cut_save_mm > 1e-9 else 0
+            self.assertLessEqual(marked, 1, msg=tag)
+            if marked:
+                self.assertGreater(row.cut_save_mm, 0.0, msg=f"{tag}: marked film with no sliver")
+
+    def test_film_count_is_the_fewest_that_hold_the_day(self):
+        for tag, _, row, full in self.each_row():
+            least = math.ceil(row.piece_mm / full - 1e-9)
+            self.assertGreaterEqual(row.films_out, least, msg=tag)
+            self.assertLessEqual(row.films_out, least + 1, msg=tag)
+
+    def test_the_sliver_is_measured_from_the_piece_not_the_film(self):
+        """The mark is cut_save_mm in from the right of the strip ON the marked
+        film. On a cycle with an already-off region the film's own right end is
+        further out, and measuring from there would put the cut millimetres
+        wrong — so cut_context has to hand the caller the piece, not the film.
+        """
+        ghosted = 0
+        for tag, sched, row, full in self.each_row():
+            ctx = cut_context(row, sched)
+            piece = ctx["marked_piece_mm"]
+            self.assertAlmostEqual(piece, row.cut_take_mm + row.cut_save_mm, places=12, msg=tag)
+            self.assertLessEqual(piece, full + 1e-9, msg=tag)
+            # Measuring the sliver back from the right of the piece lands on the
+            # TAKE/SAVE line. Measuring from the film would not, whenever the
+            # two differ.
+            self.assertAlmostEqual(piece - ctx["cut_save_mm"], row.cut_take_mm, places=12, msg=tag)
+            if ctx["ghost_mm"] > 0.05 and not ctx["no_cut"]:
+                ghosted += 1
+                self.assertLess(piece, full - 1e-9, msg=tag)
+        self.assertGreater(ghosted, 1000, "no cycles with an already-off region were checked")
+
+    def test_a_day_of_whole_films_reports_no_cut(self):
+        checked = 0
+        for tag, sched, row, _ in self.each_row():
+            ctx = cut_context(row, sched)
+            if not ctx["no_cut"]:
+                continue
+            checked += 1
+            self.assertEqual(row.cut_take_mm, 0.0, msg=tag)
+            self.assertEqual(row.cut_save_mm, 0.0, msg=tag)
+            self.assertEqual(row.short_take_mm, 0.0, msg=tag)
+            self.assertEqual(ctx["ruler"], "[" + "." * 50 + "]", msg=tag)
+            self.assertIn("Nothing to cut today", kit_line(row, ctx["full_mm"]), msg=tag)
+            # It still has to be a real day: films out, and a dose to take.
+            self.assertGreaterEqual(row.take_films, 1, msg=tag)
+            self.assertGreaterEqual(row.save_films, 1, msg=tag)
+            self.assertEqual(row.films_out, row.take_films + row.save_films, msg=tag)
+        self.assertGreater(checked, 10, "no whole-films-only cycles were checked")
+
+    def test_every_cycle_states_its_film_count(self):
+        # kit_line() is what both the CLI and the site print above the drawing;
+        # an empty one on a multi-film day would leave the reader thinking a
+        # two-strip day is a one-strip day.
+        for tag, sched, row, full in self.each_row():
+            line = kit_line(row, full)
+            if row.films_out > 1:
+                self.assertIn(f"{row.films_out} ×", line, msg=tag)
+            else:
+                self.assertEqual(line, "", msg=tag)
 
 
 class TestSummary(unittest.TestCase):

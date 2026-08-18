@@ -69,13 +69,19 @@ node test_layout.js         # viewport sweep, 280px to 1920px
 
 ### `test_taper.py`
 
-33 checks over the arithmetic the schedule is built on — the closed forms against the simulation, the per-cycle invariants (dose splits exactly, length fraction equals dose fraction, the bank is one whole piece per cycle), that the daily dose never rises across a film switch, the published film geometry, and the multi-film layout (the pieces add back up to the day, every cut fits on the film it is marked on, the sliver is never split across two). Standard library only.
+43 checks over the arithmetic the schedule is built on — the closed forms against the simulation, the per-cycle invariants (dose splits exactly, length fraction equals dose fraction, the bank is one whole piece per cycle), that the daily dose never rises across a film switch, and the published film geometry. Standard library only.
+
+The multi-film layout gets a matrix of its own: **720 ladders, 10,597 cycles** — start doses from 1 to 32 mg against all four official strengths, `n` from 2 to 30, three film lengths, the 2 mg switch both ways — checked cycle by cycle for the properties that make the instruction safe to follow. Nothing is lost between films; milligrams still track millimetres; no mark runs off the end of a film; the sliver is never split; exactly one film is ever marked; and the sliver is measured from the piece on that film rather than the film's own end. A further check asserts the matrix actually reaches the hard shapes — days from 1 to 16 films, days needing a second cut film, days with nothing to cut at all — so it cannot quietly stop covering them.
 
 ### `test_parity.js` — what it tests and why
 
 The taper maths is written **twice**: `buildSchedule()` in `index.html` and `build_schedule()` in `taper.py`. The site tells people the two agree, and `test_taper.py` only covers the Python one. This test checks the claim, because the two had already drifted once.
 
-It loads `index.html` in a headless browser, runs both implementations over the same inputs, and diffs the results — **31 schedules** (start doses 0.1–64 mg, `n` from 2 to 30, the 2 mg switch on and off, stretched cycles, `n`-below-3, non-default film lengths and strengths, doses needing two to eight films a day, clamp boundaries, empty ladders), comparing all 25 fields of every cycle row plus 9 summary figures, then `baseFilmMg` across 11 film sizes.
+It loads `index.html` in a headless browser, runs both implementations over the same inputs, and diffs the results — comparing all 25 fields of every cycle row plus 9 summary figures.
+
+**31 named schedules** go through the CLI, so the argument plumbing is covered too: start doses 0.1–64 mg, `n` from 2 to 30, the 2 mg switch on and off, stretched cycles, `n`-below-3, non-default film lengths and strengths, doses needing two to eight films a day, clamp boundaries, empty ladders.
+
+**640 more** go straight at `build_schedule()` in one Python process — every start dose from 1 to 32 mg against every official film strength, `n` from 2 to 30, and two non-default film lengths. That is **9,212 cycles** of the film layout compared field by field, up to a sixteen-strip day. It also checks the shape of its own coverage, so a grid that stopped producing multi-film days would fail rather than pass silently. Then `baseFilmMg` across 11 film sizes.
 
 It exits **0** on a match, **1** with a list of mismatches otherwise. If Node or a browser is missing it prints `skipped` and exits 0, so a plain checkout still passes.
 
@@ -111,7 +117,7 @@ The script also finds a browser on its own in the usual places — the Playwrigh
 
 Several parts of the page are positioned from measured pixels rather than by normal flow: the ruler tick captions, the life-size cut label, the calendar grid. Those have broken four separate times — captions stacked on each other, a percentage painted over a button, "SAVE" sliced in half, the page scrolling sideways on a narrow phone. Each was found by sweeping viewports by hand, then lost again, because nothing re-ran the sweep.
 
-This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus nine reshaping input cases — **362 viewport states** — and checks four things at each:
+This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus fifteen reshaping input cases — **452 viewport states** — and checks five things at each:
 
 | Failure | Detected by |
 |---|---|
@@ -119,6 +125,7 @@ This is that sweep, committed. It loads the page at **14 widths from 280px to 19
 | **overlap** — two pieces of text drawn on top of each other | pairwise rectangle intersection within each positioned group |
 | **clipping** — a box too small for its text | `scrollWidth`/`scrollHeight` vs `clientWidth`/`clientHeight` |
 | **spill** — an absolute label escaping its container | bounding box against its parent's |
+| **bar count** — a drawing showing a different day than the schedule | one bar per film in both panels, against the selected row's `filmsOut` |
 
 Any console or page error fails it too. Same setup as the parity test; same skip behaviour without a browser.
 
