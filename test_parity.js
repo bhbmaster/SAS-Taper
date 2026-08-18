@@ -32,6 +32,7 @@ const FLAGS = {
   holdDays: "--hold-days",
   nBelow3: "--n-below-3",
   stopMode: "--stop-mode",
+  filmStrengthMg: "--film-strength",
 };
 
 const CASES = [
@@ -52,6 +53,20 @@ const CASES = [
   { startMg: 12, stripMg: 12, n: 10, targetMg: 0.5 },
   { startMg: 2, stripMg: 2, n: 8, switch2mg: false },
   { filmMm: 20 },
+  /* Start doses that need more than one film a day. 16 mg on 8 mg films is the
+     plain two-strip case; 9.26 is where the ladder crosses a whole-film
+     boundary and TAKE and SAVE stop fitting on one film; the rest push the
+     layout past two films and past one film of sliver. */
+  { startMg: 16 },
+  { startMg: 16, n: 3 },
+  { startMg: 16, n: 2, targetMg: 4 },
+  { startMg: 24, n: 8 },
+  { startMg: 9.26 },
+  { startMg: 13, switch2mg: false },
+  { startMg: 20, filmStrengthMg: 12 },
+  { startMg: 16, filmStrengthMg: 4 },
+  { startMg: 64, n: 2, targetMg: 8 },
+  { startMg: 16, filmMm: 30, n: 7 },
   // clamp boundaries from clampOpts()
   { n: 30 },
   { startMg: 0.1, stripMg: 0.1 },
@@ -142,6 +157,7 @@ function compareSummary(label, js, py, fail) {
       (o) => window.SASTaperInternals.buildSchedule(Object.assign({
         startMg: 8, n: 6, filmMm: 22, film2Mm: 22, targetMg: 1, stripMg: 8,
         switch2mg: true, holdDays: null, nBelow3: null, stopMode: "reach",
+        filmStrengthMg: null,
       }, o)),
       c
     );
@@ -149,9 +165,10 @@ function compareSummary(label, js, py, fail) {
     compareSummary(label, js, py, fail);
   }
 
-  /* baseFilmMg picks the smallest official film that holds the start dose;
-     a mismatch here silently changes every mm figure on the page. */
-  for (const mg of [0.5, 2, 2.5, 4, 4.1, 8, 8.5, 12]) {
+  /* baseFilmMg picks the smallest official film that holds the start dose, or
+     8 mg above 12 where none does; a mismatch here silently changes every mm
+     figure on the page. */
+  for (const mg of [0.5, 2, 2.5, 4, 4.1, 8, 8.5, 12, 12.5, 16, 64]) {
     const js = await page.evaluate((v) => window.SASTaperInternals.baseFilmMg(v), mg);
     const py = pyRun({ startMg: mg, stripMg: mg }).base_film_mg;
     if (js !== py) fail(`baseFilmMg(${mg}) = ${js} (js) vs ${py} (py)`);
@@ -160,13 +177,13 @@ function compareSummary(label, js, py, fail) {
   if (pageErrors.length) fail("page errors: " + pageErrors.join("; "));
   await browser.close();
 
-  const checks = CASES.length + 8;
+  const checks = CASES.length + 11;
   if (failures.length) {
     console.error(`FAILED — ${failures.length} mismatch(es) across ${checks} checks:`);
     for (const f of failures.slice(0, 40)) console.error("  " + f);
     process.exit(1);
   }
-  console.log(`OK — index.html matches taper.py across ${CASES.length} schedules and 8 film sizes`);
+  console.log(`OK — index.html matches taper.py across ${CASES.length} schedules and 11 film sizes`);
 })().catch((e) => {
   console.error(e);
   process.exit(1);

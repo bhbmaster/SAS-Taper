@@ -202,23 +202,62 @@ const probe = () => {
     }
   }
 
-  /* 3. Inputs that reshape the page: a start dose that will not fit on one
-        film, a target that yields no ladder, the longest run the cap allows. */
-  for (const [label, fields] of [
-    ["oversize start dose", { startMg: 64, stripMg: 8 }],
-    ["empty ladder", { startMg: 1.1, targetMg: 1 }],
-    ["max cycles", { n: 30, targetMg: 0.1 }],
-    ["stretched cycles", { holdDays: 30 }],
-    ["no 2 mg switch", { targetMg: 0.4 }],
+  /* 3. Inputs that reshape the page: doses needing more than one film a day, a
+        target that yields no ladder, the longest run the cap allows. The
+        multi-film cases each name the cycles worth looking at — a two-strip run
+        grows a kit banner, a ×N pill and, at the cycle where the ladder crosses
+        a whole-film boundary, a second film bar and its caption. */
+  for (const [label, fields, cycles] of [
+    ["oversize start dose", { startMg: 64, stripMg: 8 }, [1, 5]],
+    ["two-strip start", { startMg: 16, stripMg: 8 }, [1, 2, 4, 5, 12]],
+    ["two-strip on 12 mg film", { startMg: 20, filmStrengthMg: 12 }, [1, 3]],
+    ["four-strip start", { startMg: 30, stripMg: 8, n: 3 }, [1, 2]],
+    ["sliver over one film", { startMg: 40, n: 2, targetMg: 8 }, [1, 2]],
+    ["empty ladder", { startMg: 1.1, targetMg: 1 }, [1]],
+    ["max cycles", { n: 30, targetMg: 0.1 }, [1]],
+    ["stretched cycles", { holdDays: 30 }, [1]],
+    ["no 2 mg switch", { targetMg: 0.4 }, [1]],
   ]) {
     for (const width of [320, 768, 1280]) {
-      const { ctx, page, errs } = await openPage(width, "dark");
-      for (const [k, v] of Object.entries(fields)) await setField(page, k, v);
-      await page.waitForTimeout(200);
-      errs.length = 0;
-      record(`${label} @${width}px`, await page.evaluate(probe), errs);
-      await ctx.close();
+      for (const theme of THEMES) {
+        const { ctx, page, errs } = await openPage(width, theme);
+        for (const [k, v] of Object.entries(fields)) await setField(page, k, v);
+        await page.waitForTimeout(200);
+        for (const cycle of cycles) {
+          await selectCycle(page, cycle);
+          await page.waitForTimeout(80);
+          errs.length = 0;
+          record(`${label} ${theme} @${width}px cycle ${cycle}`, await page.evaluate(probe), errs);
+        }
+        await ctx.close();
+      }
     }
+  }
+
+  /* 4. The calendar on a two-strip run: every cell carries a ×N beside the
+        dose, in cells only 44px wide once compact mode is on. */
+  for (const width of CAL_WIDTHS) {
+    const { ctx, page, errs } = await openPage(width, "dark");
+    await setField(page, "startMg", 16);
+    await setField(page, "startDate", "2026-08-01");
+    await page.waitForTimeout(220);
+    for (const density of ["detailed", "compact"]) {
+      if (density === "compact") {
+        await page.click("#calDensityBtn");
+        await page.waitForTimeout(80);
+      }
+      for (const mode of ["off", "take", "save"]) {
+        if (mode !== "off") {
+          await page.click("#calModeBtn");
+          await page.waitForTimeout(80);
+        }
+        errs.length = 0;
+        record(`two-strip calendar ${density}/${mode} @${width}px`, await page.evaluate(probe), errs);
+      }
+      await page.click("#calModeBtn");
+      await page.waitForTimeout(60);
+    }
+    await ctx.close();
   }
 
   await browser.close();

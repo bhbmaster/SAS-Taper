@@ -7,11 +7,13 @@ No extra packages needed.
 
 from __future__ import annotations
 
+import math
 import unittest
 
 from taper import (
     base_film_mg,
     build_schedule,
+    film_layout,
     compare_classic,
     ingested_closed_form,
     keep_ratio,
@@ -218,6 +220,136 @@ class TestFilmGeometry(unittest.TestCase):
         eight = FILM_SPECS[8][0] * FILM_SPECS[8][1] / 8
         two = FILM_SPECS[2][0] * FILM_SPECS[2][1] / 2
         self.assertAlmostEqual(two / eight, 4.0, places=9)
+
+
+class TestMultiFilmDays(unittest.TestCase):
+    """Days whose dose is bigger than one film.
+
+    A 16 mg start on 8 mg strips is two films a day. The dose arithmetic is
+    unchanged — it is all milligrams — but the physical instruction is not, and
+    everything the reader measures comes out of film_layout(). These pin the two
+    properties that make it safe to follow: nothing is lost between the films,
+    and the sliver is never split across two of them.
+    """
+
+    LADDERS = [
+        dict(start_mg=16.0, strip_mg=8.0),
+        dict(start_mg=16.0, n=3),
+        dict(start_mg=24.0, n=8),
+        dict(start_mg=13.0, switch_2mg=False),
+        dict(start_mg=40.0, n=2, target_mg=8.0),
+        dict(start_mg=20.0, film_strength_mg=12.0),
+        dict(start_mg=8.0),
+        dict(start_mg=2.0, strip_mg=2.0),
+    ]
+
+    def test_the_pieces_add_back_up_to_the_day(self):
+        # Nothing may go missing between films: the whole ones plus the cut ones
+        # have to equal the day's total take and save, to the millimetre.
+        for opts in self.LADDERS:
+            sched = build_schedule(**opts)
+            for row in sched.rows:
+                full = sched.film_2mg_mm if row.film_mg <= 2.01 else sched.film_mm
+                take = row.take_films * full + row.cut_take_mm + row.short_take_mm
+                save = row.save_films * full + row.cut_save_mm
+                self.assertAlmostEqual(take, row.piece_mm - row.cut_mm, places=9, msg=str(opts))
+                self.assertAlmostEqual(save, row.cut_mm, places=9, msg=str(opts))
+                self.assertAlmostEqual(take + save, row.piece_mm, places=9, msg=str(opts))
+
+    def test_every_cut_fits_on_the_film_it_is_marked_on(self):
+        # The point of the layout: a mark that runs off the end of the strip is
+        # not a mark. Both cut films must fit inside one film's length.
+        for opts in self.LADDERS:
+            sched = build_schedule(**opts)
+            for row in sched.rows:
+                full = sched.film_2mg_mm if row.film_mg <= 2.01 else sched.film_mm
+                self.assertLessEqual(row.cut_take_mm + row.cut_save_mm, full + 1e-9, msg=str(opts))
+                self.assertLessEqual(row.short_take_mm, full + 1e-9, msg=str(opts))
+                for v in (row.cut_take_mm, row.cut_save_mm, row.short_take_mm):
+                    self.assertGreaterEqual(v, -1e-12, msg=str(opts))
+
+    def test_the_sliver_is_never_split_across_two_films(self):
+        # Whole films can go to the jar untouched, but the part-film remainder
+        # of the sliver is one piece on one film — it is the piece being
+        # measured, so splitting it would make the measurement meaningless.
+        for opts in self.LADDERS:
+            sched = build_schedule(**opts)
+            for row in sched.rows:
+                full = sched.film_2mg_mm if row.film_mg <= 2.01 else sched.film_mm
+                self.assertAlmostEqual(
+                    row.cut_save_mm, row.cut_mm - row.save_films * full, places=9, msg=str(opts)
+                )
+
+    def test_film_count_is_the_fewest_that_hold_the_day(self):
+        for opts in self.LADDERS:
+            sched = build_schedule(**opts)
+            for row in sched.rows:
+                full = sched.film_2mg_mm if row.film_mg <= 2.01 else sched.film_mm
+                least = math.ceil(row.piece_mm / full - 1e-9)
+                # A second cut film is sometimes unavoidable where the ladder
+                # crosses a whole-film boundary, so one over the minimum is the
+                # worst case — never two over.
+                self.assertGreaterEqual(row.films_out, least, msg=str(opts))
+                self.assertLessEqual(row.films_out, least + 1, msg=str(opts))
+
+    def test_a_day_inside_one_film_is_the_old_single_film_picture(self):
+        # The generalisation must be exactly backward compatible, or every
+        # existing cut mark moves.
+        sched = build_schedule()
+        for row in sched.rows:
+            self.assertEqual(row.films_out, 1)
+            self.assertEqual(row.take_films, 0)
+            self.assertEqual(row.save_films, 0)
+            self.assertEqual(row.short_take_mm, 0.0)
+            self.assertAlmostEqual(row.cut_take_mm, row.piece_mm - row.cut_mm, places=12)
+            self.assertAlmostEqual(row.cut_save_mm, row.cut_mm, places=12)
+
+    def test_sixteen_mg_on_eight_mg_films_is_two_strips_one_of_them_cut(self):
+        # The worked example: take two strips, one whole, and cut 1/6 off the
+        # other. 1/6 of 16 mg is 2.67 mg, which is 7.33 mm of an 8 mg film.
+        row = build_schedule(start_mg=16.0, strip_mg=8.0).rows[0]
+        self.assertEqual(row.film_mg, 8.0)
+        self.assertEqual(row.films_out, 2)
+        self.assertEqual(row.take_films, 1)
+        self.assertEqual(row.save_films, 0)
+        self.assertEqual(row.short_take_mm, 0.0)
+        self.assertAlmostEqual(row.cut_save_mm, 22.0 / 3, places=9)
+        self.assertAlmostEqual(row.cut_take_mm, 22.0 - 22.0 / 3, places=9)
+        self.assertAlmostEqual(row.sliver_mg, 16.0 / 6, places=9)
+
+    def test_a_start_above_twelve_mg_falls_back_to_eight_mg_films(self):
+        # No single official film holds it, so the day becomes several strips of
+        # the strength people are normally tapering from.
+        self.assertEqual(base_film_mg(12.5), 8.0)
+        self.assertEqual(base_film_mg(16.0), 8.0)
+        self.assertEqual(base_film_mg(64.0), 8.0)
+
+    def test_film_strength_override_is_respected(self):
+        row = build_schedule(start_mg=20.0, film_strength_mg=12.0).rows[0]
+        self.assertEqual(row.film_mg, 12.0)
+        self.assertEqual(row.films_out, 2)
+
+    def test_short_film_appears_only_when_take_and_save_cannot_share(self):
+        # Called directly, because this is the one rule the schedule rows do not
+        # make obvious. 9.26 mg on an 8 mg film: the take is 7.72 mg, which is
+        # almost the whole film, so the 1.54 mg sliver has nowhere to sit beside
+        # it. The sliver stays whole and the leftover take moves to a second
+        # film — not the other way round.
+        lay = film_layout(9.2593, 9.2593 / 6, 8.0, 22.0)
+        self.assertGreater(lay.short_take_mm, 0.0)
+        self.assertAlmostEqual(lay.cut_take_mm + lay.cut_save_mm, 22.0, places=6)
+        self.assertAlmostEqual(lay.cut_save_mm, 9.2593 / 6 * 22.0 / 8.0, places=9)
+
+        # A dose that fits on one film keeps both on it, with no second film.
+        lay = film_layout(8.0, 8.0 / 6, 8.0, 22.0)
+        self.assertEqual(lay.short_take_mm, 0.0)
+        self.assertEqual(lay.films_out, 1)
+
+    def test_a_sliver_bigger_than_a_film_banks_whole_films(self):
+        # n = 2 off a 40 mg day saves 20 mg — two whole 8 mg films plus 4 mg.
+        row = build_schedule(start_mg=40.0, n=2, target_mg=8.0).rows[0]
+        self.assertEqual(row.save_films, 2)
+        self.assertAlmostEqual(row.cut_save_mm, 4.0 * 22.0 / 8.0, places=9)
 
 
 class TestSummary(unittest.TestCase):

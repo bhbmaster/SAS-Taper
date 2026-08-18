@@ -11,6 +11,8 @@ Each day you cut `1/n` off the current piece, **save** the short right sliver, a
 
 Default: start 8 mg, **n = 6** (16.7% every 6 days), switch to 2 mg films once the strip reaches 2.25 mg.
 
+A dose bigger than one film is just several films: 16 mg on 8 mg strips is two a day. Only one of them is ever cut.
+
 ## Why save-a-sliver
 
 The demanding part of a taper is often not the milligrams but the sense of getting less. SAS frames each day’s remaining piece as a complete strip — the dose you have — while the cut-off sliver leaves the daily routine.
@@ -48,10 +50,12 @@ python3 taper.py --compare
 python3 taper.py --cycle 6
 python3 taper.py --n 10 --no-switch-2mg
 python3 taper.py --start-date 2026-03-01
+python3 taper.py --start-mg 16          # two 8 mg strips a day
+python3 taper.py --start-mg 20 --film-strength 12
 python3 test_taper.py          # math checks
 ```
 
-No extra packages. Python 3.11 is fine. Same math as the site. Cut marks are a full unused film: TAKE left, SAVE, then the already-off remainder. `--cycle N` prints only that cycle’s cut with the extra note. `--stop-mode above` matches the classic n=6/8/10 comparison (last cycle still strictly above target). `--start-date` adds real dates to the schedule, the same ones the site's calendar shows.
+No extra packages. Python 3.11 is fine. Same math as the site. Cut marks are a full unused film: TAKE left, SAVE, then the already-off remainder. `--cycle N` prints only that cycle’s cut with the extra note. `--stop-mode above` matches the classic n=6/8/10 comparison (last cycle still strictly above target). `--start-date` adds real dates to the schedule, the same ones the site's calendar shows. `--film-strength` says which strength you actually hold, when it is not the one the start dose implies.
 
 ## Tests
 
@@ -65,13 +69,13 @@ node test_layout.js         # viewport sweep, 280px to 1920px
 
 ### `test_taper.py`
 
-23 checks over the arithmetic the schedule is built on — the closed forms against the simulation, the per-cycle invariants (dose splits exactly, length fraction equals dose fraction, the bank is one whole piece per cycle), that the daily dose never rises across a film switch, and the published film geometry. Standard library only.
+33 checks over the arithmetic the schedule is built on — the closed forms against the simulation, the per-cycle invariants (dose splits exactly, length fraction equals dose fraction, the bank is one whole piece per cycle), that the daily dose never rises across a film switch, the published film geometry, and the multi-film layout (the pieces add back up to the day, every cut fits on the film it is marked on, the sliver is never split across two). Standard library only.
 
 ### `test_parity.js` — what it tests and why
 
 The taper maths is written **twice**: `buildSchedule()` in `index.html` and `build_schedule()` in `taper.py`. The site tells people the two agree, and `test_taper.py` only covers the Python one. This test checks the claim, because the two had already drifted once.
 
-It loads `index.html` in a headless browser, runs both implementations over the same inputs, and diffs the results — **21 schedules** (start doses 0.1–12 mg, `n` from 3 to 30, the 2 mg switch on and off, stretched cycles, `n`-below-3, non-default film lengths, clamp boundaries, empty ladders), comparing all 19 fields of every cycle row plus 9 summary figures, then `baseFilmMg` across 8 film sizes.
+It loads `index.html` in a headless browser, runs both implementations over the same inputs, and diffs the results — **31 schedules** (start doses 0.1–64 mg, `n` from 2 to 30, the 2 mg switch on and off, stretched cycles, `n`-below-3, non-default film lengths and strengths, doses needing two to eight films a day, clamp boundaries, empty ladders), comparing all 25 fields of every cycle row plus 9 summary figures, then `baseFilmMg` across 11 film sizes.
 
 It exits **0** on a match, **1** with a list of mismatches otherwise. If Node or a browser is missing it prints `skipped` and exits 0, so a plain checkout still passes.
 
@@ -107,7 +111,7 @@ The script also finds a browser on its own in the usual places — the Playwrigh
 
 Several parts of the page are positioned from measured pixels rather than by normal flow: the ruler tick captions, the life-size cut label, the calendar grid. Those have broken four separate times — captions stacked on each other, a percentage painted over a button, "SAVE" sliced in half, the page scrolling sideways on a narrow phone. Each was found by sweeping viewports by hand, then lost again, because nothing re-ran the sweep.
 
-This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus five reshaping input cases — **239 viewport states** — and checks four things at each:
+This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus nine reshaping input cases — **362 viewport states** — and checks four things at each:
 
 | Failure | Detected by |
 |---|---|
@@ -129,19 +133,29 @@ All three run in GitHub Actions on every push and pull request.
 
 ## Method (every day of a cycle)
 
-1. Start with the current “whole strip” (cycle 1: a full 8 mg film).
+1. Start with the current “whole strip” (cycle 1: a full 8 mg film, or several if your dose is bigger than one).
 2. Keep full width; cut along length only. Mark, then cut with a razor, not scissors.
-3. Cut `1/n` off the **right** end. Save that sliver. Take the long left piece. Once daily.
+3. Cut `1/n` off the **right** end. Save that sliver. Take the long left piece. Once daily. If the day is more than one film, cut one of them and take the rest whole.
 4. After `n` days the save jar holds one full piece. Do not use the bank as extra daily dose or the taper never drops.
 5. Next cycle, the leftover size is the new whole strip. Repeat to the target (default 1 mg).
 
 Hold a cycle if cravings spike, sleep goes, or you are restless and sweating. When the sliver is under ~1 mm, switch to 2 mg films. Lock up saved pieces (dangerous to kids and pets). Ask the prescriber to step quantity down with the dose.
 
+## More than one film a day
+
+Start at 16 mg with 8 mg strips and one day's dose is two films. That is supported, and it changes nothing about the arithmetic — the ladder is milligrams, and 16 mg cuts 1/6 the same way 8 mg does. What it changes is the daily ritual, so the tool spells that part out:
+
+> **2 × 8 mg films a day: 1 film taken whole, plus the marked film below.**
+
+Take the whole ones as they are; **only one strip is ever cut**. The sliver is the piece you are measuring, so it always stays on a single film rather than being split across two — and where the ladder crosses a whole-film boundary and the take and the sliver no longer fit side by side, the leftover *take* moves to a second strip instead. The schedule's Film column shows `×2`, the calendar puts a small `×2` beside the dose, and the cut-mark panel draws the marked film with the second one beneath it.
+
+Above 12 mg no single official film holds the dose, so the plan defaults to 8 mg strips. Set **Film strength you cut** (or `--film-strength`) if you hold something else — 20 mg is two 12 mg strips if that is what is in the box.
+
 ## Limitation
 
-The schedule starts from **one given film size** and then either stays on that strength or **switches only to 2 mg films**. It does not auto-step 12 → 8 → 4 mg. Clicking those rows on the site only changes the life-size drawing.
+The schedule runs on **one film strength at a time** and either stays on that strength or **switches only to 2 mg films**. It does not auto-step 12 → 8 → 4 mg. Clicking those rows on the site only changes the life-size drawing.
 
-To plan a different start, change the inputs and recalc — for example start dose 12, start dose 4, or turn off the 2 mg switch to stay on 8 mg films the whole way. The base film is the smallest official strength that holds the start dose (2 / 4 / 8 / 12 mg), so day 1 is always one whole film; `--film-strength` overrides that if you are cutting something else.
+To plan a different start, change the inputs and recalc — for example start dose 12, start dose 4, or turn off the 2 mg switch to stay on 8 mg films the whole way. The base film is the smallest official strength that holds the start dose (2 / 4 / 8 / 12 mg), and 8 mg above that; `--film-strength` overrides it if you are cutting something else.
 
 All four Suboxone strengths measure 22 mm on the side this tool cuts, so the film-length input is the same number whichever you start on. The two low strengths (2 and 4 mg) share one density and the two high ones (8 and 12 mg) share another that is 4× as concentrated — which is why moving from 8 mg to 2 mg films makes the same dose four times longer, and the same cut four times more forgiving.
 

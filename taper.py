@@ -122,11 +122,16 @@ cycle to 8–9 days or switch n to 10 below 3 mg. When the sliver is under ~1 mm
 switch to 2 mg films. Lock up saved pieces. Step the prescribed quantity down
 with the dose.
 
+More than one strip a day: a dose bigger than one film — 16 mg on 8 mg strips —
+is simply several strips. Take the whole ones as they are and cut only the one
+the ruler marks. The Film column shows ×2, ×3 and so on.
+
 Limitation: the schedule starts on one given film size and either stays there or
 switches only to 2 mg films (not 12→8→4). The official size table is a reference;
 it does not change the ladder. To plan a 12 mg or 4 mg start, change --start-mg /
 --strip-mg and recalc; the base film becomes the smallest official strength that
-holds the start dose (--film-strength overrides it).
+holds the start dose, or 8 mg above 12 mg where no single film holds it
+(--film-strength overrides either).
 """
 
 NOTES = """\
@@ -144,6 +149,9 @@ Practical notes
   the time daily dose is heading through ~4 mg toward ~2 mg). A 2 mg film is one
   quarter the density, so the same dose is four times longer on it and the same
   cut is four times more forgiving.
+- A dose over one film is just more films. Cut one strip and take the others
+  whole — never split the sliver across two strips, because the sliver is the
+  piece you are measuring. The cut marks name which film is the marked one.
 - Holding is not failure. If a cycle leaves you with bad sleep, restlessness,
   sweats, GI upset, or — most importantly — a spike in cravings, stay at that
   dose for another cycle or two before dropping again.
@@ -183,9 +191,14 @@ class CycleRow:
 
     cut_from_mg is the piece you start the cycle holding; daily_mg is what you
     take each day after removing sliver_mg. piece_mm and cut_mm are the same two
-    quantities in millimetres of film. banked_mg is what the save jar gains over
-    the cycle, which equals one whole piece when days == n. cut_warn flags a
-    sliver under CUT_WARN_MM, where hand-cutting stops being meaningful.
+    quantities in millimetres of film — totals for the day, which can exceed one
+    film when the dose does. banked_mg is what the save jar gains over the
+    cycle, which equals one whole piece when days == n. cut_warn flags a sliver
+    under CUT_WARN_MM, where hand-cutting stops being meaningful.
+
+    The films_out .. short_take_mm block is film_layout() flattened onto the
+    row: how many films the day needs and where the single cut falls. See
+    FilmLayout for what each one means.
     """
 
     cycle: int
@@ -199,6 +212,12 @@ class CycleRow:
     sliver_mg: float
     piece_mm: float
     cut_mm: float
+    films_out: int
+    take_films: int
+    save_films: int
+    cut_take_mm: float
+    cut_save_mm: float
+    short_take_mm: float
     used_mg: float
     cum_mg: float
     cum_strips: float
@@ -281,17 +300,112 @@ def keep_ratio(n: int) -> float:
 
 
 def base_film_mg(start_mg: float) -> float:
-    """Smallest official film strength that can hold the start dose.
+    """Film strength the plan is built on: the smallest that holds the start dose.
 
-    The piece you cut on day 1 is the start dose, so it has to fit on one film.
-    Above 12 mg there is no single film; the caller gets 12 and a piece longer
-    than one strip.
+    Args:
+        start_mg: the dose on day 1.
+    Returns:
+        One of 2, 4, 8, 12 — or 8 for a start above 12 mg, where no single film
+        holds the dose and the day is made up of several. 8 mg is the strength
+        people are normally tapering from and the one the 2 mg switch assumes;
+        --film-strength overrides this if you hold something else.
     """
     strengths = sorted(FILM_SPECS)
     for mg in strengths:
         if start_mg <= mg + 1e-9:
             return float(mg)
-    return float(strengths[-1])
+    return 8.0
+
+
+@dataclass
+class FilmLayout:
+    """How one day's whole strip is laid out across real films.
+
+    A day's strip can be longer than one film: a 16 mg start on 8 mg films is
+    two whole strips. The dose arithmetic does not care — it is all milligrams —
+    but the person holding a razor does. They need to know how many films to
+    open, which ones to swallow untouched, and which single film carries the
+    cut. The pieces, in the order they come out of the box:
+
+        take_films    whole films taken as they are, no cut
+        save_films    whole films straight to the jar, no cut — only when the
+                      day's sliver is itself longer than a film (big dose, low n)
+        the cut film  TAKE cut_take_mm | SAVE cut_save_mm | the rest already off
+        the short film  TAKE short_take_mm | the rest already off
+
+    The short film appears only when TAKE and SAVE cannot share one film, which
+    happens as the ladder crosses a whole-film boundary. Keeping the SAVE on one
+    film is what forces it: the sliver is the piece being measured, so it is the
+    one that must not be split.
+
+    When the strip fits on a single film — every cycle of a default 8 mg run —
+    take_films, save_films and short_take_mm are all zero, cut_take_mm is the
+    old take length and cut_save_mm the old cut. The one-film picture is a
+    special case of this one, not a separate code path.
+    """
+
+    films_out: int
+    take_films: int
+    save_films: int
+    cut_take_mm: float
+    cut_save_mm: float
+    short_take_mm: float
+
+
+def film_layout(
+    strip_mg: float, sliver_mg: float, film_mg: float, film_mm: float
+) -> FilmLayout:
+    """Split one day's strip into whole films plus at most two cut ones.
+
+    Args:
+        strip_mg: the day's whole strip — what you start the day holding.
+        sliver_mg: the part of it saved, strip_mg / n.
+        film_mg: strength of one film you are cutting.
+        film_mm: length of one such film along the cut axis.
+    Returns:
+        A FilmLayout. Guarantees, all in mg-equivalent lengths:
+          take_films*film_mm + cut_take_mm + short_take_mm  == total TAKE
+          save_films*film_mm + cut_save_mm                  == total SAVE
+        and films_out counts every film that has to come out of the box.
+    """
+    if film_mg <= 0 or film_mm <= 0:
+        return FilmLayout(0, 0, 0, 0.0, 0.0, 0.0)
+    mm_per_mg = film_mm / film_mg
+    take_mg = max(0.0, strip_mg - sliver_mg)
+    # int() truncates, and both operands are positive, so this is floor(). The
+    # 1e-9 keeps an exact multiple — 16 mg on 8 mg films — off the wrong side of
+    # the boundary after the geometric ladder's float drift.
+    take_films = int(take_mg / film_mg + 1e-9)
+    take_rem = max(0.0, take_mg - take_films * film_mg)
+    save_films = int(sliver_mg / film_mg + 1e-9)
+    save_rem = max(0.0, sliver_mg - save_films * film_mg)
+
+    if take_rem + save_rem <= film_mg + 1e-9:
+        # The everyday case: one marked film, TAKE | SAVE | already off.
+        cut_take_mm = take_rem * mm_per_mg
+        cut_save_mm = save_rem * mm_per_mg
+        short_take_mm = 0.0
+    else:
+        # The two leftovers overflow one film. Fill the cut film to its end with
+        # the whole sliver plus as much TAKE as fits, and put the rest of the
+        # TAKE on a second, short film.
+        cut_save_mm = save_rem * mm_per_mg
+        cut_take_mm = (film_mg - save_rem) * mm_per_mg
+        short_take_mm = (take_rem - (film_mg - save_rem)) * mm_per_mg
+
+    films_out = take_films + save_films
+    if cut_take_mm + cut_save_mm > 1e-9:
+        films_out += 1
+    if short_take_mm > 1e-9:
+        films_out += 1
+    return FilmLayout(
+        films_out=films_out,
+        take_films=take_films,
+        save_films=save_films,
+        cut_take_mm=cut_take_mm,
+        cut_save_mm=cut_save_mm,
+        short_take_mm=short_take_mm,
+    )
 
 
 def lifetime_ceiling_mg(start_mg: float, n: int, days_per_cycle: Optional[int] = None) -> float:
@@ -404,6 +518,9 @@ def build_schedule(
         days = int(hold_days) if hold_days and hold_days >= 1 else current_n
         piece_mm = current_film_mm * D / film_mg
         cut_mm = piece_mm / current_n
+        # Where that cut actually falls on real films. Above one film's worth of
+        # dose the day is several strips and only one of them gets marked.
+        lay = film_layout(D, sliver, film_mg, current_film_mm)
         used = days * daily
         banked = days * sliver
 
@@ -425,6 +542,12 @@ def build_schedule(
                 sliver_mg=sliver,
                 piece_mm=piece_mm,
                 cut_mm=cut_mm,
+                films_out=lay.films_out,
+                take_films=lay.take_films,
+                save_films=lay.save_films,
+                cut_take_mm=lay.cut_take_mm,
+                cut_save_mm=lay.cut_save_mm,
+                short_take_mm=lay.short_take_mm,
                 used_mg=used,
                 cum_mg=cum_mg,
                 cum_strips=cum_mg / strip_mg,
@@ -652,8 +775,12 @@ def cut_context(row: CycleRow, sched: ScheduleResult) -> dict[str, Any]:
     full_mm = sched.film_2mg_mm if row.film_mg <= 2.01 else sched.film_mm
     take_mm = row.piece_mm - row.cut_mm
     save_mm = row.cut_mm
-    ghost_mm = max(0.0, full_mm - row.piece_mm)
-    ghost_mg = row.film_mg * (ghost_mm / full_mm) if full_mm else 0.0
+    # The ruler draws the one film that carries the cut, so its leftover is what
+    # "already off" means — not full_mm − piece_mm, which goes negative as soon
+    # as the day spans more than one film.
+    ghost_mm = max(0.0, full_mm - row.cut_take_mm - row.cut_save_mm)
+    short_ghost_mm = max(0.0, full_mm - row.short_take_mm) if row.short_take_mm > 1e-9 else 0.0
+    per_mm = (row.film_mg / full_mm) if full_mm else 0.0
     return {
         "cycle": row.cycle,
         "label": spec.label,
@@ -664,11 +791,53 @@ def cut_context(row: CycleRow, sched: ScheduleResult) -> dict[str, Any]:
         "ghost_mm": ghost_mm,
         "take_mg": row.daily_mg,
         "save_mg": row.sliver_mg,
-        "ghost_mg": ghost_mg,
+        "ghost_mg": ghost_mm * per_mm,
         "piece_mm": row.piece_mm,
         "n": row.n,
-        "ruler": ascii_ruler(take_mm, save_mm, ghost_mm),
+        "films_out": row.films_out,
+        "take_films": row.take_films,
+        "save_films": row.save_films,
+        "cut_take_mm": row.cut_take_mm,
+        "cut_save_mm": row.cut_save_mm,
+        "cut_take_mg": row.cut_take_mm * per_mm,
+        "cut_save_mg": row.cut_save_mm * per_mm,
+        "short_take_mm": row.short_take_mm,
+        "short_take_mg": row.short_take_mm * per_mm,
+        "short_ghost_mm": short_ghost_mm,
+        "kit": kit_line(row, full_mm),
+        "ruler": ascii_ruler(row.cut_take_mm, row.cut_save_mm, ghost_mm),
+        "short_ruler": (
+            ascii_ruler(row.short_take_mm, 0.0, short_ghost_mm)
+            if row.short_take_mm > 1e-9 else ""
+        ),
     }
+
+
+def kit_line(row: CycleRow, full_mm: float) -> str:
+    """One sentence naming every film the day needs, or "" if it needs one.
+
+    Args:
+        row: the cycle, for its film_layout fields and strength.
+        full_mm: length of one whole film at that strength.
+    Returns:
+        Something like "2 × 8 mg films a day: 1 taken whole, plus the marked one
+        below." Empty when films_out <= 1, where the drawing says it all.
+    """
+    if row.films_out <= 1:
+        return ""
+    plural = lambda k, word: f"{k} {word}" + ("" if k == 1 else "s")
+    parts = []
+    if row.take_films:
+        parts.append(plural(row.take_films, "film") + " taken whole")
+    if row.save_films:
+        parts.append(plural(row.save_films, "film") + " straight to the jar")
+    if row.cut_take_mm + row.cut_save_mm > 1e-9:
+        parts.append("the marked film below")
+    if row.short_take_mm > 1e-9:
+        parts.append(f"a {row.short_take_mm:.1f} mm piece off one more")
+    return (
+        f"{row.films_out} × {row.film_mg:g} mg films a day: " + ", plus ".join(parts) + "."
+    )
 
 
 def film_specs_payload() -> list[dict[str, Any]]:
@@ -733,25 +902,55 @@ def print_cut_block(ctx: dict[str, Any], row: CycleRow, detailed: bool = False) 
     if row.switched_2mg:
         extra = "  [switched to 2 mg films, restarted as a whole strip]"
     has_ghost = ctx["ghost_mm"] > 0.05
+    multi = ctx["films_out"] > 1
     print(
         f"  cycle {row.cycle:2d}  unused {ctx['full_mm']:.1f} × {ctx['keep_mm']:.1f} mm"
         f"  in hand {ctx['piece_mm']:.1f} mm"
         f"{extra}{warn}"
     )
+    if multi:
+        print(f"           {ctx['kit']}")
     print(f"           {ctx['ruler']}")
+    # The ruler is one film, so its TAKE/SAVE are that film's. Only when the day
+    # spans several does that differ from the day's total, and then both print.
     bits = [
-        f"TAKE {ctx['take_mm']:.1f} mm ({ctx['take_mg']:.2f} mg)",
-        f"SAVE {ctx['save_mm']:.2f} mm ({ctx['save_mg']:.2f} mg)",
+        f"TAKE {ctx['cut_take_mm']:.1f} mm ({ctx['cut_take_mg']:.2f} mg)",
+        f"SAVE {ctx['cut_save_mm']:.2f} mm ({ctx['cut_save_mg']:.2f} mg)",
     ]
     if has_ghost:
         bits.append(
             f"already off {ctx['ghost_mm']:.1f} mm ({ctx['ghost_mg']:.2f} mg)"
         )
-    print("           " + "  |  ".join(bits))
-    print(
-        f"           mark {ctx['save_mm']:.2f} mm from the right of the "
-        f"{ctx['piece_mm']:.1f} mm piece in hand (TAKE/SAVE line)"
-    )
+    print("           " + "  |  ".join(bits) + ("   (marked film)" if multi else ""))
+    if ctx["short_ruler"]:
+        print(f"           {ctx['short_ruler']}")
+        print(
+            f"           TAKE {ctx['short_take_mm']:.1f} mm "
+            f"({ctx['short_take_mg']:.2f} mg)   (second film, no sliver off this one)"
+        )
+    if multi:
+        print(
+            f"           day total: TAKE {ctx['take_mm']:.1f} mm ({ctx['take_mg']:.2f} mg)"
+            f"  |  SAVE {ctx['save_mm']:.2f} mm ({ctx['save_mg']:.2f} mg)"
+        )
+        tail = (
+            "; the whole films need no cut"
+            if row.take_films + row.save_films else ""
+        )
+        print(
+            f"           mark {ctx['cut_save_mm']:.2f} mm from the right of the marked "
+            f"film (TAKE/SAVE line){tail}"
+        )
+        if ctx["short_ruler"]:
+            print(
+                f"           then cut a {ctx['short_take_mm']:.1f} mm piece off a second "
+                f"film and take that too — the sliver only comes off the marked one"
+            )
+    else:
+        print(
+            f"           mark {ctx['save_mm']:.2f} mm from the right of the "
+            f"{ctx['piece_mm']:.1f} mm piece in hand (TAKE/SAVE line)"
+        )
     if detailed:
         if has_ghost:
             print(
@@ -759,8 +958,13 @@ def print_cut_block(ctx: dict[str, Any], row: CycleRow, detailed: bool = False) 
                 "The dotted end was already reduced in earlier cycles — extra bank "
                 "if you start from a fresh strip, not extra daily dose."
             )
-        else:
+        elif not multi:
             print("           Cycle 1 uses the whole unused strip.")
+        if multi:
+            print(
+                "           One day's dose is more than one film here, so the day is "
+                "several strips: only the marked one is cut."
+            )
         print(
             f"           Keep full width ({ctx['keep_mm']:.1f} mm); shorten length only."
         )
@@ -839,10 +1043,13 @@ def print_schedule(
             "WARNING: the 2 mg switch never fired — --switch-at is below 2 mg, and "
             "restarting on a 2 mg film there would raise the dose. Use --switch-at 2.25."
         )
-    if sched.rows and sched.rows[0].piece_mm > sched.film_mm + 1e-9:
+    if sched.rows and sched.rows[0].films_out > 1:
+        r0 = sched.rows[0]
         print(
-            f"WARNING: day 1 needs {sched.rows[0].piece_mm:.1f} mm, longer than one "
-            f"{sched.film_mm:g} mm film — that dose does not fit on a single strip."
+            f"NOTE: day 1 needs {r0.piece_mm:.1f} mm — more than one "
+            f"{sched.film_mm:g} mm film — so it is {r0.films_out} × "
+            f"{r0.film_mg:g} mg strips a day. Only one of them is cut; see the cut "
+            f"marks below. Use --film-strength if you hold a different strength."
         )
     print()
 
@@ -864,6 +1071,8 @@ def print_schedule(
         if row.cut_warn:
             flags.append("thin")
         film = f"{row.film_mg:g}mg"
+        if row.films_out > 1:
+            film += f" ×{row.films_out}"
         if flags:
             film += " " + ",".join(flags)
         cells = [
@@ -886,9 +1095,18 @@ def print_schedule(
             cells.insert(2, f"{d0:%d %b}–{d1:%d %b}")
         table.append(cells)
     print_table(headers, table)
-    if any(r.switched_2mg or r.n_changed or r.cut_warn for r in sched.rows):
-        print("Film column: ←  restart on a fresh 2 mg film    "
-              "n=N  cycle length changed    thin  sliver under 1 mm")
+    # Only explain the markers this run actually used.
+    key = []
+    if any(r.switched_2mg for r in sched.rows):
+        key.append("←  restart on a fresh 2 mg film")
+    if any(r.n_changed for r in sched.rows):
+        key.append("n=N  cycle length changed")
+    if any(r.cut_warn for r in sched.rows):
+        key.append("thin  sliver under 1 mm")
+    if any(r.films_out > 1 for r in sched.rows):
+        key.append("×N  films needed per day")
+    if key:
+        print("Film column: " + "    ".join(key))
     print()
     print_film_table()
     print("Cut marks (full unused film: TAKE left, SAVE, then already-off original)")
