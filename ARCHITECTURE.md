@@ -282,7 +282,9 @@ node test_layout.js         # viewport sweep, 280px to 1920px
 npm run test:all            # all three
 ```
 
-The two Node suites share `test_browser.js`, which looks for a browser in `CHROMIUM_PATH`, then the Playwright caches (Linux and macOS), then an installed Chrome or Chromium. **If it finds none, both print `skipped` and exit 0** — a plain checkout without a browser should not fail the suite. CI installs one explicitly so the skip never masks a real failure there.
+The two Node suites share `test_browser.js`, which looks for a browser in `CHROMIUM_PATH`, then the Playwright caches (Linux and macOS), then an installed Chrome or Chromium. **If it finds none, both print `skipped` and exit 0** — a plain checkout without a browser should not fail the suite.
+
+That skip is right locally and wrong in CI, where it would be a green tick over a page nobody tested, so the workflow has an explicit gate: after installing the browser it calls `findBrowser()` and fails the job if the answer is null. Note the skip only covers a *missing binary* — a browser that exists but fails to launch throws, and both suites exit 1.
 
 ### `test_taper.py` — 43 checks
 
@@ -331,6 +333,17 @@ Five failure modes at every state:
 | **bar count** — a drawing showing a different day than the schedule | one bar per film in both panels, against the selected row's `filmsOut` |
 
 Any console error or page error fails it too.
+
+### CI
+
+`.github/workflows/tests.yml` runs all three on push to `main`, on every pull request, and on manual dispatch. Roughly three minutes end to end.
+
+Two things in it are load-bearing and worth not undoing:
+
+- **No `--with-deps` on the Playwright install.** That flag runs `apt-get update` against the Azure Ubuntu mirrors on every run, and has hung for 10+ minutes when they are unhealthy. It buys nothing: the `ubuntu-latest` image already ships Chrome and Chromium, so the shared libraries Playwright's Chromium needs are installed. If that ever stops being true the browser fails to *launch*, which throws — it cannot become a silent pass.
+- **`timeout-minutes`,** 15 on the job and 5 on the browser install. Without them a wedged step sits for the six-hour default.
+
+The browser download is cached at `~/.cache/ms-playwright`, keyed on the two files that name the Playwright version.
 
 ### Making sure a test can fail
 
