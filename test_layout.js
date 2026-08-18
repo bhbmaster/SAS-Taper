@@ -350,6 +350,58 @@ const probe = () => {
     await ctx.close();
   }
 
+  /* 6. Rendered figures that no other suite can see. test_parity.js compares
+        the schedule, not the display maths layered on top of it, and these had
+        each gone wrong quietly: the cutting-error chart ignored the film-length
+        input entirely, and the compare heading named a target it did not use. */
+  {
+    const { ctx, page, errs } = await openPage(1280, "dark");
+    const readErr = () => page.evaluate(() => {
+      const m = document.getElementById("charts").textContent
+        .replace(/\s+/g, " ").match(/slip is ±([\d.]+) mg/);
+      return m ? parseFloat(m[1]) : null;
+    });
+
+    await setField(page, "filmMm", 22);
+    await page.waitForTimeout(160);
+    const at22 = await readErr();
+    await setField(page, "filmMm", 11);
+    await page.waitForTimeout(160);
+    const at11 = await readErr();
+    checks++;
+    if (at22 == null || at11 == null) {
+      failures.push("cutting-error chart: could not read the slip figure");
+    } else if (Math.abs(at11 - at22 * 2) > 1e-6) {
+      failures.push(
+        `cutting-error chart ignores film length: ${at22} mg at 22 mm, ${at11} mg at 11 mm `
+        + `(expected ${at22 * 2})`
+      );
+    }
+    await setField(page, "filmMm", 22);
+
+    /* The compare table is built from the live target, so its heading must be. */
+    for (const target of [1, 0.5]) {
+      await setField(page, "targetMg", target);
+      await page.waitForTimeout(160);
+      const head = await page.evaluate(() => document.getElementById("compareHead").textContent);
+      checks++;
+      if (!head.includes(String(target))) {
+        failures.push(`compare heading "${head}" does not name the ${target} mg target`);
+      }
+    }
+
+    /* role="img" hides the axis text from assistive tech, so each chart has to
+       carry a name of its own or it announces as bare "image". */
+    const unnamed = await page.evaluate(() => [...document.querySelectorAll("#charts svg[role=img]")]
+      .filter((s) => !s.getAttribute("aria-label")).length);
+    checks++;
+    if (unnamed) failures.push(`${unnamed} chart(s) have role="img" with no accessible name`);
+
+    errs.length = 0;
+    record("rendered figures @1280px", await page.evaluate(probe), errs);
+    await ctx.close();
+  }
+
   await browser.close();
 
   if (failures.length) {

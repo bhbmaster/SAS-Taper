@@ -77,7 +77,7 @@ The multi-film layout gets a matrix of its own: **720 ladders, 10,597 cycles** �
 
 The taper maths is written **twice**: `buildSchedule()` in `index.html` and `build_schedule()` in `taper.py`. The site tells people the two agree, and `test_taper.py` only covers the Python one. This test checks the claim, because the two had already drifted once.
 
-It loads `index.html` in a headless browser, runs both implementations over the same inputs, and diffs the results — comparing all 24 fields of every cycle row plus 9 summary figures.
+It loads `index.html` in a headless browser, runs both implementations over the same inputs, and diffs the results — comparing all 24 fields of every cycle row, 9 summary figures, every 30-day month bucket, and the n = 6/8/10 comparison table.
 
 **31 named schedules** go through the CLI, so the argument plumbing is covered too: start doses 0.1–64 mg, `n` from 2 to 30, the 2 mg switch on and off, stretched cycles, `n`-below-3, non-default film lengths and strengths, doses needing two to eight films a day, clamp boundaries, empty ladders.
 
@@ -117,7 +117,7 @@ The script also finds a browser on its own in the usual places — the Playwrigh
 
 Several parts of the page are positioned from measured pixels rather than by normal flow: the ruler tick captions, the life-size cut label, the calendar grid. Those have broken four separate times — captions stacked on each other, a percentage painted over a button, "SAVE" sliced in half, the page scrolling sideways on a narrow phone. Each was found by sweeping viewports by hand, then lost again, because nothing re-ran the sweep.
 
-This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus fifteen reshaping input cases and a pass that redraws one day on each of the four film strengths — **467 viewport states** — and checks five things at each:
+This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus fifteen reshaping input cases and a pass that redraws one day on each of the four film strengths — **472 viewport states** — and checks five things at each:
 
 | Failure | Detected by |
 |---|---|
@@ -152,7 +152,7 @@ Hold a cycle if cravings spike, sleep goes, or you are restless and sweating. Wh
 
 Start at 16 mg with 8 mg strips and one day's dose is two films. That is supported, and it changes nothing about the arithmetic — the ladder is milligrams, and 16 mg cuts 1/6 the same way 8 mg does. What it changes is the daily ritual, so the tool spells that part out:
 
-> **2 × 8 mg films a day: 1 film taken whole, plus the marked film below.**
+> **2 × 8 mg films a day: 1 taken whole, plus the marked one below.**
 
 Take the whole ones as they are; **only one strip is ever cut, on any day, at any dose**. Picture the day laid end to end: you take from the left, and everything past the mark goes in the jar. So you open only the strips the dose actually reaches — a strip that would be opened purely to put it in the jar stays in the box. The schedule's Film column shows `×2`, the calendar puts a small `×2` beside the dose, and both drawings show one bar per strip you open.
 
