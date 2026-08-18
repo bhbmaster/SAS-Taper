@@ -231,7 +231,7 @@ json.dump(out, sys.stdout)
 
   let matrixRows = 0;
   let widestDay = 0;
-  const shapes = { multi: 0, shortFilm: 0, noCut: 0, bankedWhole: 0 };
+  const shapes = { multi: 0, spareFilm: 0, noCut: 0, wholeFilms: 0 };
   for (let i = 0; i < MATRIX.length; i++) {
     const label = "matrix " + JSON.stringify(MATRIX[i]);
     compareRows(label, jsMatrix[i], pyMatrix[i], fail);
@@ -240,14 +240,14 @@ json.dump(out, sys.stdout)
       matrixRows++;
       widestDay = Math.max(widestDay, r.filmsOut);
       if (r.filmsOut > 1) shapes.multi++;
-      if (r.shortTakeMm > 0) shapes.shortFilm++;
-      if (r.cutTakeMm + r.cutSaveMm === 0) shapes.noCut++;
-      if (r.saveFilms > 0) shapes.bankedWhole++;
+      if (r.spareMm > 0) shapes.spareFilm++;
+      if (r.cutTakeMm === 0) shapes.noCut++;
+      if (r.takeFilms > 0) shapes.wholeFilms++;
     }
   }
   /* A grid that only produced one-film days would agree perfectly and prove
      nothing about the layout, so the shape of the coverage is itself checked. */
-  if (widestDay < 16) fail(`matrix never reached a 16-film day (widest ${widestDay})`);
+  if (widestDay < 14) fail(`matrix never reached a 14-film day (widest ${widestDay})`);
   for (const [k, v] of Object.entries(shapes)) {
     if (v === 0) fail(`matrix produced no ${k} rows`);
   }
@@ -264,7 +264,7 @@ json.dump(out, sys.stdout)
   console.log(
     `OK — index.html matches taper.py across ${CASES.length + MATRIX.length} schedules `
     + `(${matrixRows} matrix cycles, widest day ${widestDay} films: `
-    + `${shapes.multi} multi-film, ${shapes.shortFilm} with a second cut film, `
+    + `${shapes.multi} multi-film, ${shapes.spareFilm} whose sliver runs onto unopened film, `
     + `${shapes.noCut} with nothing to cut) and 11 film sizes`
   );
 })().catch((e) => {

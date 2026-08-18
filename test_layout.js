@@ -65,22 +65,40 @@ const probe = () => {
   const vis = (n) => n.offsetWidth > 0 && n.offsetHeight > 0
     && getComputedStyle(n).display !== "none" && getComputedStyle(n).visibility !== "hidden";
 
-  /* Both drawings show one bar per film the day needs — always, for every
-     cycle of every run. The number changing between cycles of the same ladder,
-     or the two panels disagreeing, means the reader is looking at a picture
-     that is not the day in front of them. */
+  /* Each drawing shows one bar per film it is describing — always, for every
+     cycle of every run. The count changing between cycles of the same ladder
+     means the reader is looking at a picture that is not the day in front of
+     them.
+
+     The two panels answer different questions, so they are checked separately.
+     The cut-mark panel is the schedule's own film strength, so its count is the
+     row's filmsOut. The life-size panel redraws the same day on whichever
+     strength is selected in the size table — a 12 mg film holds a day in fewer
+     strips than an 8 mg one — so its count comes from re-running the layout at
+     that strength. Every official film is 22 mm on the cut axis. */
   {
     const row = window.__selectedRow && window.__selectedRow();
     if (row) {
       const ruler = document.querySelectorAll("#ruler .film").length;
-      const life = document.querySelectorAll("#stripViz .strip-full").length;
-      if (ruler !== row.filmsOut) out.bars.push(`cut-mark panel drew ${ruler} bars for a ${row.filmsOut}-film day`);
-      if (life !== row.filmsOut) out.bars.push(`life-size panel drew ${life} bars for a ${row.filmsOut}-film day`);
+      if (ruler !== row.filmsOut) {
+        out.bars.push(`cut-mark panel drew ${ruler} bars for a ${row.filmsOut}-film day`);
+      }
       const marked = document.querySelectorAll("#ruler .film.marked").length;
-      const wantMarked = row.cutTakeMm + row.cutSaveMm > 0 ? 1 : 0;
+      const wantMarked = row.cutTakeMm > 0 ? 1 : 0;
       if (marked !== wantMarked) out.bars.push(`${marked} marked bars, expected ${wantMarked}`);
       const ticks = document.querySelectorAll("#ruler .ticks").length;
       if (ticks !== wantMarked) out.bars.push(`${ticks} tick rows, expected ${wantMarked}`);
+
+      const picked = document.querySelector("#dimTable tbody tr.selected");
+      const specMg = picked ? parseFloat(picked.getAttribute("data-spec")) : row.filmMg;
+      const want = window.SASTaperInternals
+        .filmLayout(row.cutFromMg, row.sliverMg, specMg, 22).filmsOut;
+      const life = document.querySelectorAll("#stripViz .strip-full").length;
+      if (life !== want) {
+        out.bars.push(`life-size panel drew ${life} bars for a ${want}-film day on ${specMg} mg film`);
+      }
+      const lifeMarked = document.querySelectorAll("#stripViz .strip-full.marked").length;
+      if (lifeMarked > 1) out.bars.push(`life-size panel drew ${lifeMarked} marked bars`);
     }
   }
 
@@ -280,7 +298,33 @@ const probe = () => {
     }
   }
 
-  /* 4. The calendar on a two-strip run: every cell carries a ×N beside the
+  /* 4. Picking a different strength in the size table. The life-size panel
+        redraws the same day on that film, which changes how many strips it
+        takes — a 32 mg day is 4 x 8 mg bars but only 3 x 12 mg ones. The
+        cut-mark panel above must not move: it is always the schedule's film. */
+  for (const width of [360, 768, 1280]) {
+    const { ctx, page, errs } = await openPage(width, "dark");
+    await setField(page, "startMg", 32);
+    await setField(page, "targetMg", 0.5);
+    await page.waitForTimeout(220);
+    for (const specMg of [2, 4, 8, 12]) {
+      await page.evaluate((mg) => {
+        const tr = document.querySelector(`#dimTable tbody tr[data-spec="${mg}"]`);
+        if (tr) tr.click();
+      }, specMg);
+      await page.waitForTimeout(120);
+      errs.length = 0;
+      record(`32 mg drawn on ${specMg} mg film @${width}px`, await page.evaluate(probe), errs);
+    }
+    /* And back to following the cycle, which is what the button is for. */
+    await page.click("#filmFollowCycle");
+    await page.waitForTimeout(120);
+    errs.length = 0;
+    record(`32 mg back to the cycle's film @${width}px`, await page.evaluate(probe), errs);
+    await ctx.close();
+  }
+
+  /* 5. The calendar on a two-strip run: every cell carries a ×N beside the
         dose, in cells only 44px wide once compact mode is on. */
   for (const width of CAL_WIDTHS) {
     const { ctx, page, errs } = await openPage(width, "dark");

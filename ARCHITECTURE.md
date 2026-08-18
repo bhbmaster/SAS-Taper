@@ -148,25 +148,32 @@ cut_mm   = piece_mm / n               the day's sliver
 
 ### Film layout — one day across several strips
 
-A 16 mg start on 8 mg strips is two films a day. The arithmetic above does not care, but the person holding a razor does. `film_layout()` turns `(strip, sliver, film_mg, film_mm)` into the pieces in the order they leave the box:
+A 32 mg start on 8 mg strips is four films a day. The arithmetic above does not care, but the person holding a razor does. `film_layout()` answers the only two questions that matter: **how many strips do I open, and where is the one cut?**
+
+Picture the day's strip as films laid end to end. You take from the left; everything past the mark goes in the jar. So the only films worth opening are the ones the TAKE reaches:
 
 ```
-take_films     whole films taken untouched
-short film     TAKE short_take_mm  | the rest not needed today
-cut film       TAKE cut_take_mm    | SAVE cut_save_mm | the rest already off
-save_films     whole films straight to the jar, untouched
+take_films       whole films swallowed untouched, no cut
+the marked film  TAKE cut_take_mm | SAVE cut_save_mm | already off
 ```
 
-The rule that decides the split: **the sliver is never divided between two strips.** It is the piece being measured, so it always stays whole. Both leftovers are reduced modulo one film first, and then:
+**One cut a day, on one film, always** — wherever the dose happens to land. There is no second marked film and no arrangement where the reader measures twice.
 
-- if the remaining take and the remaining sliver fit on one film together — the everyday case, and the only one when the dose fits on a single film — that film carries both, and whatever is left of it is the already-off region;
-- if they do not, the cut film is filled to its end with the whole sliver plus as much take as fits, and the **leftover take** moves to a second, short film.
+A film the take never reaches would be opened only to put it straight in the jar, so it is left in the box instead. `spare_mm` is the part of today's sliver sitting on those unopened films; it is zero whenever the day fits inside the films the take needs, which is every cycle of any run that fits on one film.
 
-That second case happens exactly where the ladder crosses a whole-film boundary. On a 16 mg run it is cycle 4.
+Worked through on a 32 mg start:
 
-A day whose dose *and* sliver both land on whole-film boundaries has **no marked film at all** — 8 mg of 2 mg film at `n = 4` is three films taken whole and one banked whole, nothing measured. Both front ends detect this (`cut_context()["no_cut"]`) and say so instead of drawing an empty bar.
+| Cycle | Strip | Take | Films opened | The cut |
+|---|---|---|---|---|
+| 1 | 32.00 mg (88.0 mm) | 73.3 mm | 4 | 3 whole, then mark the 4th at 7.3 mm |
+| 2 | 26.67 mg (73.3 mm) | 61.1 mm | **3** | 2 whole, then mark the 3rd at 17.1 mm |
+| 3 | 22.22 mg (61.1 mm) | 50.9 mm | 3 | 2 whole, then mark the 3rd at 6.9 mm |
 
-The layout is exactly backward compatible: when the strip fits on one film, `take_films`, `save_films` and `short_take_mm` are all zero, `cut_take_mm` is the old take and `cut_save_mm` the old cut. The one-film picture is a special case of the general one, not a separate code path.
+Cycle 2 is the interesting one: the *strip* spans four films but the *take* only reaches into the third, so the fourth is never opened and 7.3 mm of the sliver is booked to `spare_mm`.
+
+When the take lands exactly on a film boundary there is no marked film at all — 8 mg of 2 mg film at `n = 4` is three whole films and nothing to measure. Both front ends detect this (`cut_context()["no_cut"]`) and say so instead of drawing an empty bar.
+
+The layout is exactly backward compatible: when the day fits on one film, `take_films` and `spare_mm` are zero, `cut_take_mm` is the old take and `cut_save_mm` the old cut. The one-film picture is a special case of the general one, not a separate code path.
 
 > **Measuring the cut.** The mark is `cut_save_mm` in from the right of **the strip on the marked film**, not from the film's own right end. On any cycle with an already-off region those are different places, and using the film's end puts the cut millimetres wrong. `cut_context()` exposes this as `marked_piece_mm`; a matrix test asserts it is strictly less than the film length whenever an already-off region exists.
 
@@ -207,14 +214,14 @@ Past 100% the error is bigger than the entire drop — you are no longer taperin
 
 ## 5. Data model
 
-One row per cycle, 25 fields, identical on both sides (camelCase in JS, snake_case in Python — `test_parity.js` maps between them automatically):
+One row per cycle, 24 fields, identical on both sides (camelCase in JS, snake_case in Python — `test_parity.js` maps between them automatically):
 
 | Group | Fields |
 |---|---|
 | identity | `cycle`, `day_start`, `day_end`, `n`, `days` |
 | doses | `film_mg`, `cut_from_mg`, `daily_mg`, `sliver_mg` |
 | millimetres | `piece_mm`, `cut_mm` |
-| film layout | `films_out`, `take_films`, `save_films`, `cut_take_mm`, `cut_save_mm`, `short_take_mm` |
+| film layout | `films_out`, `take_films`, `cut_take_mm`, `cut_save_mm`, `spare_mm` |
 | running totals | `used_mg`, `cum_mg`, `cum_strips`, `banked_mg`, `cum_banked_mg` |
 | flags | `switched_2mg`, `cut_warn`, `n_changed` |
 
@@ -228,9 +235,14 @@ One row per cycle, 25 fields, identical on both sides (camelCase in JS, snake_ca
 
 ### Two drawings, one list
 
-`renderRuler` (schematic, "Cut mark") and `renderStripViz` (true size, "Life-size film") both draw the selected cycle. Both build their bars from the same `dayFilms(row, fullMm)` list — one entry per film the day needs, ordered take-whole → short → marked → banked.
+`renderRuler` (schematic, "Cut mark") and `renderStripViz` (true size, "Life-size film") both draw the selected cycle, and both build their bars from the same `dayFilms(row, fullMm)` list — one entry per film you open, whole films first and the marked one last, so the run of bars reads as the day's strip laid end to end.
 
-Sharing the list is what stops the two panels from showing different days, and what keeps the bar count stable across cycles of one run. `test_layout.js` asserts both panels drew exactly `filmsOut` bars, with exactly one marked bar and one tick row.
+They answer different questions, though, and that is deliberate:
+
+- **Cut mark** is always the schedule's own film strength. It is the instruction you follow.
+- **Life-size** redraws the same day on whichever strength is selected in the size table, by re-running `filmLayout()` at that strength. A 12 mg film holds a day in fewer strips than an 8 mg one, so the bar count moves with the selection. It answers "what would this day look like on that film?"
+
+`test_layout.js` checks both: the cut-mark panel must show exactly the row's `filmsOut` bars with one marked bar and one tick row, and the life-size panel must show the count the layout gives for the strength selected.
 
 ### Positioned-by-pixel elements
 
@@ -286,7 +298,7 @@ The two Node suites share `test_browser.js`, which looks for a browser in `CHROM
 
 That skip is right locally and wrong in CI, where it would be a green tick over a page nobody tested, so the workflow has an explicit gate: after installing the browser it calls `findBrowser()` and fails the job if the answer is null. Note the skip only covers a *missing binary* — a browser that exists but fails to launch throws, and both suites exit 1.
 
-### `test_taper.py` — 43 checks
+### `test_taper.py` — 40 checks
 
 Standard library, no I/O, runs in under half a second.
 
@@ -299,8 +311,8 @@ Named classes cover the closed forms against the simulation, the per-cycle invar
 | nothing is lost between the films | the pieces must add back up to the day's take and save |
 | milligrams still track millimetres | length fraction = dose fraction is the basis of the method |
 | no mark runs off the end of a film | a mark past the strip is not a mark |
-| the sliver is never split | it is the piece being measured |
-| exactly one film is ever marked | two marks means two measurements a day |
+| exactly one film a day is ever cut | two marks means two measurements a day |
+| you open exactly the films the dose needs | never one more; a film that would go straight to the jar stays in the box |
 | the sliver is measured from the piece, not the film | the film's right end is elsewhere |
 
 A seventh test checks **the shape of the coverage itself** — that the matrix really does produce days of 1 through 16 films, days needing a second cut film, and days with nothing to cut. A grid that quietly stopped generating multi-film days would otherwise pass everything above while testing nothing.
@@ -318,9 +330,9 @@ Every one of the 25 row fields is compared, plus 9 summary figures, plus `base_f
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js` — 452 viewport states
+### `test_layout.js` — 467 viewport states
 
-Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus fifteen reshaping input cases.
+Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus fifteen reshaping input cases and a pass that redraws one day on each of the four film strengths.
 
 Five failure modes at every state:
 
@@ -330,7 +342,7 @@ Five failure modes at every state:
 | **overlap** — two pieces of text drawn on each other | pairwise rectangle intersection within each positioned group, 2 px slack |
 | **clipping** — a box too small for its text | `scrollWidth`/`scrollHeight` vs `clientWidth`/`clientHeight` |
 | **spill** — an absolute label escaping its container | bounding box against its parent's |
-| **bar count** — a drawing showing a different day than the schedule | one bar per film in both panels, against the selected row's `filmsOut` |
+| **bar count** — a drawing showing a different day than it describes | one bar per film in each panel, against the layout for that panel's strength |
 
 Any console error or page error fails it too.
 
@@ -354,6 +366,7 @@ Every guard above was checked by injecting the fault it is meant to catch:
 | wrong `takeFilms` in the JS layout | 89 parity mismatches across all six layout fields |
 | wrong layout for 2 mg film above 25 mg | 154 matrix mismatches |
 | renderer draws one bar instead of all | 372 layout failures |
+| life-size panel ignores the selected strength | bar-count mismatch at every strength but 8 mg |
 | 0.1% error in `keepRatio` | 1985 mismatches |
 
 A guard that has never been seen to fail is not yet a guard.
@@ -370,8 +383,8 @@ Things that are true today and that a change must keep true. Most are enforced b
 4. Display-only inputs never reach either schedule builder. — `test_parity.js`, indirectly: they are not in its input set
 5. Every colour token exists in all three theme blocks. *(Not enforced — `test_layout.js` renders both screen themes, which catches most of it.)*
 6. Nothing is lost between the films of one day. — `test_taper.py`
-7. The sliver is never split across two strips. — `test_taper.py`
-8. Exactly one film per day is ever marked. — `test_taper.py`
-9. Both drawings show one bar per film of the day. — `test_layout.js`
+7. Exactly one film per day is ever cut. — `test_taper.py`
+8. You open exactly the films the dose needs, never one more. — `test_taper.py`
+9. Each drawing shows one bar per film it is describing. — `test_layout.js`
 10. No text overlaps, clips or overflows from 280 px to 1920 px. — `test_layout.js`
 11. Summary fields are 0/None on an empty ladder, never undefined. — `test_parity.js`
