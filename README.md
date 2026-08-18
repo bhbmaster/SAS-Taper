@@ -170,7 +170,9 @@ If a run stops at the 40-cycle cap before reaching the target, or the 2 mg switc
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). The short version: `index.html` stays one self-contained file, `taper.py` stays standard-library only, and if you touch the maths in one you touch it in both and run `node test_parity.js`.
+[ARCHITECTURE.md](ARCHITECTURE.md) explains how the whole thing runs — entry points, every formula, the film-layout rule, and what each test suite is guarding. [CLAUDE.md](CLAUDE.md) is the checklist for making a change. [CONTRIBUTING.md](CONTRIBUTING.md) has the house rules.
+
+The short version: `index.html` stays one self-contained file, `taper.py` stays standard-library only, and if you touch the maths in one you touch it in both and run `node test_parity.js`.
 
 ## License
 

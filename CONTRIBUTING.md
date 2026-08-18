@@ -2,6 +2,8 @@
 
 Thanks for looking. This is a small project with an unusual constraint or two — worth reading before you open a pull request.
 
+[ARCHITECTURE.md](ARCHITECTURE.md) is the map: entry points, the formulas, the data model, and what each test suite can see. [CLAUDE.md](CLAUDE.md) is the same ground as a pre-flight checklist.
+
 ## The one rule that matters
 
 **The taper maths exists twice**, in `buildSchedule()` in `index.html` and `build_schedule()` in `taper.py`, and the site tells people the two agree. If you change one, change the other, and run `node test_parity.js` to prove it. That test exists precisely because the two had already drifted once.
