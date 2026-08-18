@@ -123,8 +123,9 @@ switch to 2 mg films. Lock up saved pieces. Step the prescribed quantity down
 with the dose.
 
 More than one strip a day: a dose bigger than one film — 16 mg on 8 mg strips —
-is simply several strips. Take the whole ones as they are and cut only the one
-the ruler marks. The Film column shows ×2, ×3 and so on.
+is simply several strips, and still one cut. Take the whole ones as they are and
+mark only the last; the Film column shows ×2, ×3 and so on. If the day's sliver
+runs past the strips you opened, that is a strip you never need to open.
 
 Limitation: the schedule starts on one given film size and either stays there or
 switches only to 2 mg films (not 12→8→4). The official size table is a reference;

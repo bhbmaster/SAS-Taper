@@ -272,7 +272,9 @@
       position: sticky;
       top: 0;
     }
-    tbody tr { cursor: pointer; }
+    /* Only the tables that actually handle a click. The compare and month
+       tables have no handler, and a pointer cursor over them promised one. */
+    #schedTable tbody tr { cursor: pointer; }
     tbody tr:hover { background: var(--row-hover); }
     tbody tr.selected { background: var(--accent-soft); }
     tbody tr.switch td { background: var(--switch-soft); }
@@ -440,14 +442,6 @@
       overflow-x: auto;
       padding: 0.15rem 0.2rem 0.4rem;
     }
-    .strip-life {
-      position: relative;
-      display: flex;
-      border: 1.5px solid #9a3412;
-      border-radius: 3px;
-      overflow: hidden;
-      box-sizing: border-box;
-    }
     .strip-full {
       position: relative;
       display: flex;
@@ -462,7 +456,7 @@
     .strip-full + .strip-full { margin-top: 0.5rem; }
     .strip-full.marked + .strip-full { margin-top: 1.4rem; }
     .strip-full + .strip-full.marked { margin-top: 1.4rem; }
-    .strip-life .take, .strip-full .take {
+    .strip-full .take {
       background: linear-gradient(#f3c38a, #e3943c);
       display: flex;
       align-items: center;
@@ -473,7 +467,7 @@
       text-align: center;
       overflow: hidden;
     }
-    .strip-life .save, .strip-full .save {
+    .strip-full .save {
       background: repeating-linear-gradient(-45deg, #fdba74, #fdba74 5px, #ffedd5 5px, #ffedd5 10px);
       display: flex;
       align-items: center;
@@ -790,12 +784,15 @@
       body { background: #fff; }
       header.app { padding-top: 0; }
       .no-print, .actions, tbody tr { cursor: default; }
+      #schedTable tbody tr, .dim-table tbody tr { cursor: default; }
       .banner { break-inside: avoid; }
       .panel, .card { box-shadow: none; }
       tbody tr.selected { background: var(--accent-soft); }
       button { display: none; }
       .scale-row, .viz-nav { display: none; }
       .chart { break-inside: avoid; }
+      /* A day can be a stack of bars now; a page break through one is unreadable. */
+      .film, .strip-full { break-inside: avoid; }
       .howto { break-inside: avoid; }
       .cal-month { break-inside: avoid; }
       .cal-cell { min-height: 2.8rem; }
@@ -861,7 +858,7 @@
         <ol>
           <li>Start the cycle with a piece that is the current “whole strip” (cycle 1: a full 8 mg film — or several, if your dose is bigger than one film).</li>
           <li>Keep the full width. Cut only along the length. Mark, then cut with a fresh razor on a mat — not scissors.</li>
-          <li>Cut 1/n off the <strong>right</strong> end. That short sliver goes in the save jar. Take the long left piece. Once daily is enough. If the day is more than one film, cut the sliver off one of them and take the others whole — never split the sliver across two strips.</li>
+          <li>Cut 1/n off the <strong>right</strong> end. That short sliver goes in the save jar. Take the long left piece. Once daily is enough. If the day is more than one film, take the whole ones as they are and mark only the last: one cut a day, whatever the dose.</li>
           <li>Do that for n days. The save jar now holds one full piece of this cycle’s size. That is a <strong>buffer / safety net, not extra daily dose</strong>. If you eat the bank, the dose never drops.</li>
           <li>Next cycle, the leftover size is the new whole strip: dose × (1 − 1/n). Repeat until you hit the target (default 1 mg).</li>
         </ol>
@@ -983,7 +980,7 @@
         <span>20 mm calibration — match this to a real ruler</span>
       </div>
       <div class="strip-stage" id="stripViz"></div>
-      <p class="legend">Official Suboxone film sizes (buprenorphine / naloxone). Density is buprenorphine only: mg ÷ (width × length). Click a row to draw that film. Cut fractions follow the selected cycle; millimetres and milligrams on the drawing use the film you picked. This tool cuts along the 22 mm side and keeps the other side as full width.</p>
+      <p class="legend">Official Suboxone film sizes (buprenorphine / naloxone). Density is buprenorphine only: mg ÷ (width × length). Click a row to redraw the selected cycle on that film — the same dose, worked out again for that strength, so the number of strips and the cut position both change with it. The cut-mark panel above always stays on the strength your inputs describe. This tool cuts along the 22 mm side and keeps the other side as full width.</p>
       <p class="legend"><strong>Limitation:</strong> the taper schedule starts from one given Suboxone size and does not switch between 12 / 8 / 4 mg mid-run — the only automatic strength change is optional 8 mg → 2 mg. Selecting 4 mg or 12 mg here is for the drawing only. To run a 12 mg or 4 mg start, set Start dose (and strip strength) above and the tables will recalc.</p>
       <div class="actions no-print" style="margin-bottom:0.4rem">
         <button type="button" class="ghost" id="filmFollowCycle">Draw the cycle’s film</button>
@@ -1034,7 +1031,7 @@
     </section>
 
     <section class="panel" id="comparePanel">
-      <h2>Compare n = 6 / 8 / 10 at ~1 mg</h2>
+      <h2 id="compareHead">Compare n = 6 / 8 / 10</h2>
       <p class="legend" style="margin-top:-0.4rem;margin-bottom:0.7rem;">8 mg films all the way; last cycle still above 1 mg. The save jar is not fed back into the daily dose. Slower is not free: n = 10 uses about 3× the medication of n = 6 because you spend about 3× longer on the ladder.</p>
       <div class="scroll">
         <table id="compareTable">
@@ -2429,8 +2426,20 @@
   }
 
   /* Opening <svg> tag for a chart. The caller appends "</svg>". */
-  function svgOpen(box) {
-    return `<svg class="plot" viewBox="0 0 ${box.W} ${box.H}" role="img">`;
+  /* role="img" collapses the SVG to a single node for assistive tech, which is
+     what we want — otherwise every axis tick is announced as loose text — but
+     it also means the chart has no name unless one is given. These were
+     announcing "image" and nothing else. svgFrame passes its heading down. */
+  function svgOpen(box, label) {
+    const name = label ? ` aria-label="${esc(label)}"` : "";
+    return `<svg class="plot" viewBox="0 0 ${box.W} ${box.H}" role="img"${name}>`;
+  }
+
+  /* Minimal escaping for text going into an attribute. Chart titles are ours,
+     not reader input, but they carry quotes and ampersands. */
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
   /* The shared backdrop for every chart: plot background, horizontal grid
@@ -2551,7 +2560,7 @@
       path += i === 0 ? `M ${x0} ${y}` : `L ${x0} ${y}`;
       path += ` L ${x1} ${y}`;
     });
-    let inner = svgOpen(box);
+    let inner = svgOpen(box, "Daily dose over time");
     inner += gridAndAxes(box, evenTicks(xmax, 5), evenTicks(ymax, 4), xS, yS, "Day", "Daily dose (mg)");
     const sel = s.rows.find((r) => r.cycle === selectedCycle);
     if (sel) {
@@ -2613,7 +2622,7 @@
     const yS = (v) => T + (1 - v / ymax) * ih;
     const xTicks = s.rows.filter((_, i) => n <= 12 || i % 2 === 0 || i === n - 1).map((r) => r.cycle);
     const xS = (c) => L + (c - 0.5) * barW;
-    let inner = svgOpen(box);
+    let inner = svgOpen(box, "Step ladder by cycle");
     inner += gridAndAxes(box, xTicks, evenTicks(ymax, 4), xS, yS, "Cycle", "Daily dose (mg)");
     s.rows.forEach((r, i) => {
       const x = L + i * barW + barW * 0.12;
@@ -2651,7 +2660,7 @@
     const ymax = Math.max(opts.startMg, 1);
     const xS = (d) => L + (d / xmax) * iw;
     const yS = (v) => T + (1 - v / ymax) * ih;
-    let inner = svgOpen(box);
+    let inner = svgOpen(box, "n = 6 / 8 / 10 ladders over time");
     inner += gridAndAxes(box, evenTicks(xmax, 5), evenTicks(ymax, 4), xS, yS, "Day", "Daily dose (mg)");
     for (const s of series) {
       let path = "";
@@ -2690,7 +2699,7 @@
     }
     const stay = `M ${xS(0)} ${yS(0)} L ${xS(xmax)} ${yS(stayEnd)}`;
     const fill = `${taper} L ${xS(xmax)} ${yS(stayEnd)} L ${xS(0)} ${yS(0)} Z`;
-    let inner = svgOpen(box);
+    let inner = svgOpen(box, "Cumulative ingested vs staying put");
     inner += gridAndAxes(box, evenTicks(xmax, 5), evenTicks(ymax, 4), xS, yS, "Day", "Cumulative mg");
     inner += `<path d="${fill}" fill="${C.band}" opacity="0.85"/>`;
     inner += `<path d="${stay}" fill="none" stroke="${C.stay}" stroke-dasharray="5 4" stroke-width="1.6"/>`;
@@ -2712,7 +2721,7 @@
     const yS = (v) => T + (1 - v / ymax) * ih;
     const xTicks = s.rows.filter((_, i) => n <= 12 || i % 2 === 0 || i === n - 1).map((r) => r.cycle);
     const xS = (c) => L + (c - 0.5) * barW;
-    let inner = svgOpen(box);
+    let inner = svgOpen(box, "Cut sliver length");
     inner += gridAndAxes(box, xTicks, evenTicks(ymax, 4), xS, yS, "Cycle", "Sliver (mm)");
     const y1 = yS(1);
     if (1 <= ymax) {
@@ -2743,7 +2752,13 @@
     s.rows.forEach((r) => {
       const step = prev == null ? null : prev - r.dailyMg;
       if (step != null && step > 1e-9) {
-        pts.push({ cycle: r.cycle, pct: (tol * (r.filmMg / 22)) / step * 100, row: r });
+        /* mg per mm of THIS film, from the length the reader measured — not a
+           hardcoded 22. Someone who measures 20 mm and types it in was being
+           shown an error 10% too small on the one chart that exists to tell
+           them whether their cutting is accurate enough. */
+        const lenMm = r.filmMg <= 2.01 ? s.film2Mm : s.filmMm;
+        const errMg = lenMm > 0 ? tol * (r.filmMg / lenMm) : 0;
+        pts.push({ cycle: r.cycle, pct: (errMg / step) * 100, row: r });
       }
       prev = r.dailyMg;
     });
@@ -2760,7 +2775,7 @@
     const xTicks = pts.filter((_, i) => n <= 12 || i % 2 === 0 || i === n - 1).map((p) => p.cycle);
     const xTickScale = (c) => xS(pts.findIndex((p) => p.cycle === c));
 
-    let inner = svgOpen(box);
+    let inner = svgOpen(box, "Cutting error vs the step you are taking");
     inner += gridAndAxes(box, xTicks, evenTicks(ymax, 4), xTickScale, yS, "Cycle", "Error ÷ step (%)");
     const y100 = yS(100);
     inner += `<line x1="${L}" y1="${y100}" x2="${W - R}" y2="${y100}" stroke="${C.warn}" stroke-dasharray="4 3"/>`;
@@ -2782,8 +2797,8 @@
       : `Worst case is cycle ${worst.cycle} at ${fmt(worst.pct, 0)}% — every step stays bigger than the error.`;
     return svgFrame(
       "Cutting error vs the step you are taking",
-      `A ±${fmtG(tol)} mm slip is ±${fmt(tol * (s.baseFilmMg / 22), 3)} mg on ${fmtG(s.baseFilmMg)} mg film, ` +
-      `but only ±${fmt(tol * (2 / 22), 3)} mg on 2 mg film. ${verdict}`,
+      `A ±${fmtG(tol)} mm slip is ±${fmt(tol * (s.baseFilmMg / (s.baseFilmMg <= 2.01 ? s.film2Mm : s.filmMm)), 3)} mg on ${fmtG(s.baseFilmMg)} mg film, ` +
+      `but only ±${fmt(tol * (2 / s.film2Mm), 3)} mg on 2 mg film. ${verdict}`,
       inner
     );
   }
@@ -2802,7 +2817,7 @@
     const slot = iw / n;
     const yS = (v) => T + (1 - v / ymax) * ih;
     const xS = (m) => L + (m - 0.5) * slot;
-    let inner = svgOpen(box);
+    let inner = svgOpen(box, "Monthly strips used vs a 30-strip script");
     inner += gridAndAxes(box, months.map((m) => m.month), evenTicks(ymax, 4), xS, yS, "Month", "Strips");
     inner += `<line x1="${L}" y1="${yS(RX_STRIPS)}" x2="${W - R}" y2="${yS(RX_STRIPS)}" stroke="${C.warn}" stroke-dasharray="4 3"/>`;
     months.forEach((m, i) => {
@@ -2879,6 +2894,10 @@
     }
     panel.style.display = "";
     const rows = compareClassic(opts.startMg, opts.targetMg, opts.stripMg);
+    /* The table is built from the live inputs, so the heading has to be too.
+       It used to read "at ~1 mg" whatever the target was set to. */
+    $("compareHead").textContent =
+      `Compare n = 6 / 8 / 10 down to ${fmtG(opts.targetMg)} mg`;
     $("compareTable").querySelector("thead").innerHTML = `<tr>
       <th class="left">n</th><th>Cut</th><th>Cycles</th><th>Days</th><th>End mg/d</th>
       <th>Total mg</th><th>Strips</th><th>Ceiling mg</th><th>Stay strips</th><th>Saved strips</th>

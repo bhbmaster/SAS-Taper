@@ -83,6 +83,7 @@ function pyRun(c) {
     if (FLAGS[k]) args.push(FLAGS[k], String(v));
   }
   if (c.switch2mg === false) args.push("--no-switch-2mg");
+  if (c.compare) args.push("--compare");
   return JSON.parse(execFileSync("python3", args, { cwd: REPO, maxBuffer: 1 << 28 }));
 }
 
@@ -124,6 +125,47 @@ const SUMMARY = [
   ["daysTo2mg", "days_to_2mg"],
   ["daysTo1mg", "days_to_1mg"],
 ];
+
+/* The 30-day buckets. Written twice like everything else, and until now
+   compared nowhere: compareRows only walks rows and compareSummary only walks
+   scalars, so monthly_usage() could have drifted from monthlyUsage() silently. */
+function compareMonths(label, js, py, fail) {
+  if (js.months.length !== py.months.length) {
+    fail(`${label}: month count ${js.months.length} (js) vs ${py.months.length} (py)`);
+    return;
+  }
+  const FIELDS = [
+    ["month", "month"], ["dayStart", "day_start"], ["dayEnd", "day_end"],
+    ["usedMg", "used_mg"], ["usedStrips", "used_strips"],
+    ["rxStrips", "rx_strips"], ["surplusStrips", "surplus_strips"],
+  ];
+  for (let i = 0; i < js.months.length; i++) {
+    for (const [j, p] of FIELDS) {
+      if (Math.abs(js.months[i][j] - py.months[i][p]) > 1e-9) {
+        fail(`${label}: month ${i} ${j} = ${js.months[i][j]} (js) vs ${py.months[i][p]} (py)`);
+      }
+    }
+  }
+}
+
+/* The n = 6 / 8 / 10 table, likewise implemented twice and likewise unchecked.
+   It runs its own schedules in "above" stop mode, so it is not covered by the
+   row comparison above. */
+function compareCompare(label, js, py, fail) {
+  if (js.length !== py.length) {
+    fail(`${label}: compare row count ${js.length} (js) vs ${py.length} (py)`);
+    return;
+  }
+  for (let i = 0; i < js.length; i++) {
+    for (const k of Object.keys(js[i])) {
+      const p = snake(k);
+      if (!(p in py[i])) { fail(`${label}: compare field ${k} missing from taper.py`); continue; }
+      if (Math.abs(js[i][k] - py[i][p]) > 1e-6) {
+        fail(`${label}: compare row ${i} ${k} = ${js[i][k]} (js) vs ${py[i][p]} (py)`);
+      }
+    }
+  }
+}
 
 function compareSummary(label, js, py, fail) {
   for (const [j, p] of SUMMARY) {
@@ -207,6 +249,20 @@ json.dump(out, sys.stdout)
     );
     compareRows(label, js, py, fail);
     compareSummary(label, js, py, fail);
+    compareMonths(label, js, py, fail);
+  }
+
+  /* compare_classic() builds its own schedules in "above" stop mode, so the
+     rows above never touch it. Three starts, because the table is derived from
+     whatever start/target/strip the reader has set, not from the defaults. */
+  for (const [startMg, targetMg, stripMg] of [[8, 1, 8], [16, 1, 8], [12, 0.5, 12], [32, 0.5, 8]]) {
+    const label = `compare ${startMg}/${targetMg}/${stripMg}`;
+    const py = pyRun({ startMg, targetMg, stripMg, compare: true }).compare;
+    const js = await page.evaluate(
+      ([s, t, m]) => window.SASTaperInternals.compareClassic(s, t, m),
+      [startMg, targetMg, stripMg]
+    );
+    compareCompare(label, js, py, fail);
   }
 
   /* baseFilmMg picks the smallest official film that holds the start dose, or
@@ -236,6 +292,7 @@ json.dump(out, sys.stdout)
     const label = "matrix " + JSON.stringify(MATRIX[i]);
     compareRows(label, jsMatrix[i], pyMatrix[i], fail);
     compareSummary(label, jsMatrix[i], pyMatrix[i], fail);
+    compareMonths(label, jsMatrix[i], pyMatrix[i], fail);
     for (const r of jsMatrix[i].rows) {
       matrixRows++;
       widestDay = Math.max(widestDay, r.filmsOut);
@@ -255,7 +312,7 @@ json.dump(out, sys.stdout)
   if (pageErrors.length) fail("page errors: " + pageErrors.join("; "));
   await browser.close();
 
-  const checks = CASES.length + 11 + MATRIX.length;
+  const checks = CASES.length + 11 + 4 + MATRIX.length;
   if (failures.length) {
     console.error(`FAILED — ${failures.length} mismatch(es) across ${checks} checks:`);
     for (const f of failures.slice(0, 40)) console.error("  " + f);
@@ -265,7 +322,8 @@ json.dump(out, sys.stdout)
     `OK — index.html matches taper.py across ${CASES.length + MATRIX.length} schedules `
     + `(${matrixRows} matrix cycles, widest day ${widestDay} films: `
     + `${shapes.multi} multi-film, ${shapes.spareFilm} whose sliver runs onto unopened film, `
-    + `${shapes.noCut} with nothing to cut) and 11 film sizes`
+    + `${shapes.noCut} with nothing to cut), 11 film sizes, `
+    + `every month bucket and the n = 6/8/10 table`
   );
 })().catch((e) => {
   console.error(e);

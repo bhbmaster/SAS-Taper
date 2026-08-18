@@ -103,7 +103,9 @@ main()
            : print_schedule()    # the human-readable report
 ```
 
-**The two front ends handle bad input differently on purpose.** `build_schedule` raises `ValueError` for a non-positive dose or `n < 2`, and the CLI exits 2. The site cannot throw at its reader mid-typing, so `clampOpts()` bounds every field, writes the corrected value back into the box, and reports what it changed in the `#warnings` banner. Same limits, different failure mode.
+**The two front ends handle bad input differently on purpose.** `build_schedule` raises `ValueError` for a non-positive dose, a non-positive film length or strip strength, or `n < 2`, and the CLI exits 2. The site cannot throw at its reader mid-typing, so `clampOpts()` bounds every field, writes the corrected value back into the box, and reports what it changed in the `#warnings` banner.
+
+The two sets of limits are *not* identical, and that is worth knowing before you assume otherwise: the CLI rejects only what is nonsensical, while the site also imposes upper bounds it can keep a reader inside — `n` 2–30, start dose 0.1–64 mg, film length 1–200 mm, film strength 0.1–12 mg. `python3 taper.py --n 1000` runs; typing 1000 into the site clamps to 30 and says so.
 
 ---
 
@@ -326,11 +328,13 @@ Two phases:
 - **31 named cases** go through the CLI (`python3 taper.py --json`), so the argument plumbing is covered too. Start doses 0.1–64 mg, `n` 2–30, the switch both ways, stretched cycles, `n`-below-3, non-default lengths and strengths, clamp boundaries, empty ladders.
 - **640 matrix cases** go straight at `build_schedule()` in one Python process — 1 to 32 mg × all four strengths × `n` 2–30, plus two non-default film lengths. **9,212 cycles** of layout fields, compared field by field.
 
-Every one of the 25 row fields is compared, plus 9 summary figures, plus `base_film_mg` over 11 film sizes. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
+Every one of the 24 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
+
+The months and the comparison table were the last two things written twice and checked nowhere: `compareRows` only walks rows and `compareSummary` only walks scalars, so `monthly_usage()` and `compare_classic()` could have drifted from their JS twins in silence.
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js` — 467 viewport states
+### `test_layout.js` — 472 viewport states
 
 Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus fifteen reshaping input cases and a pass that redraws one day on each of the four film strengths.
 
@@ -343,6 +347,8 @@ Five failure modes at every state:
 | **clipping** — a box too small for its text | `scrollWidth`/`scrollHeight` vs `clientWidth`/`clientHeight` |
 | **spill** — an absolute label escaping its container | bounding box against its parent's |
 | **bar count** — a drawing showing a different day than it describes | one bar per film in each panel, against the layout for that panel's strength |
+
+It also carries a short pass over **rendered figures no other suite can see** — the display maths layered on top of the schedule. The cutting-error chart must scale with the film-length input, the comparison heading must name the target actually used, and every chart must have an accessible name. Each of those three had been wrong.
 
 Any console error or page error fails it too.
 
@@ -367,6 +373,10 @@ Every guard above was checked by injecting the fault it is meant to catch:
 | wrong layout for 2 mg film above 25 mg | 154 matrix mismatches |
 | renderer draws one bar instead of all | 372 layout failures |
 | life-size panel ignores the selected strength | bar-count mismatch at every strength but 8 mg |
+| cutting-error chart hardcodes a 22 mm film | caught at 11 mm |
+| charts lose their accessible names | 7 unnamed charts reported |
+| `monthly_usage` drifts by 0.1% | 14,304 parity mismatches |
+| `compareClassic` drifts by 2% on the target | 14 parity mismatches |
 | 0.1% error in `keepRatio` | 1985 mismatches |
 
 A guard that has never been seen to fail is not yet a guard.
