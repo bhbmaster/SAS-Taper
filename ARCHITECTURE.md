@@ -180,12 +180,33 @@ Cutting along one axis only is what makes the geometry trivial: keep the full wi
 
 ```
 piece_mm = film_mm × D / film_mg      the day's whole strip, across however many films
-cut_mm   = piece_mm / n               the day's sliver
+cut_mm   = film_mm × sliver / film_mg the day's sliver
+take_mm  = piece_mm − cut_mm          the dose as a length
+save_mm  = film_mm − cut_take_mm      the rest of the marked film
 ```
 
 `film_mm` is the measured length of one film along the cut axis (22 mm on all four official strengths). `film_mg` is the strength being cut, chosen by `base_film_mg(start_mg)` — the smallest official size that holds the start dose, or 8 mg above 12 mg where none does — and overridable with `--film-strength` / the *Film strength you cut* input.
 
 `piece_mm` is a **total for the day** and can exceed one film. Splitting it into real films is the job of the next section.
+
+#### Take and save — the pair the reader acts on
+
+`piece_mm` and `cut_mm` describe the *ladder*: the piece you conceptually hold and the sliver the method shaves off it. Nobody keeps yesterday's offcut, though — in practice you open a fresh film every day and cut it down. `take_mm` and `save_mm` describe **that**, and they are what the schedule's tinted block shows:
+
+```
+take_mm + save_mm = films_out × film_mm      the film you actually opened
+save_mg / film_mg = save_mm / film_mm        same proportion, other unit
+```
+
+So the save is not the sliver. It is the sliver *plus everything earlier cycles had already taken off*, because all of it comes off the same fresh film and all of it goes in the same jar. It grows every cycle, and:
+
+```
+delta_save_mm = save_mm(k) − save_mm(k−1) ≡ cut_mm(k)
+```
+
+The identity holds because `take(k−1)` is `piece(k)`: the difference of two "full minus take" figures is exactly this cycle's sliver. Two things break it, and both make "extra" meaningless rather than merely different — a **2 mg restart** puts a different film underneath, and a cycle that **drops a whole film** from the day changes how much film is opened at all. A day with **no cut** breaks it too, having nothing to compare. In all three `delta_save_mm` is `None` and every surface shows a dash.
+
+`banked_mg` is a different accounting and stays that way: it is the *ladder's* count of the sliver, `days × sliver`, which is exactly one whole piece per full cycle and is the buffer the method is built around. `save_mm` is what leaves the film in front of you today. Both are true; the glossary says which is which.
 
 ### Film layout — one day across several strips
 
@@ -195,8 +216,10 @@ Picture the day's strip as films laid end to end. You take from the left; everyt
 
 ```
 take_films       whole films swallowed untouched, no cut
-the marked film  TAKE cut_take_mm | SAVE cut_save_mm | already off
+the marked film  TAKE cut_take_mm | Δ SAVE cut_save_mm | already off
 ```
+
+The last two regions of the marked film are both jarred — `cut_save_mm` is what this cycle newly shaves off, the already-off remainder is what earlier cycles had. Together they are `save_mm`, which is why the drawings label the middle band Δ SAVE rather than SAVE.
 
 **One cut a day, on one film, always** — wherever the dose happens to land. There is no second marked film and no arrangement where the reader measures twice.
 
@@ -255,13 +278,14 @@ Past 100% the error is bigger than the entire drop — you are no longer taperin
 
 ## 5. Data model
 
-One row per cycle, 24 fields, identical on both sides (camelCase in JS, snake_case in Python — `test_parity.js` maps between them automatically):
+One row per cycle, 28 fields, identical on both sides (camelCase in JS, snake_case in Python — `test_parity.js` maps between them automatically):
 
 | Group | Fields |
 |---|---|
 | identity | `cycle`, `day_start`, `day_end`, `n`, `days` |
 | doses | `film_mg`, `cut_from_mg`, `daily_mg`, `sliver_mg` |
 | millimetres | `piece_mm`, `cut_mm` |
+| what you act on | `take_mm`, `save_mm`, `save_mg`, `delta_save_mm` (`None` where nothing is comparable) |
 | film layout | `films_out`, `take_films`, `cut_take_mm`, `cut_save_mm`, `spare_mm` |
 | running totals | `used_mg`, `cum_mg`, `cum_strips`, `banked_mg`, `cum_banked_mg` |
 | flags | `switched_2mg`, `cut_warn`, `n_changed` |
@@ -294,6 +318,7 @@ Several things are placed from measured pixels rather than by normal flow, and *
 | `pinRulerTickLabels()` | the tick captions under the cut-mark bar, treating the CSS-pinned `0` and `22.0 mm` as obstacles |
 | `pinStripCutLabel()` | the "today's cut" caption over the cut line, widening its mat to fit |
 | `fitBandLabels()` | steps each band's label down — full → short → nothing — checking **both** width and height |
+| `calMeasure()` | one cycle's cut as the three numbers a day cell can show — `save`, `take`, `delta` — with the mode picking which |
 | `fitCalCells()` | measures every calendar number and shrinks the ones that overflow their cell |
 
 All four re-run on resize as well as on render, because a rotation leaves the old offsets describing the old width.
@@ -339,7 +364,7 @@ The two Node suites share `test_browser.js`, which looks for a browser in `CHROM
 
 That skip is right locally and wrong in CI, where it would be a green tick over a page nobody tested, so the workflow has an explicit gate: after installing the browser it calls `findBrowser()` and fails the job if the answer is null. Note the skip only covers a *missing binary* — a browser that exists but fails to launch throws, and both suites exit 1.
 
-### `test_taper.py` — 51 checks
+### `test_taper.py` — 57 checks
 
 Standard library, no I/O, runs in under half a second.
 
@@ -358,6 +383,8 @@ Named classes cover the closed forms against the simulation, the per-cycle invar
 | you open exactly the films the dose needs | never one more; a film that would go straight to the jar stays in the box |
 | the sliver is measured from the piece, not the film | the film's right end is elsewhere |
 
+`TestTakeAndSave` covers the pair the reader acts on: take and save partition the film with nothing between them, the worked default by hand, linear mode saving the same extra every cycle while the total climbs by that step, and the three cases where `delta_save_mm` has to be `None` — a 2 mg restart, a cycle that drops a whole film, and a day that lands on a film boundary and saves nothing without moving the baseline for the next real cut.
+
 A seventh test checks **the shape of the coverage itself** — that the matrix really does produce days of 1 through 16 films, days needing a second cut film, and days with nothing to cut. A grid that quietly stopped generating multi-film days would otherwise pass everything above while testing nothing.
 
 ### `test_parity.js` — 1,323 schedules
@@ -369,7 +396,7 @@ Two phases:
 - **43 named cases** go through the CLI (`python3 taper.py --json`), so the argument plumbing is covered too. Start doses 0.1–64 mg, `n` 2–30, the switch both ways, stretched cycles, `n`-below-3, non-default lengths and strengths, clamp boundaries, empty ladders.
 - **1,280 matrix cases** go straight at `build_schedule()` in one Python process — 1 to 32 mg × all four strengths × `n` 2–30 × **both cut modes**, plus non-default film lengths. **13,567 cycles**, compared field by field.
 
-Every one of the 24 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
+Every one of the 28 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
 
 The months and the comparison table were the last two things written twice and checked nowhere: `compareRows` only walks rows and `compareSummary` only walks scalars, so `monthly_usage()` and `compare_classic()` could have drifted from their JS twins in silence.
 
@@ -391,7 +418,9 @@ Five failure modes at every state:
 
 The schedule's column tooltips get their own pass. They are `position: fixed` because the table sits in an `overflow-x` scroller that would clip anything parented to a `<th>`, and they are gated to mouse and keyboard: `pointerover` ignores non-mouse pointers, `focusin` requires `:focus-visible`. The sweep drives a real hover at two widths and asserts the tooltip appears inside the viewport, then opens a touch context and asserts a tap produces nothing — touch readers get the twelve-entry glossary under the table instead, which is why that glossary exists rather than being decoration. One `COLUMN_DOC` list feeds four things — the heading, its unit, the tooltip and the glossary entry — so they cannot disagree. Each entry is `[name, unit, key, meaning]`.
 
-`key` marks the two columns the reader acts on: **Daily**, the dose, and **Cut at**, the mark. They are tinted with an `inset` box-shadow rather than a `background`, because the row states (selected, 2 mg switch, thin sliver) set `td` backgrounds at higher specificity and would paint straight over a background. The sweep checks the tint survives on a switch row, that the tinted pair really is Daily and Cut at, and that a unit never runs into its name in the DOM — a CSS margin looks right and still reads as "Cut frommg" aloud.
+`key` marks the five columns the reader acts on, as one contiguous block: **Take mg / Take mm / Save mg / Save mm / Δ save mm**. They are tinted with an `inset` box-shadow rather than a `background`, because the row states (selected, 2 mg switch, thin sliver) set `td` backgrounds at higher specificity and would paint straight over a background. The sweep checks the tint survives on a switch row, that the tinted columns are those five and are adjacent, and that a unit never runs into its name in the DOM — a CSS margin looks right and still reads as "Save mm" run together aloud.
+
+It also reads the claim the block is built on straight off the rendered table: **Save mm grows every cycle**, and **Δ save is the amount it grew** — skipping the cycles that show a dash, which is where the comparison is deliberately undefined. No other suite looks at the rendered numbers.
 
 It also carries a short pass over **rendered figures no other suite can see** — the display maths layered on top of the schedule. The cutting-error chart must scale with the film-length input, the comparison heading must name the target actually used, and every chart must have an accessible name. Each of those three had been wrong.
 
