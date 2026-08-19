@@ -300,7 +300,7 @@ The two Node suites share `test_browser.js`, which looks for a browser in `CHROM
 
 That skip is right locally and wrong in CI, where it would be a green tick over a page nobody tested, so the workflow has an explicit gate: after installing the browser it calls `findBrowser()` and fails the job if the answer is null. Note the skip only covers a *missing binary* — a browser that exists but fails to launch throws, and both suites exit 1.
 
-### `test_taper.py` — 40 checks
+### `test_taper.py` — 51 checks
 
 Standard library, no I/O, runs in under half a second.
 
@@ -319,14 +319,14 @@ Named classes cover the closed forms against the simulation, the per-cycle invar
 
 A seventh test checks **the shape of the coverage itself** — that the matrix really does produce days of 1 through 16 films, days needing a second cut film, and days with nothing to cut. A grid that quietly stopped generating multi-film days would otherwise pass everything above while testing nothing.
 
-### `test_parity.js` — 671 schedules
+### `test_parity.js` — 1,323 schedules
 
 The suite that keeps the site's promise true. It loads `index.html` in headless Chromium, reaches into `window.SASTaperInternals` (a frozen, read-only test surface exposed at the bottom of the IIFE — the page itself never uses it), and diffs against `taper.py`.
 
 Two phases:
 
-- **31 named cases** go through the CLI (`python3 taper.py --json`), so the argument plumbing is covered too. Start doses 0.1–64 mg, `n` 2–30, the switch both ways, stretched cycles, `n`-below-3, non-default lengths and strengths, clamp boundaries, empty ladders.
-- **640 matrix cases** go straight at `build_schedule()` in one Python process — 1 to 32 mg × all four strengths × `n` 2–30, plus two non-default film lengths. **9,212 cycles** of layout fields, compared field by field.
+- **43 named cases** go through the CLI (`python3 taper.py --json`), so the argument plumbing is covered too. Start doses 0.1–64 mg, `n` 2–30, the switch both ways, stretched cycles, `n`-below-3, non-default lengths and strengths, clamp boundaries, empty ladders.
+- **1,280 matrix cases** go straight at `build_schedule()` in one Python process — 1 to 32 mg × all four strengths × `n` 2–30 × **both cut modes**, plus non-default film lengths. **13,567 cycles**, compared field by field.
 
 Every one of the 24 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
 
@@ -334,9 +334,9 @@ The months and the comparison table were the last two things written twice and c
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js` — 472 viewport states
+### `test_layout.js` — 549 viewport states
 
-Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus fifteen reshaping input cases and a pass that redraws one day on each of the four film strengths.
+Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
 
 Five failure modes at every state:
 
@@ -373,6 +373,8 @@ Every guard above was checked by injecting the fault it is meant to catch:
 | wrong layout for 2 mg film above 25 mg | 154 matrix mismatches |
 | renderer draws one bar instead of all | 372 layout failures |
 | life-size panel ignores the selected strength | bar-count mismatch at every strength but 8 mg |
+| linear cut derived from `piece_mm / n` again | `linear cut column is not constant: 3.67, 3.06, 2.44…` |
+| 2 mg switch allowed to fire in linear mode | 2,840 parity mismatches |
 | cutting-error chart hardcodes a 22 mm film | caught at 11 mm |
 | charts lose their accessible names | 7 unnamed charts reported |
 | `monthly_usage` drifts by 0.1% | 14,304 parity mismatches |

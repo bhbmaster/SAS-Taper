@@ -176,6 +176,8 @@ const probe = () => {
     return { ctx, page, errs };
   }
 
+  /* Works for the number inputs and for the cut-mode <select> alike: both
+     rebuild the page off an "input" event. */
   const setField = (page, id, v) => page.evaluate(([i, val]) => {
     const el = document.getElementById(i);
     el.value = String(val);
@@ -269,6 +271,13 @@ const probe = () => {
        the drawing is whole films only and there is no marked bar or tick row. */
     ["whole films, no cut", { startMg: 8, n: 4, filmStrengthMg: 2 }, [1]],
     ["whole films, long run", { startMg: 24, n: 3, filmStrengthMg: 2, targetMg: 2 }, [1, 2]],
+    /* Linear mode reshapes the page: a shorter ladder, a constant cut, an
+       extra headline tile for the zero day and two warning banners. */
+    ["linear default", { cutMode: "linear" }, [1, 3, 5]],
+    ["linear to zero", { cutMode: "linear", targetMg: 0 }, [1, 5]],
+    ["linear n=30", { cutMode: "linear", n: 30, targetMg: 0 }, [1, 15, 29]],
+    ["linear multi-film", { cutMode: "linear", startMg: 32, targetMg: 0 }, [1, 2, 4]],
+    ["linear n=2", { cutMode: "linear", n: 2, targetMg: 0 }, [1]],
     ["empty ladder", { startMg: 1.1, targetMg: 1 }, [1]],
     ["max cycles", { n: 30, targetMg: 0.1 }, [1]],
     ["stretched cycles", { holdDays: 30 }, [1]],
@@ -321,6 +330,19 @@ const probe = () => {
     await page.waitForTimeout(120);
     errs.length = 0;
     record(`32 mg back to the cycle's film @${width}px`, await page.evaluate(probe), errs);
+    await ctx.close();
+  }
+
+  /* 5a. The calendar on a linear run: a much shorter ladder, so fewer cells,
+         and every one of them carries the same cut. */
+  for (const width of [280, 414, 1024]) {
+    const { ctx, page, errs } = await openPage(width, "dark");
+    await setField(page, "cutMode", "linear");
+    await setField(page, "targetMg", 0);
+    await setField(page, "startDate", "2026-08-01");
+    await page.waitForTimeout(220);
+    errs.length = 0;
+    record(`linear calendar @${width}px`, await page.evaluate(probe), errs);
     await ctx.close();
   }
 
@@ -388,6 +410,31 @@ const probe = () => {
       if (!head.includes(String(target))) {
         failures.push(`compare heading "${head}" does not name the ${target} mg target`);
       }
+    }
+
+    /* The linear mode's defining property, read off the rendered schedule: the
+       cut column must not move from the first cycle to the last. This is the
+       thing a reader is asked to trust, and no other suite looks at the table. */
+    await setField(page, "cutMode", "linear");
+    await setField(page, "targetMg", 0);
+    await page.waitForTimeout(200);
+    const cuts = await page.evaluate(() => [...document.querySelectorAll("#schedTable tbody tr")]
+      .map((tr) => tr.children[7].textContent.trim()));
+    checks++;
+    if (cuts.length < 3) {
+      failures.push(`linear schedule has only ${cuts.length} rows`);
+    } else if (new Set(cuts).size !== 1) {
+      failures.push(`linear cut column is not constant: ${[...new Set(cuts)].join(", ")}`);
+    }
+    /* And the geometric default must still shrink, or the modes are the same. */
+    await setField(page, "cutMode", "geometric");
+    await setField(page, "targetMg", 1);
+    await page.waitForTimeout(200);
+    const geoCuts = await page.evaluate(() => [...document.querySelectorAll("#schedTable tbody tr")]
+      .map((tr) => tr.children[7].textContent.trim()));
+    checks++;
+    if (new Set(geoCuts).size < 3) {
+      failures.push("geometric cut column stopped shrinking");
     }
 
     /* role="img" hides the axis text from assistive tech, so each chart has to

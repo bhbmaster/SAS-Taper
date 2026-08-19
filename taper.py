@@ -24,6 +24,7 @@ DEFAULT_SWITCH_AT_MG = 2.25
 DEFAULT_RX_STRIPS = 30
 DEFAULT_MONTH_DAYS = 30
 MAX_CYCLES = 40
+CUT_MODES = ("geometric", "linear")
 CUT_WARN_MM = 1.0
 SITE_URL = "https://bhbmaster.github.io/SAS-Taper/"
 
@@ -117,6 +118,23 @@ The method — every day of a cycle
      If you eat the bank, the dose never drops.
   5. Next cycle the new whole strip is dose × (1 − 1/n). Repeat to the target.
 
+Two cut modes (--cut-mode)
+  geometric (default)  Cut 1/n off the piece in your hand. The cut shrinks as
+      the dose does, so every cycle is the same PERCENTAGE step — 16.7% at n=6,
+      all the way down. The dose keeps halving and never quite reaches zero, so
+      you pick a target and stop there.
+  linear               Cut the same AMOUNT every cycle: 1/n of the original
+      strip, the same milligrams and the same millimetres from the first day to
+      the last. The dose falls in equal steps and lands on zero after n-1 of
+      them — 8 mg at n=6 goes 6.67, 5.33, 4.00, 2.67, 1.33, then nothing.
+
+  Same cut, very different shape. Equal steps in milligrams are growing steps in
+  percentage: that run drops 20%, then 25%, 33%, 50%, and the last step is 100%.
+  The back end is where a taper is hardest and linear is at its most aggressive
+  exactly there. It is much shorter and uses much less medication; neither of
+  those is the same as easier. Ask your prescriber which shape suits you, and
+  remember that holding a cycle is available in either mode.
+
 If it gets rough: hold this dose another cycle (cravings matter most). Stretch the
 cycle to 8–9 days or switch n to 10 below 3 mg. When the sliver is under ~1 mm,
 switch to 2 mg films. Lock up saved pieces. Step the prescribed quantity down
@@ -157,6 +175,15 @@ Practical notes
 - Holding is not failure. If a cycle leaves you with bad sleep, restlessness,
   sweats, GI upset, or — most importantly — a spike in cravings, stay at that
   dose for another cycle or two before dropping again.
+- The two cut modes trade different things. Geometric holds the percentage step
+  constant and lets the milligrams shrink, which is the gentler shape at the low
+  end but never reaches zero. Linear holds the milligrams constant and lets the
+  percentage grow, which reaches zero on a schedule but makes the last steps the
+  biggest ones you will have taken. Either way, holding a cycle is always
+  available and never a failure.
+- One practical point for linear: because the cut never gets thinner, it never
+  gets harder. The same mark and the same razor every day — no sliver under a
+  millimetre, and no need to switch to 2 mg films just for precision.
 - Once daily is fine at every level here. Buprenorphine's half-life is long
   enough that splitting doses buys you nothing.
 - Every step is held for days on purpose. That same long half-life means a new
@@ -254,6 +281,14 @@ class ScheduleResult:
     0/None so an empty ladder still answers every question asked of it —
     index.html mirrors these exact defaults, and test_parity.js checks that.
 
+    cut_mode is "geometric" (cut 1/n off what is left, so the step shrinks and
+    the dose never quite reaches zero) or "linear" (cut the same 1/n of the
+    ORIGINAL strip every cycle, so the step never changes and the dose lands on
+    zero after n − 1 of them). r is the geometric keep ratio and describes the
+    linear mode not at all — there the per-cycle drop grows every step.
+
+    zero_day is the first day at 0 mg, which only a linear run reaches.
+
     truncated means the run hit MAX_CYCLES before reaching the target;
     switch_never_fired means the 2 mg switch was wanted but could not fire
     without raising the dose. Both are reported rather than hidden.
@@ -269,6 +304,7 @@ class ScheduleResult:
     hold_days: Optional[int]
     n_below_3mg: Optional[int]
     stop_mode: str
+    cut_mode: str
     r: float
     ceiling_mg: float
     ceiling_strips: float
@@ -281,6 +317,7 @@ class ScheduleResult:
     dose_at_2mg: Optional[float] = None
     days_to_1mg: Optional[int] = None
     dose_at_1mg: Optional[float] = None
+    zero_day: Optional[int] = None
     end_day: int = 0
     end_daily_mg: float = 0.0
     total_mg: float = 0.0
@@ -403,25 +440,60 @@ def film_layout(
     )
 
 
-def lifetime_ceiling_mg(start_mg: float, n: int, days_per_cycle: Optional[int] = None) -> float:
-    """Total mg if the ladder ran forever: days × (n − 1) × D0.
+def lifetime_ceiling_mg(
+    start_mg: float,
+    n: int,
+    days_per_cycle: Optional[int] = None,
+    cut_mode: str = "geometric",
+) -> float:
+    """Total mg the ladder would ever deliver, per cut mode.
 
-    Σ_k days·D0·r^k = days·D0·r/(1−r) = days·D0·(n−1). With the default
-    cycle length (days = n) that is the familiar n(n−1)·D0.
+    Args:
+        start_mg: dose on day 1.
+        n: cut denominator and default cycle length.
+        days_per_cycle: hold days, or None for n.
+        cut_mode: "geometric" or "linear".
+    Returns:
+        geometric — days × (n − 1) × D0. The run never reaches zero, so this is
+        a ceiling: Σ_k days·D0·r^k = days·D0·r/(1−r) = days·D0·(n−1).
+        linear — days × D0 × (n − 1) / 2, which is not a ceiling but the whole
+        total, because a constant step does reach zero after n − 1 doses:
+        Σ_{k=1..n−1} D0(1 − k/n) = D0 (n−1)/2.
     """
-    days = int(days_per_cycle) if days_per_cycle and days_per_cycle >= 1 else n
+    days = days_per_cycle if days_per_cycle and days_per_cycle >= 1 else n
+    if cut_mode == "linear":
+        return days * start_mg * (n - 1) / 2.0
     return days * (n - 1) * start_mg
 
 
 def ingested_closed_form(
-    start_mg: float, n: int, cycles: int, days_per_cycle: Optional[int] = None
+    start_mg: float,
+    n: int,
+    cycles: int,
+    days_per_cycle: Optional[int] = None,
+    cut_mode: str = "geometric",
 ) -> float:
-    """days × n × D0 × r × (1 − r^K). Valid when n, D0, and cycle length stay fixed.
+    """Total mg after a given number of cycles, in closed form.
 
-    With the default cycle length (days = n) this is n² × D0 × r × (1 − r^K).
+    Args:
+        start_mg: dose on day 1.
+        n: cut denominator and default cycle length.
+        cycles: how many cycles have run.
+        days_per_cycle: hold days, or None for n.
+        cut_mode: "geometric" or "linear".
+    Returns:
+        geometric — days·n·D0·r·(1 − r^cycles).
+        linear — days·D0·(K − K(K+1)/(2n)) for K cycles, the sum of an
+        arithmetic sequence rather than a geometric one.
+
+    The tests check the simulation against this, so a change to the loop that
+    is not also a change here shows up as a failure rather than as new truth.
     """
+    days = days_per_cycle if days_per_cycle and days_per_cycle >= 1 else n
+    if cut_mode == "linear":
+        k = float(cycles)
+        return days * start_mg * (k - k * (k + 1) / (2.0 * n))
     r = keep_ratio(n)
-    days = int(days_per_cycle) if days_per_cycle and days_per_cycle >= 1 else n
     return days * n * start_mg * r * (1.0 - r ** cycles)
 
 
@@ -439,6 +511,7 @@ def build_schedule(
     n_below_3mg: Optional[int] = None,
     max_cycles: int = MAX_CYCLES,
     stop_mode: str = "reach",
+    cut_mode: str = "geometric",
     rx_strips: float = DEFAULT_RX_STRIPS,
     month_days: int = DEFAULT_MONTH_DAYS,
 ) -> ScheduleResult:
@@ -448,6 +521,17 @@ def build_schedule(
       reach — include the first cycle whose daily dose is <= target (default).
       above — stop after the last cycle still strictly above target
               (classic n=6/8/10 comparison tables).
+
+    cut_mode:
+      geometric — cut 1/n off the piece in your hand (default). The cut shrinks
+              with the dose, every cycle is the same percentage step, and the
+              dose approaches zero without arriving.
+      linear  — cut the same amount every cycle: 1/n of the ORIGINAL strip, in
+              the same milligrams and the same millimetres, from the first day
+              to the last. The dose falls in equal steps and reaches zero after
+              n − 1 of them. Because the cut never gets thinner there is nothing
+              for the 2 mg switch to rescue, and changing n partway would break
+              the one constant the mode is built on, so both are ignored here.
     """
     if n < 2:
         raise ValueError("n must be at least 2")
@@ -455,12 +539,19 @@ def build_schedule(
         raise ValueError("doses, film length, and strip strength must be positive")
     if stop_mode not in ("reach", "above"):
         raise ValueError("stop_mode must be 'reach' or 'above'")
+    if cut_mode not in CUT_MODES:
+        raise ValueError("cut_mode must be one of " + ", ".join(CUT_MODES))
 
     # Day 1 cuts the start dose out of one film, so the base film has to be the
     # smallest official strength that holds it: 8 mg by default, 12 mg for a
     # 12 mg start, 2 or 4 mg for a low start.
     film_mg = float(film_strength_mg) if film_strength_mg else base_film_mg(start_mg)
     current_film_mm = film_2mg_mm if film_mg <= 2.0 + 1e-9 else film_mm
+
+    linear = cut_mode == "linear"
+    # The one constant of the linear mode, fixed before the first cut and never
+    # recomputed: 1/n of the ORIGINAL strip, in mg. Everything else follows.
+    step_mg = float(start_mg) / n
 
     D = float(start_mg)
     current_n = int(n)
@@ -475,8 +566,12 @@ def build_schedule(
 
     for cycle in range(1, max_cycles + 1):
         n_changed = False
+        # Both of these are geometric-mode rescues. In linear mode the cut never
+        # gets thinner, so there is nothing for the 2 mg switch to fix, and
+        # changing n would change the step the whole mode is defined by.
         if (
-            n_below_3mg
+            not linear
+            and n_below_3mg
             and n_below_3mg >= 2
             and D < 3.0
             and current_n != n_below_3mg
@@ -488,7 +583,8 @@ def build_schedule(
 
         just_switched = False
         if (
-            switch_2mg
+            not linear
+            and switch_2mg
             and not switched
             and film_mg > 2.0 + 1e-9
             and D <= switch_at_mg + 1e-12
@@ -503,16 +599,29 @@ def build_schedule(
             switched = True
             just_switched = True
 
-        r = keep_ratio(current_n)
-        daily = D * r
-        sliver = D / current_n
+        if linear:
+            sliver = step_mg
+            daily = D - sliver
+            # The last cut takes the dose to exactly zero. A cycle of n days at
+            # 0 mg is not an instruction, so the ladder ends before it and the
+            # summary reports the day the dose reaches zero instead.
+            if daily <= 1e-12:
+                break
+        else:
+            sliver = D / current_n
+            daily = D * keep_ratio(current_n)
 
         if stop_mode == "above" and daily <= target_mg + 1e-12:
             break
 
         days = int(hold_days) if hold_days and hold_days >= 1 else current_n
         piece_mm = current_film_mm * D / film_mg
-        cut_mm = piece_mm / current_n
+        # From the sliver, not from piece_mm / n. The two are identical in
+        # geometric mode, where the sliver IS the piece over n — but in linear
+        # mode the sliver is a fixed number of milligrams, and the millimetres
+        # have to hold still with it. That constant cut is the whole point of
+        # the mode: the same mark, every day, from the first cut to the last.
+        cut_mm = current_film_mm * sliver / film_mg
         # Where that cut actually falls on real films. Above one film's worth of
         # dose the day is several strips and only one of them gets marked.
         lay = film_layout(D, sliver, film_mg, current_film_mm)
@@ -574,14 +683,15 @@ def build_schedule(
         hold_days=hold_days,
         n_below_3mg=n_below_3mg,
         stop_mode=stop_mode,
+        cut_mode=cut_mode,
         r=keep_ratio(n),
-        ceiling_mg=lifetime_ceiling_mg(start_mg, n, hold_days),
-        ceiling_strips=lifetime_ceiling_mg(start_mg, n, hold_days) / strip_mg,
+        ceiling_mg=lifetime_ceiling_mg(start_mg, n, hold_days, cut_mode),
+        ceiling_strips=lifetime_ceiling_mg(start_mg, n, hold_days, cut_mode) / strip_mg,
         base_film_mg=(float(film_strength_mg) if film_strength_mg else base_film_mg(start_mg)),
         truncated=truncated,
         # Only a real miss if the ladder ran past 2 mg still on the bigger film.
         switch_never_fired=bool(
-            switch_2mg and not switched and rows and rows[-1].daily_mg < 2.0
+            not linear and switch_2mg and not switched and rows and rows[-1].daily_mg < 2.0
         ),
         rows=rows,
     )
@@ -626,6 +736,15 @@ def _fill_summary(
             # landing). Same convention as ~2 mg — the first day at that dose.
             result.days_to_1mg = row.day_start
             result.dose_at_1mg = row.daily_mg
+
+    # A linear run lands on zero. The ladder stops before the cycle that would
+    # have you taking nothing, so the first zero day is the day after the last
+    # dose — but only if the run actually got that far, rather than stopping at
+    # a target or the cycle cap on the way.
+    if result.cut_mode == "linear" and not result.truncated:
+        last = rows[-1]
+        if last.daily_mg - last.sliver_mg <= 1e-12:
+            result.zero_day = last.day_end + 1
 
     result.months = monthly_usage(rows, result.strip_mg, month_days, rx_strips)
 
@@ -678,8 +797,13 @@ def compare_classic(
     target_mg: float = DEFAULT_TARGET_MG,
     strip_mg: float = DEFAULT_STRIP_MG,
     ns: tuple[int, ...] = (6, 8, 10),
+    cut_mode: str = "geometric",
 ) -> list[dict[str, Any]]:
-    """Side-by-side at ~1 mg: 8 mg films all the way, last cycle still above target."""
+    """Side-by-side at the target: one strength all the way, last cycle above it.
+
+    Runs in whichever cut mode the caller is using, so the panel compares three
+    speeds of the same method rather than quietly showing the other one.
+    """
     out = []
     for n in ns:
         sched = build_schedule(
@@ -691,6 +815,7 @@ def compare_classic(
             hold_days=None,
             n_below_3mg=None,
             stop_mode="above",
+            cut_mode=cut_mode,
         )
         out.append(
             {
@@ -1002,22 +1127,49 @@ def print_schedule(
     print("Not medical advice. Calculator for a plan to take to your prescriber.")
     print()
     print(HOW_TO)
-    print(
-        f"Start {sched.start_mg:g} mg  n={n}  "
-        f"({100 / n:.1f}% cut, {n}-day cycles, keep {n - 1}/{n} = {r:.4f})"
-    )
+    linear = sched.cut_mode == "linear"
+    if linear:
+        step = sched.start_mg / n
+        print(
+            f"Start {sched.start_mg:g} mg  n={n}  cut mode LINEAR "
+            f"(same cut every cycle: 1/{n} of the original strip = {step:.2f} mg, "
+            f"{n}-day cycles)"
+        )
+    else:
+        print(
+            f"Start {sched.start_mg:g} mg  n={n}  "
+            f"({100 / n:.1f}% cut, {n}-day cycles, keep {n - 1}/{n} = {r:.4f})"
+        )
     print(f"Film {sched.film_mm:g} mm ({sched.base_film_mg:g} mg strength)  "
           f"target {sched.target_mg:g} mg  "
           f"strip {sched.strip_mg:g} mg  2 mg switch {'ON' if sched.switch_2mg else 'OFF'}")
     if sched.hold_days:
         print(f"Stretched cycle: {sched.hold_days} days at each level (cut still 1/{n}).")
-    if sched.n_below_3mg:
+    if sched.n_below_3mg and not linear:
         print(f"Below 3 mg, n switches to {sched.n_below_3mg}.")
-    print(
-        f"Lifetime ceiling (fixed n and cycle length, never stop): "
-        f"{sched.ceiling_mg:.0f} mg "
-        f"({sched.ceiling_strips:.1f} strips of {sched.strip_mg:g} mg)."
-    )
+    if linear and (sched.switch_2mg or sched.n_below_3mg):
+        ignored = []
+        if sched.switch_2mg:
+            ignored.append("the 2 mg switch")
+        if sched.n_below_3mg:
+            ignored.append("n below 3 mg")
+        print(
+            f"Ignored in linear mode: {' and '.join(ignored)}. The cut never gets "
+            f"thinner here, so there is nothing for a film switch to rescue, and "
+            f"changing n partway would change the one step the mode is built on."
+        )
+    if linear:
+        print(
+            f"Whole-run total (equal steps all the way to zero): "
+            f"{sched.ceiling_mg:.0f} mg "
+            f"({sched.ceiling_strips:.1f} strips of {sched.strip_mg:g} mg)."
+        )
+    else:
+        print(
+            f"Lifetime ceiling (fixed n and cycle length, never stop): "
+            f"{sched.ceiling_mg:.0f} mg "
+            f"({sched.ceiling_strips:.1f} strips of {sched.strip_mg:g} mg)."
+        )
     if sched.truncated:
         print(
             f"WARNING: stopped at the {len(sched.rows)}-cycle cap without reaching "
@@ -1028,6 +1180,32 @@ def print_schedule(
             "WARNING: the 2 mg switch never fired — --switch-at is below 2 mg, and "
             "restarting on a 2 mg film there would raise the dose. Use --switch-at 2.25."
         )
+    if linear and sched.zero_day is not None:
+        print(
+            f"Reaches 0 mg on day {sched.zero_day}: the cut after the last cycle "
+            f"takes the whole remaining piece. The ladder stops before that day "
+            f"because a cycle at 0 mg is not an instruction."
+        )
+    if linear and len(sched.rows) >= 3:
+        # Equal milligrams are growing percentages, and the growth is the whole
+        # safety story of this mode. State it in numbers rather than adjectives.
+        drops = []
+        for prev, row in zip(sched.rows, sched.rows[1:]):
+            if prev.daily_mg > 0:
+                drops.append(100.0 * (prev.daily_mg - row.daily_mg) / prev.daily_mg)
+        if drops:
+            shape = ", ".join(f"{d:.0f}%" for d in drops)
+            tail = (
+                f", and the last cut after that is 100%"
+                if sched.zero_day is not None else ""
+            )
+            print(
+                f"NOTE: equal cuts are not equal steps. Cycle to cycle this run "
+                f"drops {shape}{tail}. The percentage grows as the dose falls, so "
+                f"the hardest part of a linear taper is the end. Hold a cycle "
+                f"whenever you need to, or use the default geometric mode for a "
+                f"flat {100 / n:.1f}% step the whole way."
+            )
     if sched.rows and sched.rows[0].films_out > 1:
         r0 = sched.rows[0]
         print(
@@ -1239,6 +1417,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="print only this cycle’s cut mark, with the full unused-film note",
     )
     p.add_argument(
+        "--cut-mode",
+        choices=CUT_MODES,
+        default="geometric",
+        help="geometric = cut 1/n off the piece in your hand, so the cut shrinks "
+        "with the dose and every cycle is the same percentage step (default); "
+        "linear = cut the same amount every cycle, 1/n of the ORIGINAL strip in "
+        "the same mg and the same mm, so the dose falls in equal steps and "
+        "reaches zero after n-1 of them",
+    )
+    p.add_argument(
         "--stop-mode",
         choices=("reach", "above"),
         default="reach",
@@ -1286,6 +1474,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             n_below_3mg=args.n_below_3mg,
             max_cycles=args.max_cycles,
             stop_mode=args.stop_mode,
+            cut_mode=args.cut_mode,
         )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -1299,6 +1488,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         start_mg=args.start_mg,
         target_mg=args.target_mg,
         strip_mg=args.strip_mg,
+        cut_mode=args.cut_mode,
     ) if args.compare else None
 
     if args.json:

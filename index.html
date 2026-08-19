@@ -825,6 +825,7 @@
       <h3>Instructions</h3>
       <ol>
         <li>Use the calculator on this page, or run the same math in a terminal with <code>python3 taper.py</code> from the <a href="https://github.com/bhbmaster/SAS-Taper">repo</a>. To keep a copy offline, save this page — it is one self-contained file and needs no connection.</li>
+        <li>Pick a <strong>cut mode</strong>. The default cuts the same <em>fraction</em> every cycle — steady percentage steps that never quite reach zero. The alternative cuts the same <em>amount</em> every cycle — equal milligram steps that land on zero after about n of them, at the cost of a steeper finish. You can switch and compare; nothing else changes.</li>
         <li>Measure your film with a ruler along its <strong>length only</strong> — the 22 mm side, the one you will be cutting. Put that number in “Start film length.” All four Suboxone strengths are 22 mm on that side, so it is the same number whichever you start on. Default n = 6 (16.7% every 6 days). If you want a gentler taper, raise n to 8 or 10.</li>
         <li>The cards, graphs, and schedule recalculate live. Click a cycle row (or a graph step) to see that day’s cut mark and a life-size film: <strong>TAKE on the left, SAVE on the right</strong>. The cut-mark bar is a full unused film; later cycles hash the rest that is already off.</li>
         <li>If your dose is bigger than one film — 16 mg on 8 mg strips, say — the day is simply several strips. The Film column shows <strong>×2</strong>, and only one of those strips is ever cut: take the whole ones as they are.</li>
@@ -840,6 +841,7 @@
         <div><dt>2 mg film length (mm) <span class="def">[22]</span><span class="sep"> — </span></dt><dd>The same measurement for the 2 mg film, used after the switch. Ignored if you turn the switch off.</dd></div>
         <div><dt>Target (mg/day) <span class="def">[1]</span><span class="sep"> — </span></dt><dd>Where the ladder stops. The run ends on the first cycle at or below this dose. Must be lower than the start dose.</dd></div>
         <div><dt>Strip strength (mg) <span class="def">[8]</span><span class="sep"> — </span></dt><dd>The strength of one film as dispensed. Used only to convert milligrams into “how many strips”, for the totals and the prescription-quantity table. It does not change the ladder.</dd></div>
+        <div><dt>Cut mode <span class="def">[same fraction]</span><span class="sep"> — </span></dt><dd>The two shapes a taper can have. <strong>Same fraction</strong> (the default) cuts 1/n off the piece in your hand, so the cut shrinks along with the dose and every cycle is the same percentage step — a steady 16.7% at n = 6. The dose keeps halving and never quite reaches zero, so you pick a target and stop there. <strong>Same amount</strong> cuts 1/n of your <em>first</em> strip and then that identical piece — same milligrams, same millimetres — every cycle after. The dose falls in equal steps and lands on zero after n − 1 of them: 8 mg at n = 6 goes 6.67, 5.33, 4.00, 2.67, 1.33, then nothing. It is much shorter, uses much less medication, and the cut never gets fiddly. It is also steeper where a taper is hardest: equal milligrams mean the percentage grows every cycle, 20% then 25%, 33%, 50%, and a final 100%. The page shows you those numbers when you switch.</dd></div>
         <div><dt>Film strength you cut (mg) <span class="def">[blank = auto]</span><span class="sep"> — </span></dt><dd>Which strength of film you actually hold. Left blank the tool picks the smallest official size that fits the start dose — 2, 4, 8 or 12 mg — and 8 mg for a start above 12 mg, where no single film holds the dose. Set it if you have something else: a 16 mg start is two 8 mg strips a day, or two 12 mg strips if that is what is in the box.</dd></div>
         <div><dt>Hold / stretch days <span class="def">[blank = same as n]</span><span class="sep"> — </span></dt><dd>Makes every cycle longer without changing the size of the cut. Set 9 with n = 6 and you still cut 1/6, but hold each dose for 9 days instead of 6 — the same taper, more settling time between drops.</dd></div>
         <div><dt>n below 3 mg <span class="def">[blank = off]</span><span class="sep"> — </span></dt><dd>Switches to a different n once the strip you are cutting from drops under 3 mg, where the same percentage is a much smaller piece of film. Setting 10 here makes the back half drop 10% per cycle instead of 16.7%.</dd></div>
@@ -860,7 +862,7 @@
           <li>Keep the full width. Cut only along the length. Mark, then cut with a fresh razor on a mat — not scissors.</li>
           <li>Cut 1/n off the <strong>right</strong> end. That short sliver goes in the save jar. Take the long left piece. Once daily is enough. If the day is more than one film, take the whole ones as they are and mark only the last: one cut a day, whatever the dose.</li>
           <li>Do that for n days. The save jar now holds one full piece of this cycle’s size. That is a <strong>buffer / safety net, not extra daily dose</strong>. If you eat the bank, the dose never drops.</li>
-          <li>Next cycle, the leftover size is the new whole strip: dose × (1 − 1/n). Repeat until you hit the target (default 1 mg).</li>
+          <li>Next cycle, the leftover size is the new whole strip. In the default <strong>same fraction</strong> mode that is dose × (1 − 1/n) and the cut shrinks with it; in <strong>same amount</strong> mode you cut the identical piece again, so the dose steps down by the same milligrams every time. Repeat until you hit the target — or, in same-amount mode, until there is nothing left to cut.</li>
         </ol>
       </div>
 
@@ -893,6 +895,12 @@
         </label>
         <label><span class="k">Strip strength (mg)</span>
           <input type="number" id="stripMg" min="0.1" step="0.1" value="8">
+        </label>
+        <label><span class="k">Cut mode</span>
+          <select id="cutMode">
+            <option value="geometric" selected>Same fraction — 1/n of what is left</option>
+            <option value="linear">Same amount — 1/n of the first strip, every time</option>
+          </select>
         </label>
         <label><span class="k">Film strength you cut (mg)</span>
           <input type="number" id="filmStrengthMg" min="0.1" max="12" step="0.1" placeholder="blank = auto">
@@ -1060,6 +1068,8 @@
         <li>Saved slivers are surplus / a safety net. Do not add them back into the daily dose or the taper never drops. Store airtight and dry, separated by wax paper, and keep them locked up.</li>
         <li>The low end is where 8 mg films fail. Ask your prescriber for 2 mg films before you need them (around the time daily dose is heading through ~4 mg toward ~2 mg). A 2 mg film is one quarter the density of an 8 mg one, so the same dose is four times longer and the same cut is four times more forgiving.</li>
         <li>Holding is not failure. If a cycle leaves you with bad sleep, restlessness, sweats, GI upset, or — most importantly — a spike in cravings, stay at that dose for another cycle or two before dropping again.</li>
+        <li><strong>The two cut modes trade different things.</strong> Same fraction holds the percentage step constant and lets the milligrams shrink — the gentler shape at the low end, but it never reaches zero. Same amount holds the milligrams constant and lets the percentage grow — it reaches zero on a schedule, but the last steps are the biggest ones you will have taken. Neither is the right answer for everyone; both let you hold a cycle whenever you need to, and holding is never a failure.</li>
+        <li>One practical point for same-amount mode: because the cut never gets thinner, it never gets harder. The same mark and the same razor from the first day to the last — no sliver under a millimetre, and no need to move to 2 mg films just for precision. That is why this page ignores the 2 mg switch when that mode is on, and says so.</li>
         <li>Once daily is fine at every level here. Buprenorphine’s half-life is long enough that splitting doses buys you nothing.</li>
         <li>Every step is held for days on purpose. That same long half-life means a new dose needs most of a cycle to fully land — about 88–91% of the way there on day 1 and 98–100% by day 6, across the usual 24–42 hour range. It is why the ladder moves in cycles instead of shaving a little off daily, and it puts a floor under how fast this can honestly go: the default is roughly two months from 8 mg to 1 mg. Plenty of people need longer than that, and the tool is built for it — hold a cycle, raise n, or stretch the cycle. n = 10 on 9-day cycles is about six months. Going slower is a plan, not a failure.</li>
         <li>n = 6 (16.7% every 6 days) is at the fast end of typical 10–25% steps. You may not feel a drop until day 4 or 5, right as you are about to drop again. Hedge by stretching the cycle to 8–9 days (same cut, more settling time) or switch to n = 10 below 3 mg.</li>
@@ -1164,8 +1174,12 @@
 
   /* Σ_k days·D0·r^k = days·D0·r/(1−r) = days·(n−1)·D0. With the default cycle
      length (days = n) that is the familiar n(n−1)·D0. */
-  function lifetimeCeilingMg(startMg, n, daysPerCycle) {
+  function lifetimeCeilingMg(startMg, n, daysPerCycle, cutMode) {
     const days = daysPerCycle && daysPerCycle >= 1 ? daysPerCycle : n;
+    /* Geometric never reaches zero, so this really is a ceiling:
+       Σ days·D0·r^k = days·D0·(n−1). Linear does reach zero after n−1 doses,
+       so the same call returns the whole total instead: D0·(n−1)/2 per day. */
+    if (cutMode === "linear") return days * startMg * (n - 1) / 2;
     return days * (n - 1) * startMg;
   }
 
@@ -1334,8 +1348,13 @@
     const holdDays = opts.holdDays;
     const nBelow3 = opts.nBelow3;
     const stopMode = opts.stopMode || "reach";
+    const cutMode = opts.cutMode === "linear" ? "linear" : "geometric";
+    const linear = cutMode === "linear";
 
     const filmStrength = opts.filmStrengthMg || baseFilmMg(startMg);
+    /* The one constant of the linear mode, fixed before the first cut and never
+       recomputed: 1/n of the ORIGINAL strip, in mg. Everything else follows. */
+    const stepMg = startMg / n0;
     let filmMg = filmStrength;
     let currentFilmMm = filmMg <= 2.0 + 1e-9 ? film2Mm : filmMm;
 
@@ -1352,7 +1371,10 @@
 
     for (let cycle = 1; cycle <= MAX_CYCLES; cycle++) {
       let nChanged = false;
-      if (nBelow3 && nBelow3 >= 2 && D < 3.0 && currentN !== nBelow3 && !alreadySwitchedN) {
+      /* Both of these are geometric-mode rescues. In linear mode the cut never
+         gets thinner, so there is nothing for the 2 mg switch to fix, and
+         changing n would change the step the whole mode is defined by. */
+      if (!linear && nBelow3 && nBelow3 >= 2 && D < 3.0 && currentN !== nBelow3 && !alreadySwitchedN) {
         currentN = nBelow3;
         alreadySwitchedN = true;
         nChanged = true;
@@ -1361,7 +1383,7 @@
       let justSwitched = false;
       /* Restarting on a 2 mg film pins the whole strip at 2 mg, so only do it
          while the resulting daily dose is still a step down. */
-      if (switch2mg && !switched && filmMg > 2.0 + 1e-9 && D <= SWITCH_AT_MG + 1e-12
+      if (!linear && switch2mg && !switched && filmMg > 2.0 + 1e-9 && D <= SWITCH_AT_MG + 1e-12
           && (prevDaily === null || 2.0 * keepRatio(currentN) < prevDaily)) {
         D = 2.0;
         filmMg = 2.0;
@@ -1370,15 +1392,33 @@
         justSwitched = true;
       }
 
-      const r = keepRatio(currentN);
-      const daily = D * r;
-      const sliver = D / currentN;
+      let sliver, daily;
+      if (linear) {
+        sliver = stepMg;
+        daily = D - sliver;
+        /* The last cut takes the dose to exactly zero. A cycle of n days at
+           0 mg is not an instruction, so the ladder ends before it and the
+           summary reports the day the dose reaches zero instead.
+
+           truncated has to be cleared here. It starts true for stopMode
+           "reach" and is only cleared where the target is met, so leaving it
+           alone would report a completed run as one that hit the cycle cap —
+           which is how taper.py behaves, and how test_parity.js caught it. */
+        if (daily <= 1e-12) { truncated = false; break; }
+      } else {
+        sliver = D / currentN;
+        daily = D * keepRatio(currentN);
+      }
 
       if (stopMode === "above" && daily <= targetMg + 1e-12) break;
 
       const days = holdDays && holdDays >= 1 ? holdDays : currentN;
       const pieceMm = currentFilmMm * D / filmMg;
-      const cutMm = pieceMm / currentN;
+      /* From the sliver, not from pieceMm / n. The two are identical in
+         geometric mode, where the sliver IS the piece over n — but in linear
+         mode the sliver is a fixed number of milligrams, and the millimetres
+         have to hold still with it. That constant cut is the whole point. */
+      const cutMm = currentFilmMm * sliver / filmMg;
       /* Where that cut actually falls on real films. Above one film's worth of
          dose the day is several strips and only one of them gets marked. */
       const lay = filmLayout(D, sliver, filmMg, currentFilmMm);
@@ -1411,13 +1451,14 @@
 
     const result = {
       startMg, n: n0, filmMm, film2Mm, targetMg, stripMg, switch2mg, holdDays, nBelow3, stopMode,
+      cutMode,
       r: keepRatio(n0),
-      ceilingMg: lifetimeCeilingMg(startMg, n0, holdDays),
-      ceilingStrips: lifetimeCeilingMg(startMg, n0, holdDays) / stripMg,
+      ceilingMg: lifetimeCeilingMg(startMg, n0, holdDays, cutMode),
+      ceilingStrips: lifetimeCeilingMg(startMg, n0, holdDays, cutMode) / stripMg,
       baseFilmMg: filmStrength,
       truncated,
       /* Only a real miss if the ladder ran past 2 mg still on the bigger film. */
-      switchNeverFired: switch2mg && !switched && rows.length > 0
+      switchNeverFired: !linear && switch2mg && !switched && rows.length > 0
         && rows[rows.length - 1].dailyMg < 2.0,
       rows
     };
@@ -1437,7 +1478,7 @@
     Object.assign(result, {
       endDay: 0, endDailyMg: 0, totalMg: 0, totalStrips: 0, totalBankedMg: 0,
       stayMg: 0, savedVsStayMg: 0, savedVsStayStrips: 0,
-      daysTo2mg: null, doseAt2mg: null, daysTo1mg: null, doseAt1mg: null,
+      daysTo2mg: null, doseAt2mg: null, daysTo1mg: null, doseAt1mg: null, zeroDay: null,
       months: [],
     });
     if (!rows.length) return;
@@ -1464,6 +1505,14 @@
         result.daysTo1mg = row.dayStart;
         result.doseAt1mg = row.dailyMg;
       }
+    }
+    /* A linear run lands on zero. The ladder stops before the cycle that would
+       have you taking nothing, so the first zero day is the day after the last
+       dose — but only if the run actually got that far, rather than stopping at
+       a target or the cycle cap on the way. */
+    if (result.cutMode === "linear" && !result.truncated
+        && last.dailyMg - last.sliverMg <= 1e-12) {
+      result.zeroDay = last.dayEnd + 1;
     }
     result.months = monthlyUsage(rows, result.stripMg);
   }
@@ -1501,11 +1550,12 @@
      films the whole way with stopMode "above", so every row ends strictly
      above the target and the three are compared on equal terms.
      Returns one row per n with cycles, days, end dose, totals and ceiling. */
-  function compareClassic(startMg, targetMg, stripMg) {
+  function compareClassic(startMg, targetMg, stripMg, cutMode) {
     return [6, 8, 10].map((n) => {
       const sched = buildSchedule({
         startMg, n, filmMm: 22, film2Mm: 22, targetMg, stripMg,
-        switch2mg: false, holdDays: null, nBelow3: null, stopMode: "above"
+        switch2mg: false, holdDays: null, nBelow3: null, stopMode: "above",
+        cutMode: cutMode === "linear" ? "linear" : "geometric"
       });
       return {
         n,
@@ -1566,6 +1616,7 @@
       film2Mm: num("film2Mm", 22),
       targetMg: num("targetMg", 1),
       stripMg: num("stripMg", 8),
+      cutMode: $("cutMode").value === "linear" ? "linear" : "geometric",
       /* Blank means "work it out from the start dose" — the same null the CLI's
          --film-strength defaults to, so both sides pick the film the same way. */
       filmStrengthMg: numOrNull("filmStrengthMg"),
@@ -1606,6 +1657,7 @@
       if (o.targetMg != null) $("targetMg").value = o.targetMg;
       if (o.stripMg != null) $("stripMg").value = o.stripMg;
       if (o.filmStrengthMg) $("filmStrengthMg").value = o.filmStrengthMg;
+      if (o.cutMode) $("cutMode").value = o.cutMode;
       if (o.holdDays) $("holdDays").value = o.holdDays;
       if (o.nBelow3) $("nBelow3").value = o.nBelow3;
       if (o.cutTolMm != null) $("cutTolMm").value = o.cutTolMm;
@@ -1624,9 +1676,14 @@
       { lbl: "~2 mg", val: s.daysTo2mg != null ? "Day " + s.daysTo2mg : "—", sub: s.doseAt2mg != null ? fmt(s.doseAt2mg, 2) + " mg/day" : "not reached" },
       { lbl: "~1 mg", val: s.daysTo1mg != null ? "Day " + s.daysTo1mg : "—", sub: s.doseAt1mg != null ? fmt(s.doseAt1mg, 2) + " mg/day" : "not reached" },
       { lbl: "End of run", val: "Day " + s.endDay, sub: fmt(s.endDailyMg, 2) + " mg/day" },
+      ...(s.zeroDay != null
+        ? [{ lbl: "Off it", val: "Day " + s.zeroDay, sub: "the last cut takes the whole remaining piece" }]
+        : []),
       { lbl: "Ingested", val: fmt(s.totalMg, 1) + " mg", sub: fmt(s.totalStrips, 1) + " × " + fmtG(s.stripMg) + " mg strips" },
       { lbl: "Banked buffer", val: fmt(s.totalBankedMg, 1) + " mg", sub: fmt(s.totalBankedMg / s.stripMg, 1) + " strips · not extra dose" },
-      { lbl: "Lifetime ceiling", val: fmt(s.ceilingMg, 0) + " mg", sub: fmt(s.ceilingStrips, 1) + " strips if n and cycle length never change" },
+      s.cutMode === "linear"
+        ? { lbl: "Whole-run total", val: fmt(s.ceilingMg, 0) + " mg", sub: fmt(s.ceilingStrips, 1) + " strips — equal steps all the way to zero" }
+        : { lbl: "Lifetime ceiling", val: fmt(s.ceilingMg, 0) + " mg", sub: fmt(s.ceilingStrips, 1) + " strips if n and cycle length never change" },
       { lbl: "Vs staying at " + fmtG(s.startMg) + " mg", val: fmt(s.savedVsStayStrips, 1) + " strips", sub: "saves " + fmt(s.savedVsStayMg, 0) + " mg over " + s.endDay + " days" }
     ];
     $("cards").innerHTML = items.map((c) =>
@@ -1661,6 +1718,30 @@
         strips a day</strong>. Take the whole ones as they are and cut only the marked one;
         the cut mark below shows which. Set “Film strength you cut” if you hold a
         different strength.`);
+    }
+    if (s.cutMode === "linear") {
+      const ignored = [];
+      if (s.switch2mg) ignored.push("the 2 mg switch");
+      if (s.nBelow3) ignored.push("n below 3 mg");
+      if (ignored.length) {
+        msgs.push(`Ignored in this cut mode: <strong>${ignored.join(" and ")}</strong>.
+          The cut never gets thinner here, so there is nothing for a film switch to rescue,
+          and changing n partway would change the one step the mode is built on.`);
+      }
+      /* Equal milligrams are growing percentages, and that growth is the whole
+         safety story of this mode. State it in numbers, not adjectives. */
+      const drops = [];
+      for (let i = 1; i < s.rows.length; i++) {
+        const prev = s.rows[i - 1].dailyMg;
+        if (prev > 0) drops.push(100 * (prev - s.rows[i].dailyMg) / prev);
+      }
+      if (drops.length >= 2) {
+        msgs.push(`<strong>Equal cuts are not equal steps.</strong> Cycle to cycle this run drops
+          ${drops.map((d) => fmt(d, 0) + "%").join(", ")}${s.zeroDay != null ? ", and the cut after that is 100%" : ""}.
+          The percentage grows as the dose falls, so the hardest part of a linear taper is the
+          end — the opposite of the flat ${fmt(100 / s.n, 1)}% step the default mode holds the
+          whole way. Hold a cycle whenever you need to.`);
+      }
     }
     lastClampNotes.forEach((m) => msgs.push(m));
     $("warnings").innerHTML = msgs.length
@@ -2679,7 +2760,7 @@
         &nbsp;&nbsp;<span><span class="swatch" style="background:${C.switch}"></span>n=8</span>
         &nbsp;&nbsp;<span><span class="swatch" style="background:${C.warnBar}"></span>n=10</span>
       </div>`;
-    return svgFrame("n = 6 / 8 / 10 ladders over time", "Classic 8 mg films all the way, stopping just above 1 mg. Slower n stays higher for longer — and costs more total mg.", inner);
+    return svgFrame("n = 6 / 8 / 10 ladders over time", `${opts.cutMode === "linear" ? "Linear cuts" : "Classic"} 8 mg films all the way, stopping just above the target. Slower n stays higher for longer — and costs more total mg.`, inner);
   }
 
   /* Cumulative milligrams taken, against the straight line of never tapering.
@@ -2736,7 +2817,9 @@
       inner += `<rect data-cycle="${r.cycle}" x="${x}" y="${y}" width="${w}" height="${Math.max(h, 0)}" fill="${r.cutWarn ? C.warnBar : (r.cycle === selectedCycle ? C.accent : C.keepSoft)}" stroke="${r.switched2mg ? C.switch : C.keep}"/>`;
     });
     inner += "</svg>";
-    return svgFrame("Cut sliver length", "How much film you are shaving off each day. Under 1 mm you are at the limit of what a razor and ruler resolve.", inner);
+    return svgFrame("Cut sliver length", s.cutMode === "linear"
+      ? "How much film you are shaving off each day — the same every cycle, which is what makes this mode easy to cut. Under 1 mm you would be at the limit of what a razor and ruler resolve; a flat line never gets there."
+      : "How much film you are shaving off each day. Under 1 mm you are at the limit of what a razor and ruler resolve.", inner);
   }
 
   /* The chart above says how thin the sliver gets; this one says whether that
@@ -2858,7 +2941,7 @@
         &nbsp;&nbsp;<span class="swatch" style="background:#fdba74"></span>SAVE (right)
         · bar length = piece length that cycle
       </p>`;
-    return svgFrame("Physical film ladder", "Same geometry as the cut mark: long take on the left, short save on the right. Bars shrink each cycle.", inner, true);
+    return svgFrame("Physical film ladder", `Same geometry as the cut mark: long take on the left, short save on the right. Bars shrink each cycle${s.cutMode === "linear" ? ", but the save on the right never does — that is the constant cut" : ""}.`, inner, true);
   }
 
   /* Draw all eight charts into #charts and wire click-to-select on any mark
@@ -2893,7 +2976,7 @@
       return;
     }
     panel.style.display = "";
-    const rows = compareClassic(opts.startMg, opts.targetMg, opts.stripMg);
+    const rows = compareClassic(opts.startMg, opts.targetMg, opts.stripMg, opts.cutMode);
     /* The table is built from the live inputs, so the heading has to be too.
        It used to read "at ~1 mg" whatever the target was set to. */
     $("compareHead").textContent =
@@ -2965,6 +3048,7 @@
     $("targetMg").value = 1;
     $("stripMg").value = 8;
     $("filmStrengthMg").value = "";
+    $("cutMode").value = "geometric";
     $("holdDays").value = "";
     $("nBelow3").value = "";
     $("cutTolMm").value = 0.5;
