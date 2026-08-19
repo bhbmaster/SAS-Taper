@@ -53,6 +53,7 @@
       --field-line: #45403a;
       --head-bg: #211d1a;
       --tip-bg: #2b2622;
+      --key-cell: rgb(58 208 180 / 0.10);
       --row-hover: #262220;
       --banner-bg: #3d1f0d;
       --banner-line: #7c4a1e;
@@ -96,6 +97,7 @@
       --field-line: #d6d3d1;
       --head-bg: #faf8f4;
       --tip-bg: #1c1917;
+      --key-cell: rgb(15 107 92 / 0.09);
       --row-hover: #f5f0e6;
       --banner-bg: #ffedd5;
       --banner-line: #fdba74;
@@ -331,6 +333,24 @@
     /* ×N — how many films one day needs. Accent rather than a warning colour:
        a two-strip day is a normal plan, not a problem. */
     .pill.fx { background: var(--accent-soft); color: var(--accent); }
+    /* Units, set small and muted beside the column name. Kept out of the name
+       itself so the heading stays short — a wider heading is what pushes this
+       table into a sideways scroll on a phone. */
+    #schedTable th .u, .coldoc dt .u {
+      font-weight: 500;
+      font-size: 0.82em;
+      color: var(--muted);
+      letter-spacing: 0;
+      text-transform: none;
+      margin-left: 0.1em;
+    }
+    /* Daily and Cut at: the dose to take and the mark to cut at, the two the
+       reader does something with every morning. Tinted with an inset shadow
+       rather than a background, because the row states (selected, 2 mg switch,
+       thin sliver) set td backgrounds and would paint straight over it. */
+    #schedTable td.key { box-shadow: inset 0 0 0 999px var(--key-cell); font-weight: 700; }
+    #schedTable th.key { color: var(--ink); }
+    #schedTable th.key .u { color: var(--muted); }
     .kit {
       font-size: 0.83rem;
       margin: 0 0 0.6rem;
@@ -797,6 +817,7 @@
         --field-line: #d6d3d1;
         --head-bg: #faf8f4;
         --tip-bg: #1c1917;
+        --key-cell: rgb(0 0 0 / 0.055);
         --row-hover: #ffffff;
         --banner-bg: #ffedd5;
         --banner-line: #fdba74;
@@ -992,7 +1013,7 @@
           <tbody></tbody>
         </table>
       </div>
-      <p class="legend">Click a row to show its cut mark. Blue = restarted on a 2 mg film. Amber = sliver under 1 mm (stop shaving 8 mg films). ×N in the Film column = films needed per day; only one of them is cut.</p>
+      <p class="legend">Click a row to show its cut mark. Blue = restarted on a 2 mg film. Amber = sliver under 1 mm (stop shaving 8 mg films). ×N in the Film column = films needed per day; only one of them is cut. The two tinted columns are the ones you act on: <strong>Daily</strong> is what to take, <strong>Cut at</strong> is where to mark.</p>
       <details class="coldoc">
         <summary>What each column means</summary>
         <dl class="inputdoc" id="colDoc"></dl>
@@ -1112,7 +1133,7 @@
       <ul>
         <li>Cut along <strong>one axis only</strong>. Keep the full width; only shorten the length. Then length fraction = dose fraction. Cutting both dimensions loses the arithmetic.</li>
         <li>Use a fresh razor/craft blade and a ruler on a clean mat, not scissors. Mark before you cut. Cutting films is not manufacturer-sanctioned; the drug is distributed reasonably evenly, which is why this method is widely used.</li>
-        <li><strong>Cutting aids.</strong> A steel ruler and a fresh blade on a cutting mat is enough for most of the ladder. If your cuts wander, small purpose-made film slicers exist — search for “Suboxone film cutter” or “sub slicer”. A guided cut you can repeat beats a freehand one you cannot.</li>
+        <li><strong>Cutting aids.</strong> A steel ruler and a fresh blade on a cutting mat is enough for most of the ladder. If your cuts wander, small purpose-made film slicers exist — search for “Suboxone film cutter” or “subslicer”. A guided cut you can repeat beats a freehand one you cannot.</li>
         <li><strong>Doses below what you can cut.</strong> Some people move to liquid (volumetric) dosing at the very bottom: dissolve a film in a measured volume of water and draw a dose with an oral syringe — a 2 mg film in 20 mL is <em>theoretically</em> 0.1 mg/mL. Treat that number as arithmetic, not as a measurement. It is <strong>not manufacturer-sanctioned</strong> (the labelling says take the film whole), buprenorphine is only sparingly water-soluble so the real concentration can differ from the calculated one, a homemade solution is not sterile, and you only absorb what you hold under the tongue — swallowed, most of it is lost. <strong>Raise it with your prescriber before trying it.</strong> There may be a better route: quartered 2 mg films, a different product, or a properly compounded liquid.</li>
         <li>Saved slivers are surplus / a safety net. Do not add them back into the daily dose or the taper never drops. Store airtight and dry, separated by wax paper, and keep them locked up.</li>
         <li>The low end is where 8 mg films fail. Ask your prescriber for 2 mg films before you need them (around the time daily dose is heading through ~4 mg toward ~2 mg). A 2 mg film is one quarter the density of an 8 mg one, so the same dose is four times longer and the same cut is four times more forgiving.</li>
@@ -1803,19 +1824,35 @@
      One list feeds three things: the table headings, the hover tooltip on each
      heading, and the glossary under the table. Kept together because three
      copies of a definition is three chances to be wrong about the same number. */
+  /* Every schedule column: display name, unit, what it means, and whether it
+     is one of the two numbers a reader actually acts on.
+
+     One list feeds four things — the table headings, the unit under each
+     heading, the hover tooltip, and the glossary under the table. Four copies
+     of a definition is four chances to be wrong about the same number.
+
+     Units live here rather than in the header text so the name stays short and
+     the unit can be set small and muted: "Cut at" reads as a label, "mm" reads
+     as the thing it is measured in, and the column heading does not grow wide
+     enough to push the table into a sideways scroll on a phone.
+
+     key marks Daily and Cut at. Those are the two the reader does something
+     with every morning — the dose to take and the mark to cut at — and they are
+     the pair the calendar puts in each day cell. Everything else on the row is
+     context for them. */
   const COLUMN_DOC = [
-    ["Cycle", "Which step of the ladder. Click any row to draw its cut mark."],
-    ["Days", "The run days this cycle covers. Every day inside it is identical: same dose, same cut."],
-    ["Film", "Strength of the film you are cutting. ×N means the day needs N of them; only one is ever cut."],
-    ["Cut from", "The whole strip you start the day holding, in mg — before today's cut comes off."],
-    ["Daily", "What you actually take each day of this cycle, in mg. Cut from − Sliver."],
-    ["Sliver", "The piece you cut off and save each day, in mg. Never swallow it as extra dose."],
-    ["Piece mm", "That whole strip as a length, across however many films the day needs."],
-    ["Cut at", "Where to mark, in mm from the right end of the piece in hand. This is the number you measure."],
-    ["Cycle mg", "Total taken over the whole cycle: Daily × Days."],
-    ["Cum mg", "Running total taken since day 1."],
-    ["Cum strips", "The same running total as whole films, at the strip strength you set."],
-    ["Banked", "What the save jar gains this cycle. A buffer if you need to step back up — not a second dose."],
+    ["Cycle", "", false, "Which step of the ladder. Click any row to draw its cut mark."],
+    ["Days", "", false, "The run days this cycle covers. Every day inside it is identical: same dose, same cut."],
+    ["Film", "", false, "Strength of the film you are cutting. ×N means the day needs N of them; only one is ever cut."],
+    ["Cut from", "mg", false, "The whole strip you start the day holding, before today's cut comes off."],
+    ["Daily", "mg", true, "What you actually take each day of this cycle. Cut from − Sliver. One of the two numbers you act on."],
+    ["Sliver", "mg", false, "The piece you cut off and save each day. Never swallow it as extra dose."],
+    ["Piece", "mm", false, "That whole strip as a length, across however many films the day needs."],
+    ["Cut at", "mm", true, "Where to mark, measured from the right end of the piece in hand. This is the number you measure. One of the two numbers you act on."],
+    ["Used", "mg", false, "Total taken over the whole cycle: Daily × Days."],
+    ["Cum", "mg", false, "Running total taken since day 1."],
+    ["Cum", "strips", false, "The same running total as whole films, at the strip strength you set."],
+    ["Banked", "mg", false, "What the save jar gains this cycle. A buffer if you need to step back up — not a second dose."],
   ];
 
   /* The cycle table. Takes the schedule, writes into #schedTable and wires
@@ -1824,8 +1861,9 @@
   function renderSchedule(s) {
     /* One place for the column meanings: the header tooltips, the glossary
        under the table, and nothing else. Two copies of this would drift. */
-    const thead = `<tr>${COLUMN_DOC.map(([name, tip], i) =>
-      `<th${i === 0 ? ' class="left"' : ""} data-tip="${esc(tip)}" tabindex="0">${name}</th>`
+    const thead = `<tr>${COLUMN_DOC.map(([name, unit, key, tip], i) =>
+      `<th class="${i === 0 ? "left " : ""}${key ? "key" : ""}" data-tip="${esc(tip)}" tabindex="0">`
+      + `${name}${unit ? ` <span class="u">${unit}</span>` : ""}</th>`
     ).join("")}</tr>`;
     $("schedTable").querySelector("thead").innerHTML = thead;
     const tb = $("schedTable").querySelector("tbody");
@@ -1844,10 +1882,10 @@
         <td>${r.dayStart}–${r.dayEnd}</td>
         <td>${fmtG(r.filmMg)} mg${r.filmsOut > 1 ? ` <span class="pill fx">×${r.filmsOut}</span>` : ""}</td>
         <td>${fmt(r.cutFromMg, 2)}</td>
-        <td>${fmt(r.dailyMg, 2)}</td>
+        <td class="key">${fmt(r.dailyMg, 2)}</td>
         <td>${fmt(r.sliverMg, 2)}</td>
         <td>${fmt(r.pieceMm, 1)}</td>
-        <td>${fmt(r.cutMm, 2)}</td>
+        <td class="key">${fmt(r.cutMm, 2)}</td>
         <td>${fmt(r.usedMg, 1)}</td>
         <td>${fmt(r.cumMg, 1)}</td>
         <td>${fmt(r.cumStrips, 1)}</td>
@@ -1862,8 +1900,8 @@
     });
     /* Same list as the headers and their tooltips. Written once here rather
        than in the markup so the three can never disagree. */
-    $("colDoc").innerHTML = COLUMN_DOC.map(([name, tip]) =>
-      `<div><dt>${name}<span class="sep"> — </span></dt><dd>${tip}</dd></div>`
+    $("colDoc").innerHTML = COLUMN_DOC.map(([name, unit, key, tip]) =>
+      `<div><dt>${name}${unit ? ` <span class="u">${unit}</span>` : ""}${key ? ` <span class="pill fx">act on this</span>` : ""}<span class="sep"> — </span></dt><dd>${tip}</dd></div>`
     ).join("");
   }
 

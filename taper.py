@@ -164,7 +164,7 @@ Practical notes
   distributed reasonably evenly, which is why this method is widely used.
 - Cutting aids. A steel ruler and a fresh blade on a mat is enough for most of
   the ladder. If your cuts wander, small purpose-made film slicers exist —
-  search "Suboxone film cutter" or "sub slicer". A guided cut you can repeat
+  search "Suboxone film cutter" or "subslicer". A guided cut you can repeat
   beats a freehand one you cannot.
 - Doses below what you can cut. Some people move to liquid (volumetric) dosing
   at the very bottom: dissolve a film in a measured volume of water and draw a

@@ -466,6 +466,49 @@ const probe = () => {
       checks++;
       if (cols !== 12) failures.push(`schedule has ${cols} documented headers, expected 12`);
 
+      /* Units live in their own span so they can be small and muted, and the
+         name and the unit need a real space between them — a CSS margin looks
+         right and still reads as "Cut frommg" to a screen reader. */
+      const units = await page.evaluate(() =>
+        [...document.querySelectorAll("#schedTable thead th")].map((th) => {
+          const u = th.querySelector(".u");
+          return { name: th.firstChild.textContent, unit: u ? u.textContent : "", text: th.textContent };
+        }));
+      checks++;
+      const withUnits = units.filter((u) => u.unit).length;
+      if (withUnits !== 9) failures.push(`${withUnits} headers carry a unit, expected 9`);
+      for (const u of units) {
+        if (u.unit && !/ $/.test(u.name)) {
+          failures.push(`header "${u.text}" runs its unit into the name`);
+        }
+      }
+
+      /* The two the reader acts on — the dose and the mark — are tinted. The
+         tint is an inset shadow, not a background, because the row states set
+         td backgrounds and would paint straight over it; check it survives on
+         a 2 mg switch row, which is where that would show up. */
+      const keyCols = await page.evaluate(() => {
+        const head = [...document.querySelectorAll("#schedTable thead th")];
+        const rows = [...document.querySelectorAll("#schedTable tbody tr")];
+        const idx = head.map((th, i) => th.classList.contains("key") ? i : -1).filter((i) => i >= 0);
+        const perRow = rows.map((tr) => [...tr.children].map((td, i) => td.classList.contains("key") ? i : -1).filter((i) => i >= 0));
+        const sw = document.querySelector("#schedTable tbody tr.switch td.key");
+        return {
+          idx,
+          names: idx.map((i) => head[i].firstChild.textContent.trim()),
+          consistent: perRow.every((r) => r.join() === idx.join()),
+          tintedOnSwitchRow: sw ? getComputedStyle(sw).boxShadow !== "none" : null,
+        };
+      });
+      checks++;
+      if (keyCols.names.join("/") !== "Daily/Cut at") {
+        failures.push(`tinted columns are ${keyCols.names.join("/") || "none"}, expected Daily/Cut at`);
+      }
+      if (!keyCols.consistent) failures.push("tinted columns differ between header and body");
+      if (keyCols.tintedOnSwitchRow === false) {
+        failures.push("the tint disappears on a 2 mg switch row");
+      }
+
       /* Bounded by what is actually there: a missing column should be reported
          by the count check above, not crash the run in page.hover(). */
       for (const nth of [1, 8, 12].filter((i) => i <= cols)) {
