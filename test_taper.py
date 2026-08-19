@@ -474,31 +474,44 @@ class TestMultiFilmMatrix(unittest.TestCase):
               16.0, 18.0, 20.0, 24.0, 28.0, 32.0]
     NS = [2, 3, 4, 6, 10, 30]
     STRENGTHS = [None, 2.0, 4.0, 8.0, 12.0]
+    MODES = ["geometric", "linear"]
 
     @classmethod
     def setUpClass(cls):
         cls.grid = []
-        for start in cls.STARTS:
-            for n in cls.NS:
+        for mode in cls.MODES:
+            for start in cls.STARTS:
+                for n in cls.NS:
+                    for strength in cls.STRENGTHS:
+                        cls.grid.append(cls._build(start, n, strength, 22.0, True, mode))
+            # Non-default film lengths, and the 2 mg switch off, on a thinner
+            # slice: the length only scales millimetres, so it does not need
+            # the full cross.
+            for start in cls.STARTS:
                 for strength in cls.STRENGTHS:
-                    cls.grid.append(cls._build(start, n, strength, 22.0, True))
-        # Non-default film lengths, and the 2 mg switch off, on a thinner slice:
-        # the length only scales millimetres, so it does not need the full cross.
-        for start in cls.STARTS:
-            for strength in cls.STRENGTHS:
-                for length in (20.0, 30.0):
-                    cls.grid.append(cls._build(start, 6, strength, length, True))
-                cls.grid.append(cls._build(start, 8, strength, 22.0, False))
+                    for length in (20.0, 30.0):
+                        cls.grid.append(cls._build(start, 6, strength, length, True, mode))
+                    cls.grid.append(cls._build(start, 8, strength, 22.0, False, mode))
 
     @classmethod
-    def _build(cls, start, n, strength, length, switch):
+    def _build(cls, start, n, strength, length, switch, mode="geometric"):
         sched = build_schedule(
             start_mg=start, n=n, film_strength_mg=strength, film_mm=length,
             film_2mg_mm=length, switch_2mg=switch, strip_mg=8.0,
-            target_mg=min(1.0, start / 2),
+            target_mg=min(1.0, start / 2), cut_mode=mode,
         )
-        label = f"start={start:g} n={n} strength={strength} len={length:g} switch={switch}"
+        label = (f"{mode} start={start:g} n={n} strength={strength} "
+                 f"len={length:g} switch={switch}")
         return label, sched
+
+    def each_schedule(self):
+        """(label, schedule, whole-film length for its base strength).
+
+        For the properties that compare a cycle with the one before it, which
+        each_row() cannot see.
+        """
+        for label, sched in self.grid:
+            yield label, sched
 
     def each_row(self):
         """(label, schedule, row, whole-film length) for every cycle in the grid."""
@@ -577,6 +590,110 @@ class TestMultiFilmMatrix(unittest.TestCase):
             take_mm = row.piece_mm - row.cut_mm
             self.assertEqual(row.films_out, math.ceil(take_mm / full - 1e-9), msg=tag)
             self.assertLessEqual(row.films_out, math.ceil(row.piece_mm / full - 1e-9), msg=tag)
+
+    def test_take_and_save_partition_the_films_you_opened(self):
+        """Nothing between the two, in either unit.
+
+        This is the promise the tinted block of the schedule makes: what you do
+        not swallow, you jar, and the two add back up to whole films with
+        nothing unaccounted for.
+        """
+        for tag, _, row, full in self.each_row():
+            self.assertAlmostEqual(
+                row.take_mm + row.save_mm, row.films_out * full, places=8, msg=tag)
+            self.assertAlmostEqual(
+                row.save_mg + row.daily_mg, row.films_out * row.film_mg, places=8, msg=tag)
+            per_mm = row.film_mg / full
+            self.assertAlmostEqual(row.take_mm * per_mm, row.daily_mg, places=8, msg=tag)
+            self.assertAlmostEqual(row.save_mm * per_mm, row.save_mg, places=8, msg=tag)
+            self.assertGreaterEqual(row.save_mm, -1e-12, msg=tag)
+            self.assertLessEqual(row.save_mm, full + 1e-9, msg=tag)
+
+    def test_delta_save_is_the_sliver_whenever_it_is_reported(self):
+        """The identity the whole column rests on.
+
+        take(k−1) is piece(k), so the difference of two "full minus take"
+        figures is exactly this cycle's sliver — as long as the day still opens
+        the same films off the same strip. The one reported case where it is
+        not the sliver is the first cut of a run, where the comparison is
+        against an empty jar and the delta is the whole save.
+        """
+        checked = first_cuts = 0
+        for tag, sched in self.each_schedule():
+            prev = None                       # the last cycle that cut a film
+            for row in sched.rows:
+                if row.delta_save_mm is not None:
+                    self.assertGreaterEqual(
+                        row.delta_save_mm, -1e-12,
+                        msg=f"{tag} cycle={row.cycle}: the jar went backwards")
+                    if prev is None:
+                        first_cuts += 1
+                        self.assertAlmostEqual(
+                            row.delta_save_mm, row.save_mm, places=8,
+                            msg=f"{tag} cycle={row.cycle}")
+                    else:
+                        checked += 1
+                        self.assertAlmostEqual(
+                            row.delta_save_mm, row.cut_mm, places=8,
+                            msg=f"{tag} cycle={row.cycle}")
+                        self.assertAlmostEqual(
+                            row.delta_save_mm, row.save_mm - prev.save_mm, places=8,
+                            msg=f"{tag} cycle={row.cycle}")
+                if row.cut_take_mm > 1e-9:
+                    prev = row
+        self.assertGreater(checked, 5000, "almost no deltas were compared")
+        self.assertGreater(first_cuts, 500, "no first cuts were compared")
+
+    def test_delta_save_is_blank_exactly_when_it_should_be(self):
+        """Three reasons and no others, each one actually reached by the grid.
+
+        A dash that appeared for a fourth, unnamed reason would be a column
+        the reader cannot trust; a reason that never fires would be a claim in
+        the glossary with nothing behind it.
+        """
+        seen = Counter()
+        for tag, sched in self.each_schedule():
+            prev = None
+            for row in sched.rows:
+                no_cut = row.cut_take_mm <= 1e-9
+                dropped = prev is not None and prev.take_films != row.take_films
+                reason = (
+                    "no cut" if no_cut else
+                    "2 mg restart" if row.switched_2mg else
+                    "film count changed" if dropped else None
+                )
+                if row.delta_save_mm is None:
+                    self.assertIsNotNone(
+                        reason, msg=f"{tag} cycle={row.cycle}: blank for no stated reason")
+                    seen[reason] += 1
+                else:
+                    self.assertIsNone(
+                        reason, msg=f"{tag} cycle={row.cycle}: {reason} should blank it")
+                if not no_cut:
+                    prev = row
+        for reason in ("no cut", "2 mg restart", "film count changed"):
+            self.assertGreater(seen[reason], 0, f"the grid never reached: {reason}\n{seen}")
+
+    def test_the_save_grows_every_cycle_it_is_comparable(self):
+        """The claim the method is sold on — the jar's share keeps rising.
+
+        Only between reported deltas: a 2 mg restart and a dropped film both
+        genuinely shrink the save, which is why they show a dash rather than a
+        negative number.
+        """
+        grew = 0
+        for tag, sched in self.each_schedule():
+            prev = None
+            for row in sched.rows:
+                if row.delta_save_mm is not None and prev is not None:
+                    if row.cut_mm > 1e-9:
+                        self.assertGreater(
+                            row.save_mm, prev.save_mm,
+                            msg=f"{tag} cycle={row.cycle}: the save did not grow")
+                        grew += 1
+                if row.cut_take_mm > 1e-9:
+                    prev = row
+        self.assertGreater(grew, 5000, "almost nothing was checked for growth")
 
     def test_the_sliver_is_measured_from_the_piece_not_the_film(self):
         """The mark is cut_save_mm in from the right of the strip ON the marked
@@ -762,5 +879,35 @@ class TestSummary(unittest.TestCase):
         self.assertAlmostEqual(build_schedule().r, 5 / 6)
 
 
+def _count_assertions() -> dict:
+    """Wrap TestCase's assert methods with a counter.
+
+    Most of what this file checks lives inside matrix loops, so "61 tests" says
+    almost nothing about how much is actually verified — one of those tests
+    makes tens of thousands of assertions. Counting them keeps the number in
+    the README honest without anyone having to remember to update it.
+    """
+    tally = {"n": 0}
+    for name in dir(unittest.TestCase):
+        if not name.startswith("assert") or "_" in name[6:]:
+            continue
+        original = getattr(unittest.TestCase, name)
+        if not callable(original):
+            continue
+
+        def wrap(fn):
+            def counted(self, *args, **kwargs):
+                tally["n"] += 1
+                return fn(self, *args, **kwargs)
+            return counted
+
+        setattr(unittest.TestCase, name, wrap(original))
+    return tally
+
+
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    tally = _count_assertions()
+    suite = unittest.TestLoader().loadTestsFromModule(__import__("__main__"))
+    result = unittest.TextTestRunner(verbosity=2).run(suite)
+    print(f"\n{result.testsRun} tests, {tally['n']:,} assertions")
+    raise SystemExit(0 if result.wasSuccessful() else 1)

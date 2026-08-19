@@ -204,9 +204,11 @@ So the save is not the sliver. It is the sliver *plus everything earlier cycles 
 delta_save_mm = save_mm(k) − save_mm(k−1) ≡ cut_mm(k)
 ```
 
-The identity holds because `take(k−1)` is `piece(k)`: the difference of two "full minus take" figures is exactly this cycle's sliver. Two things break it, and both make "extra" meaningless rather than merely different — a **2 mg restart** puts a different film underneath, and a cycle that **drops a whole film** from the day changes how much film is opened at all. A day with **no cut** breaks it too, having nothing to compare. In all three `delta_save_mm` is `None` and every surface shows a dash.
+The identity holds because `take(k−1)` is `piece(k)`: the difference of two "full minus take" figures is exactly this cycle's sliver. Two things break it, and both make "extra" meaningless rather than merely different — a **2 mg restart** puts a different film underneath, and a cycle that **drops a whole film** from the day changes how much film is opened at all. A day with **no cut** breaks it too, having nothing to compare. In all three `delta_save_mm` is `None` and every surface shows a dash. A no-cut cycle also leaves the baseline where it was, so the next real cut is compared with the last real cut rather than with zero.
 
-`banked_mg` is a different accounting and stays that way: it is the *ladder's* count of the sliver, `days × sliver`, which is exactly one whole piece per full cycle and is the buffer the method is built around. `save_mm` is what leaves the film in front of you today. Both are true; the glossary says which is which.
+The one reported case where the delta is *not* the sliver is the **first cut of a run**, where the baseline is still an empty jar and the delta is the whole save. Both front ends detect that (`delta == save`) and word it "the first cut of this strip" rather than "more than last cycle", which beside an identical SAVE figure would read as a mistake.
+
+`banked_mg` is a different accounting and stays that way: it is the *ladder's* count of the sliver, `days × sliver`, exactly one whole piece per full cycle. That is the method's milestone and the buffer it promises — deliberately **not** a tally of every offcut a reader physically ends up holding, which depends on whether a big offcut can serve as a whole dose and is outside what this tool models. `save_mm` is what leaves the film in front of you today. Both are true, and the glossary says which is which rather than letting one stand in for the other.
 
 ### Film layout — one day across several strips
 
@@ -287,7 +289,7 @@ One row per cycle, 28 fields, identical on both sides (camelCase in JS, snake_ca
 | millimetres | `piece_mm`, `cut_mm` |
 | what you act on | `take_mm`, `save_mm`, `save_mg`, `delta_save_mm` (`None` where nothing is comparable) |
 | film layout | `films_out`, `take_films`, `cut_take_mm`, `cut_save_mm`, `spare_mm` |
-| running totals | `used_mg`, `cum_mg`, `cum_strips`, `banked_mg`, `cum_banked_mg` |
+| running totals | `used_mg`, `sum_mg`, `sum_strips`, `banked_mg`, `sum_banked_mg` |
 | flags | `switched_2mg`, `cut_warn`, `n_changed` |
 
 `ScheduleResult` wraps the rows with the echoed inputs (including `cut_mode`), the derived `r` / `ceiling_mg` / `base_film_mg`, `zero_day` for a linear run that reaches it, ten summary figures filled in by `_fill_summary`, the 30-day `months` buckets, and two honesty flags — `truncated` (hit the 40-cycle cap before the target) and `switch_never_fired`.
@@ -319,9 +321,19 @@ Several things are placed from measured pixels rather than by normal flow, and *
 | `pinStripCutLabel()` | the "today's cut" caption over the cut line, widening its mat to fit |
 | `fitBandLabels()` | steps each band's label down — full → short → nothing — checking **both** width and height |
 | `calMeasure()` | one cycle's cut as the three numbers a day cell can show — `save`, `take`, `delta` — with the mode picking which |
+| `renderCalLegend()` | the worked day cell above the grid: one real day, its three lines named, and a swatch per cell state |
 | `fitCalCells()` | measures every calendar number and shrinks the ones that overflow their cell |
 
 All four re-run on resize as well as on render, because a rotation leaves the old offsets describing the old width.
+
+`fitCalCells()` only works because `.cal-cell .mg` and `.cal-cell .cut` are `white-space: nowrap`. It compares `scrollWidth` with `clientWidth`, and a line allowed to wrap never overflows — it grows a fourth row and pushes the whole calendar taller instead. That is exactly what happened the moment units were added to the cell values.
+
+Cells are far tighter than the window suggests: three month grids sit side by side, so a day is about **36–44 px wide however large the screen is**. Two things were dropped to make room for units there, both because something else on the page already says them:
+
+- **The mode word.** "save 11.39 mm" wants 70 px in 36 px. The mode is named on the button, in the legend and in the key under the grid; "mm" is the only thing saying what the number is, so the word goes and the unit stays.
+- **The ×N pill, when it is what does not fit.** "13.33 mg ×2" wants 48 px in the 44 px a two-strip run gets at 768 px. `fitCalCells()` adds `no-fx` to the panel and re-measures. ×N is constant across a whole cycle and is already on the schedule row, the cut mark, the day's tooltip and the key — and it is dropped from every cell at once, because a grid where some days carry ×2 and others do not is a lie about the days that do not. The 420 px tier drops it for the same reason; this decides by measurement instead of by a fixed width.
+
+The legend is built from a real day of the current run, never from invented numbers: this is a tool people dose from, and a plausible-looking fabricated figure beside real ones is the kind of number the project rules forbid. Its swatches are the same custom properties the real cells use, so light, dark and print follow with nothing to keep in step — and the layout sweep asserts none of them computes to transparent, which is what a token missing from one theme block looks like.
 
 `fitCalCells` writes a `--fit` multiplier that the CSS applies on top of whichever breakpoint tier is active, rather than trying to out-specify four tiers of hardcoded font sizes.
 
@@ -364,15 +376,21 @@ The two Node suites share `test_browser.js`, which looks for a browser in `CHROM
 
 That skip is right locally and wrong in CI, where it would be a green tick over a page nobody tested, so the workflow has an explicit gate: after installing the browser it calls `findBrowser()` and fails the job if the answer is null. Note the skip only covers a *missing binary* — a browser that exists but fails to launch throws, and both suites exit 1.
 
-### `test_taper.py` — 57 checks
+### `test_taper.py` — 61 tests, ~482,000 assertions
 
-Standard library, no I/O, runs in under half a second.
+Standard library, no I/O, runs in about a second.
+
+The test count is the misleading number here: most of these walk a matrix, so
+one test method can make tens of thousands of assertions. The runner wraps
+`TestCase`'s assert methods with a counter and prints the real total on the
+last line, which is where the figure above comes from — nobody has to remember
+to update it.
 
 Named classes cover the closed forms against the simulation, the per-cycle invariants, that the daily dose never rises across a film switch, the published film geometry, the summary figures, and worked multi-film examples a reader can follow.
 
 `TestLinearCutMode` covers the second cut mode: the cut never changes in either unit, the dose falls in equal steps, it lands on zero after exactly `n − 1` of them, no cycle ever has a zero or negative dose, the closed form matches the simulation, it still stops at a target above zero, the percentage step grows every cycle, the two geometric rescues are switched off, the cut never goes thin where geometric would, and the default mode is untouched.
 
-`TestMultiFilmMatrix` covers the *space* rather than examples: **720 ladders, 10,597 cycles** — start doses 1 to 32 mg against all four official strengths, `n` from 2 to 30, three film lengths, the 2 mg switch both ways — built once in `setUpClass` and walked by six property tests:
+`TestMultiFilmMatrix` covers the *space* rather than examples: **1,440 ladders, 15,422 cycles** — start doses 1 to 32 mg against all four official strengths, `n` from 2 to 30, three film lengths, the 2 mg switch both ways, **both cut modes** — built once in `setUpClass` and walked by ten property tests:
 
 | Property | Why |
 |---|---|
@@ -382,10 +400,14 @@ Named classes cover the closed forms against the simulation, the per-cycle invar
 | exactly one film a day is ever cut | two marks means two measurements a day |
 | you open exactly the films the dose needs | never one more; a film that would go straight to the jar stays in the box |
 | the sliver is measured from the piece, not the film | the film's right end is elsewhere |
+| take and save partition the films you opened, in mm and mg | the tinted block promises nothing falls between them |
+| Δ save is the sliver wherever it is reported, and never negative | the identity the column rests on |
+| Δ save is blank for exactly the three stated reasons | a fourth, unnamed reason would be a column the reader cannot trust — and a stated reason the grid never reaches would be a claim with nothing behind it |
+| the save grows on every cycle that reports a Δ | the thing the method is sold on |
 
 `TestTakeAndSave` covers the pair the reader acts on: take and save partition the film with nothing between them, the worked default by hand, linear mode saving the same extra every cycle while the total climbs by that step, and the three cases where `delta_save_mm` has to be `None` — a 2 mg restart, a cycle that drops a whole film, and a day that lands on a film boundary and saves nothing without moving the baseline for the next real cut.
 
-A seventh test checks **the shape of the coverage itself** — that the matrix really does produce days of 1 through 16 films, days needing a second cut film, and days with nothing to cut. A grid that quietly stopped generating multi-film days would otherwise pass everything above while testing nothing.
+An eleventh test checks **the shape of the coverage itself** — that the matrix really does produce days of 1 through 16 films, days needing a second cut film, and days with nothing to cut. A grid that quietly stopped generating multi-film days would otherwise pass everything above while testing nothing.
 
 ### `test_parity.js` — 1,323 schedules
 
@@ -396,13 +418,13 @@ Two phases:
 - **43 named cases** go through the CLI (`python3 taper.py --json`), so the argument plumbing is covered too. Start doses 0.1–64 mg, `n` 2–30, the switch both ways, stretched cycles, `n`-below-3, non-default lengths and strengths, clamp boundaries, empty ladders.
 - **1,280 matrix cases** go straight at `build_schedule()` in one Python process — 1 to 32 mg × all four strengths × `n` 2–30 × **both cut modes**, plus non-default film lengths. **13,567 cycles**, compared field by field.
 
-Every one of the 28 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
+Every one of the 28 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes — **about 463,000 field comparisons**, which the suite counts as it goes and prints. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
 
 The months and the comparison table were the last two things written twice and checked nowhere: `compareRows` only walks rows and `compareSummary` only walks scalars, so `monthly_usage()` and `compare_classic()` could have drifted from their JS twins in silence.
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js` — 570 viewport states
+### `test_layout.js` — 537 viewport states, 571 checks
 
 Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
 

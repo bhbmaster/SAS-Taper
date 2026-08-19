@@ -37,7 +37,9 @@ Without a browser the two Node suites print `skipped` and exit 0. That is delibe
 
 A guard that has never been observed failing is not yet a guard. Inject the fault it is supposed to catch, watch the suite go red, then revert the injection. The PR history has four worked examples of this.
 
-Prefer properties over fixtures for anything with a range of inputs. `TestMultiFilmMatrix` walks 720 ladders and asserts six properties per cycle; that has found real bugs that hand-picked cases missed twice now. When you add a matrix, also assert **the shape of its own coverage**, so it fails rather than quietly stops covering the interesting cases.
+Prefer properties over fixtures for anything with a range of inputs. `TestMultiFilmMatrix` walks 1,440 ladders and asserts ten properties per cycle; that has found real bugs that hand-picked cases missed twice now. When you add a matrix, also assert **the shape of its own coverage**, so it fails rather than quietly stops covering the interesting cases — and, where the code has named reasons for doing something (the three that blank `delta_save_mm`), assert that each named reason is actually reached.
+
+Each suite prints how much it checked, not just how many tests ran: assertions for `test_taper.py`, field comparisons for `test_parity.js`, states and checks for `test_layout.js`. Those totals are the numbers the README quotes, so read them off a run rather than guessing.
 
 **4. Update every doc the change touches.**
 

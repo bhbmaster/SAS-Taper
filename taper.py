@@ -242,9 +242,10 @@ class CycleRow:
     cut_from_mg is the piece you start the cycle holding; daily_mg is what you
     take each day after removing sliver_mg. piece_mm and cut_mm are the same two
     quantities in millimetres of film — totals for the day, which can exceed one
-    film when the dose does. banked_mg is what the save jar gains over the
-    cycle, which equals one whole piece when days == n. cut_warn flags a sliver
-    under CUT_WARN_MM, where hand-cutting stops being meaningful.
+    film when the dose does. banked_mg is the cycle's slivers added up, which
+    is exactly one whole piece when days == n — the method's milestone, not a
+    tally of every offcut the reader physically ends up holding. cut_warn flags
+    a sliver under CUT_WARN_MM, where hand-cutting stops being meaningful.
 
     take_mm / save_mg / save_mm are the three numbers the reader acts on at the
     strip, and they are about the film in front of them rather than the ladder:
@@ -288,10 +289,10 @@ class CycleRow:
     cut_save_mm: float
     spare_mm: float
     used_mg: float
-    cum_mg: float
-    cum_strips: float
+    sum_mg: float
+    sum_strips: float
     banked_mg: float
-    cum_banked_mg: float
+    sum_banked_mg: float
     switched_2mg: bool
     cut_warn: bool
     n_changed: bool
@@ -443,7 +444,7 @@ def film_layout(
     Returns:
         A FilmLayout. Guarantees:
           take_films * film_mm + cut_take_mm  == the day's TAKE length
-          cut_save_mm + spare_mm              == the day's SAVE length
+          cut_save_mm + spare_mm              == the day's SLIVER length
           films_out                           == the films you actually open
         and at most one of them carries a mark.
     """
@@ -599,8 +600,8 @@ def build_schedule(
     switched = False
     already_switched_n = False
     day = 0
-    cum_mg = 0.0
-    cum_banked = 0.0
+    sum_mg = 0.0
+    sum_banked = 0.0
     truncated = False
     prev_daily: Optional[float] = None
     prev_save_mm: Optional[float] = 0.0
@@ -702,8 +703,8 @@ def build_schedule(
 
         day_start = day + 1
         day_end = day + days
-        cum_mg += used
-        cum_banked += banked
+        sum_mg += used
+        sum_banked += banked
 
         rows.append(
             CycleRow(
@@ -728,10 +729,10 @@ def build_schedule(
                 cut_save_mm=lay.cut_save_mm,
                 spare_mm=lay.spare_mm,
                 used_mg=used,
-                cum_mg=cum_mg,
-                cum_strips=cum_mg / strip_mg,
+                sum_mg=sum_mg,
+                sum_strips=sum_mg / strip_mg,
                 banked_mg=banked,
-                cum_banked_mg=cum_banked,
+                sum_banked_mg=sum_banked,
                 switched_2mg=just_switched,
                 cut_warn=cut_mm < CUT_WARN_MM,
                 n_changed=n_changed,
@@ -802,9 +803,9 @@ def _fill_summary(
         return
     result.end_day = rows[-1].day_end
     result.end_daily_mg = rows[-1].daily_mg
-    result.total_mg = rows[-1].cum_mg
-    result.total_strips = rows[-1].cum_strips
-    result.total_banked_mg = rows[-1].cum_banked_mg
+    result.total_mg = rows[-1].sum_mg
+    result.total_strips = rows[-1].sum_strips
+    result.total_banked_mg = rows[-1].sum_banked_mg
     result.stay_mg = result.start_mg * result.end_day
     result.saved_vs_stay_mg = result.stay_mg - result.total_mg
     result.saved_vs_stay_strips = result.saved_vs_stay_mg / result.strip_mg
@@ -1319,7 +1320,7 @@ def print_schedule(
     # gets than last cycle. Everything after them is running totals.
     headers = [
         "Cyc", "Days", "Film", "Take mg", "Take mm", "Save mg", "Save mm",
-        "+Save mm", "Cycle mg", "Cum mg", "Cum strips", "Banked",
+        "+Save mm", "Cycle mg", "Sum mg", "Sum strips", "Banked",
     ]
     print("Take = the dose and where to mark it, from the LEFT end of a full film.")
     print("Save = everything right of that mark, which all goes in the jar.")
@@ -1347,13 +1348,13 @@ def print_schedule(
                 f"{row.day_start}–{row.day_end}",
                 film,
                 f"{row.daily_mg:5.2f}",
-                f"{row.take_mm:5.1f}",
+                f"{row.take_mm:5.2f}",
                 f"{row.save_mg:5.2f}",
                 f"{row.save_mm:5.2f}",
                 "    —" if row.delta_save_mm is None else f"{row.delta_save_mm:5.2f}",
                 f"{row.used_mg:6.1f}",
-                f"{row.cum_mg:7.1f}",
-                f"{row.cum_strips:6.1f}",
+                f"{row.sum_mg:7.1f}",
+                f"{row.sum_strips:6.1f}",
                 f"{row.banked_mg:5.2f}",
         ]
         if start_date is not None:
@@ -1414,7 +1415,7 @@ def print_schedule(
         f"{sched.strip_mg:g} mg strips)"
     )
     print(
-        f"  Banked (buffer, not ingested): {sched.total_banked_mg:.1f} mg "
+        f"  Slivers banked (buffer, not ingested): {sched.total_banked_mg:.1f} mg "
         f"({sched.total_banked_mg / sched.strip_mg:.1f} strips)"
     )
     print(
