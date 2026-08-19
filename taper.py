@@ -123,10 +123,12 @@ Two cut modes (--cut-mode)
       the dose does, so every cycle is the same PERCENTAGE step — 16.7% at n=6,
       all the way down. The dose keeps halving and never quite reaches zero, so
       you pick a target and stop there.
-  linear               Cut the same AMOUNT every cycle: 1/n of the original
+  linear (easier to cut)  Cut the same AMOUNT every cycle: 1/n of the original
       strip, the same milligrams and the same millimetres from the first day to
       the last. The dose falls in equal steps and lands on zero after n-1 of
       them — 8 mg at n=6 goes 6.67, 5.33, 4.00, 2.67, 1.33, then nothing.
+      Easier because the mark never moves: measure once, reuse it every day,
+      and it never shrinks under a millimetre where a razor stops resolving.
 
   Same cut, very different shape. Equal steps in milligrams are growing steps in
   percentage: that run drops 20%, then 25%, 33%, 50%, and the last step is 100%.
@@ -160,6 +162,19 @@ Practical notes
 - Use a fresh razor/craft blade and a ruler on a clean mat, not scissors. Mark
   before you cut. Cutting films is not manufacturer-sanctioned; the drug is
   distributed reasonably evenly, which is why this method is widely used.
+- Cutting aids. A steel ruler and a fresh blade on a mat is enough for most of
+  the ladder. If your cuts wander, small purpose-made film slicers exist —
+  search "Suboxone film cutter" or "sub slicer". A guided cut you can repeat
+  beats a freehand one you cannot.
+- Doses below what you can cut. Some people move to liquid (volumetric) dosing
+  at the very bottom: dissolve a film in a measured volume of water and draw a
+  dose with an oral syringe. A 2 mg film in 20 mL is THEORETICALLY 0.1 mg/mL —
+  arithmetic, not a measurement. It is not manufacturer-sanctioned (the
+  labelling says take the film whole), buprenorphine is only sparingly
+  water-soluble so the real concentration can differ from the calculated one, a
+  homemade solution is not sterile, and you only absorb what you hold under the
+  tongue. Raise it with your prescriber first; quartered 2 mg films, a different
+  product, or a compounded liquid may be the better route.
 - Saved slivers are surplus / a safety net. Do not add them back into the daily
   dose or the taper never drops. Store airtight and dry, separated by wax paper,
   and keep them locked up. Buprenorphine is severely dangerous to kids and pets.
@@ -181,9 +196,10 @@ Practical notes
   percentage grow, which reaches zero on a schedule but makes the last steps the
   biggest ones you will have taken. Either way, holding a cycle is always
   available and never a failure.
-- One practical point for linear: because the cut never gets thinner, it never
-  gets harder. The same mark and the same razor every day — no sliver under a
-  millimetre, and no need to switch to 2 mg films just for precision.
+- Linear is the easier mode to cut. The mark never moves, so you measure once
+  and reuse it every day instead of working out a new smaller one each cycle,
+  and it never shrinks under a millimetre where a razor stops resolving. That is
+  also why the 2 mg switch is unnecessary there.
 - Once daily is fine at every level here. Buprenorphine's half-life is long
   enough that splitting doses buys you nothing.
 - Every step is held for days on purpose. That same long half-life means a new

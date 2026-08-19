@@ -52,6 +52,7 @@
       --field: #12100e;
       --field-line: #45403a;
       --head-bg: #211d1a;
+      --tip-bg: #2b2622;
       --row-hover: #262220;
       --banner-bg: #3d1f0d;
       --banner-line: #7c4a1e;
@@ -94,6 +95,7 @@
       --field: #ffffff;
       --field-line: #d6d3d1;
       --head-bg: #faf8f4;
+      --tip-bg: #1c1917;
       --row-hover: #f5f0e6;
       --banner-bg: #ffedd5;
       --banner-line: #fdba74;
@@ -280,6 +282,40 @@
     tbody tr.switch td { background: var(--switch-soft); }
     tbody tr.warn td { background: var(--warn-soft); }
     tbody tr.switch.selected td, tbody tr.warn.selected td { outline: 2px solid var(--accent); }
+    /* Schedule header tooltips. Fixed rather than absolute: the table lives in
+       a .scroll container with overflow-x, which clips both axes, so a tooltip
+       parented to a <th> would be sliced off. Hidden until JS positions it. */
+    .tip {
+      position: fixed;
+      z-index: 50;
+      display: none;
+      max-width: min(22rem, calc(100vw - 1rem));
+      padding: 0.45rem 0.6rem;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--tip-bg);
+      color: var(--ink);
+      font-size: 0.78rem;
+      line-height: 1.35;
+      box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
+      pointer-events: none;
+    }
+    :root[data-theme="light"] .tip { color: #f7f4ee; }
+    /* Only advertise the hover where there is one to have. On touch the
+       glossary under the table carries the same text. */
+    @media (hover: hover) and (pointer: fine) {
+      #schedTable thead th[data-tip] { cursor: help; text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
+    }
+    #schedTable thead th:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .coldoc { margin-top: 0.5rem; }
+    .coldoc > summary {
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--muted);
+      padding: 0.15rem 0;
+    }
+    .coldoc > summary:hover { color: var(--ink); }
+    .coldoc .inputdoc { margin-top: 0.4rem; }
     .pill {
       display: inline-block;
       font-size: 0.7rem;
@@ -760,6 +796,7 @@
         --field: #ffffff;
         --field-line: #d6d3d1;
         --head-bg: #faf8f4;
+        --tip-bg: #1c1917;
         --row-hover: #ffffff;
         --banner-bg: #ffedd5;
         --banner-line: #fdba74;
@@ -791,6 +828,12 @@
       button { display: none; }
       .scale-row, .viz-nav { display: none; }
       .chart { break-inside: avoid; }
+      /* Nothing hovers on paper: drop the tooltip and its affordance, and open
+         the glossary so the printed schedule explains its own columns. */
+      .tip { display: none !important; }
+      #schedTable thead th[data-tip] { text-decoration: none; }
+      .coldoc > summary { display: none; }
+      .coldoc[open] .inputdoc, .coldoc .inputdoc { display: block; }
       /* A day can be a stack of bars now; a page break through one is unreadable. */
       .film, .strip-full { break-inside: avoid; }
       .howto { break-inside: avoid; }
@@ -825,7 +868,7 @@
       <h3>Instructions</h3>
       <ol>
         <li>Use the calculator on this page, or run the same math in a terminal with <code>python3 taper.py</code> from the <a href="https://github.com/bhbmaster/SAS-Taper">repo</a>. To keep a copy offline, save this page — it is one self-contained file and needs no connection.</li>
-        <li>Pick a <strong>cut mode</strong>. The default cuts the same <em>fraction</em> every cycle — steady percentage steps that never quite reach zero. The alternative cuts the same <em>amount</em> every cycle — equal milligram steps that land on zero after about n of them, at the cost of a steeper finish. You can switch and compare; nothing else changes.</li>
+        <li>Pick a <strong>cut mode</strong>. <strong>Geometric</strong> (the default) cuts the same <em>fraction</em> every cycle — steady percentage steps that never quite reach zero. <strong>Linear</strong> cuts the same <em>amount</em> every cycle — equal milligram steps that land on zero after about n of them. Linear is easier to cut, because it is the same mark every day rather than a new smaller one each cycle; the trade is a steeper finish. You can switch and compare; nothing else changes.</li>
         <li>Measure your film with a ruler along its <strong>length only</strong> — the 22 mm side, the one you will be cutting. Put that number in “Start film length.” All four Suboxone strengths are 22 mm on that side, so it is the same number whichever you start on. Default n = 6 (16.7% every 6 days). If you want a gentler taper, raise n to 8 or 10.</li>
         <li>The cards, graphs, and schedule recalculate live. Click a cycle row (or a graph step) to see that day’s cut mark and a life-size film: <strong>TAKE on the left, SAVE on the right</strong>. The cut-mark bar is a full unused film; later cycles hash the rest that is already off.</li>
         <li>If your dose is bigger than one film — 16 mg on 8 mg strips, say — the day is simply several strips. The Film column shows <strong>×2</strong>, and only one of those strips is ever cut: take the whole ones as they are.</li>
@@ -841,7 +884,7 @@
         <div><dt>2 mg film length (mm) <span class="def">[22]</span><span class="sep"> — </span></dt><dd>The same measurement for the 2 mg film, used after the switch. Ignored if you turn the switch off.</dd></div>
         <div><dt>Target (mg/day) <span class="def">[1]</span><span class="sep"> — </span></dt><dd>Where the ladder stops. The run ends on the first cycle at or below this dose. Must be lower than the start dose.</dd></div>
         <div><dt>Strip strength (mg) <span class="def">[8]</span><span class="sep"> — </span></dt><dd>The strength of one film as dispensed. Used only to convert milligrams into “how many strips”, for the totals and the prescription-quantity table. It does not change the ladder.</dd></div>
-        <div><dt>Cut mode <span class="def">[same fraction]</span><span class="sep"> — </span></dt><dd>The two shapes a taper can have. <strong>Same fraction</strong> (the default) cuts 1/n off the piece in your hand, so the cut shrinks along with the dose and every cycle is the same percentage step — a steady 16.7% at n = 6. The dose keeps halving and never quite reaches zero, so you pick a target and stop there. <strong>Same amount</strong> cuts 1/n of your <em>first</em> strip and then that identical piece — same milligrams, same millimetres — every cycle after. The dose falls in equal steps and lands on zero after n − 1 of them: 8 mg at n = 6 goes 6.67, 5.33, 4.00, 2.67, 1.33, then nothing. It is much shorter, uses much less medication, and the cut never gets fiddly. It is also steeper where a taper is hardest: equal milligrams mean the percentage grows every cycle, 20% then 25%, 33%, 50%, and a final 100%. The page shows you those numbers when you switch.</dd></div>
+        <div><dt>Cut mode <span class="def">[geometric]</span><span class="sep"> — </span></dt><dd>The two shapes a taper can have. <strong>Geometric</strong> (the default) cuts 1/n off the piece in your hand, so the cut shrinks along with the dose and every cycle is the same percentage step — a steady 16.7% at n = 6. The dose keeps halving and never quite reaches zero, so you pick a target and stop there. <strong>Linear</strong> cuts 1/n of your <em>first</em> strip and then that identical piece — same milligrams, same millimetres — every cycle after. The dose falls in equal steps and lands on zero after n − 1 of them: 8 mg at n = 6 goes 6.67, 5.33, 4.00, 2.67, 1.33, then nothing. <strong>Linear is the easier one to actually cut</strong>: one mark, measured once, reused every single day, instead of a new and smaller measurement every cycle — and it never shrinks into the sub-millimetre range where a razor stops being accurate. It is also much shorter and uses much less medication. What it costs is the shape of the finish: equal milligrams mean the percentage grows every cycle — 20%, then 25%, 33%, 50%, and a final 100%. The page shows you those numbers the moment you switch.</dd></div>
         <div><dt>Film strength you cut (mg) <span class="def">[blank = auto]</span><span class="sep"> — </span></dt><dd>Which strength of film you actually hold. Left blank the tool picks the smallest official size that fits the start dose — 2, 4, 8 or 12 mg — and 8 mg for a start above 12 mg, where no single film holds the dose. Set it if you have something else: a 16 mg start is two 8 mg strips a day, or two 12 mg strips if that is what is in the box.</dd></div>
         <div><dt>Hold / stretch days <span class="def">[blank = same as n]</span><span class="sep"> — </span></dt><dd>Makes every cycle longer without changing the size of the cut. Set 9 with n = 6 and you still cut 1/6, but hold each dose for 9 days instead of 6 — the same taper, more settling time between drops.</dd></div>
         <div><dt>n below 3 mg <span class="def">[blank = off]</span><span class="sep"> — </span></dt><dd>Switches to a different n once the strip you are cutting from drops under 3 mg, where the same percentage is a much smaller piece of film. Setting 10 here makes the back half drop 10% per cycle instead of 16.7%.</dd></div>
@@ -862,7 +905,7 @@
           <li>Keep the full width. Cut only along the length. Mark, then cut with a fresh razor on a mat — not scissors.</li>
           <li>Cut 1/n off the <strong>right</strong> end. That short sliver goes in the save jar. Take the long left piece. Once daily is enough. If the day is more than one film, take the whole ones as they are and mark only the last: one cut a day, whatever the dose.</li>
           <li>Do that for n days. The save jar now holds one full piece of this cycle’s size. That is a <strong>buffer / safety net, not extra daily dose</strong>. If you eat the bank, the dose never drops.</li>
-          <li>Next cycle, the leftover size is the new whole strip. In the default <strong>same fraction</strong> mode that is dose × (1 − 1/n) and the cut shrinks with it; in <strong>same amount</strong> mode you cut the identical piece again, so the dose steps down by the same milligrams every time. Repeat until you hit the target — or, in same-amount mode, until there is nothing left to cut.</li>
+          <li>Next cycle, the leftover size is the new whole strip. In the default <strong>geometric</strong> mode that is dose × (1 − 1/n) and the cut shrinks with it; in <strong>linear</strong> mode you cut the identical piece again, so the dose steps down by the same milligrams every time. Repeat until you hit the target — or, in linear mode, until there is nothing left to cut.</li>
         </ol>
       </div>
 
@@ -898,8 +941,8 @@
         </label>
         <label><span class="k">Cut mode</span>
           <select id="cutMode">
-            <option value="geometric" selected>Same fraction — 1/n of what is left</option>
-            <option value="linear">Same amount — 1/n of the first strip, every time</option>
+            <option value="geometric" selected>Geometric (default) — same fraction of what is left</option>
+            <option value="linear">Linear (easier to cut) — same amount every time</option>
           </select>
         </label>
         <label><span class="k">Film strength you cut (mg)</span>
@@ -950,6 +993,10 @@
         </table>
       </div>
       <p class="legend">Click a row to show its cut mark. Blue = restarted on a 2 mg film. Amber = sliver under 1 mm (stop shaving 8 mg films). ×N in the Film column = films needed per day; only one of them is cut.</p>
+      <details class="coldoc">
+        <summary>What each column means</summary>
+        <dl class="inputdoc" id="colDoc"></dl>
+      </details>
     </section>
 
     <section class="panel" id="calendarPanel" hidden>
@@ -1065,11 +1112,13 @@
       <ul>
         <li>Cut along <strong>one axis only</strong>. Keep the full width; only shorten the length. Then length fraction = dose fraction. Cutting both dimensions loses the arithmetic.</li>
         <li>Use a fresh razor/craft blade and a ruler on a clean mat, not scissors. Mark before you cut. Cutting films is not manufacturer-sanctioned; the drug is distributed reasonably evenly, which is why this method is widely used.</li>
+        <li><strong>Cutting aids.</strong> A steel ruler and a fresh blade on a cutting mat is enough for most of the ladder. If your cuts wander, small purpose-made film slicers exist — search for “Suboxone film cutter” or “sub slicer”. A guided cut you can repeat beats a freehand one you cannot.</li>
+        <li><strong>Doses below what you can cut.</strong> Some people move to liquid (volumetric) dosing at the very bottom: dissolve a film in a measured volume of water and draw a dose with an oral syringe — a 2 mg film in 20 mL is <em>theoretically</em> 0.1 mg/mL. Treat that number as arithmetic, not as a measurement. It is <strong>not manufacturer-sanctioned</strong> (the labelling says take the film whole), buprenorphine is only sparingly water-soluble so the real concentration can differ from the calculated one, a homemade solution is not sterile, and you only absorb what you hold under the tongue — swallowed, most of it is lost. <strong>Raise it with your prescriber before trying it.</strong> There may be a better route: quartered 2 mg films, a different product, or a properly compounded liquid.</li>
         <li>Saved slivers are surplus / a safety net. Do not add them back into the daily dose or the taper never drops. Store airtight and dry, separated by wax paper, and keep them locked up.</li>
         <li>The low end is where 8 mg films fail. Ask your prescriber for 2 mg films before you need them (around the time daily dose is heading through ~4 mg toward ~2 mg). A 2 mg film is one quarter the density of an 8 mg one, so the same dose is four times longer and the same cut is four times more forgiving.</li>
         <li>Holding is not failure. If a cycle leaves you with bad sleep, restlessness, sweats, GI upset, or — most importantly — a spike in cravings, stay at that dose for another cycle or two before dropping again.</li>
-        <li><strong>The two cut modes trade different things.</strong> Same fraction holds the percentage step constant and lets the milligrams shrink — the gentler shape at the low end, but it never reaches zero. Same amount holds the milligrams constant and lets the percentage grow — it reaches zero on a schedule, but the last steps are the biggest ones you will have taken. Neither is the right answer for everyone; both let you hold a cycle whenever you need to, and holding is never a failure.</li>
-        <li>One practical point for same-amount mode: because the cut never gets thinner, it never gets harder. The same mark and the same razor from the first day to the last — no sliver under a millimetre, and no need to move to 2 mg films just for precision. That is why this page ignores the 2 mg switch when that mode is on, and says so.</li>
+        <li><strong>The two cut modes trade different things.</strong> Geometric holds the percentage step constant and lets the milligrams shrink — the gentler shape at the low end, but it never reaches zero. Linear holds the milligrams constant and lets the percentage grow — it reaches zero on a schedule, but the last steps are the biggest ones you will have taken. Neither is the right answer for everyone; both let you hold a cycle whenever you need to, and holding is never a failure.</li>
+        <li><strong>Linear is the easier one to cut.</strong> The mark never moves, so you measure once and reuse it every day instead of working out a new, smaller measurement each cycle — and it never shrinks under a millimetre, where a razor and a ruler stop resolving. That is also why this page ignores the 2 mg switch in linear mode: the switch exists to rescue a cut that has got too fine, and here it never does.</li>
         <li>Once daily is fine at every level here. Buprenorphine’s half-life is long enough that splitting doses buys you nothing.</li>
         <li>Every step is held for days on purpose. That same long half-life means a new dose needs most of a cycle to fully land — about 88–91% of the way there on day 1 and 98–100% by day 6, across the usual 24–42 hour range. It is why the ladder moves in cycles instead of shaving a little off daily, and it puts a floor under how fast this can honestly go: the default is roughly two months from 8 mg to 1 mg. Plenty of people need longer than that, and the tool is built for it — hold a cycle, raise n, or stretch the cycle. n = 10 on 9-day cycles is about six months. Going slower is a plan, not a failure.</li>
         <li>n = 6 (16.7% every 6 days) is at the fast end of typical 10–25% steps. You may not feel a drop until day 4 or 5, right as you are about to drop again. Hedge by stretching the cycle to 8–9 days (same cut, more settling time) or switch to n = 10 below 3 mg.</li>
@@ -1749,16 +1798,35 @@
       : "";
   }
 
+  /* What every column of the schedule means, in reading order.
+
+     One list feeds three things: the table headings, the hover tooltip on each
+     heading, and the glossary under the table. Kept together because three
+     copies of a definition is three chances to be wrong about the same number. */
+  const COLUMN_DOC = [
+    ["Cycle", "Which step of the ladder. Click any row to draw its cut mark."],
+    ["Days", "The run days this cycle covers. Every day inside it is identical: same dose, same cut."],
+    ["Film", "Strength of the film you are cutting. ×N means the day needs N of them; only one is ever cut."],
+    ["Cut from", "The whole strip you start the day holding, in mg — before today's cut comes off."],
+    ["Daily", "What you actually take each day of this cycle, in mg. Cut from − Sliver."],
+    ["Sliver", "The piece you cut off and save each day, in mg. Never swallow it as extra dose."],
+    ["Piece mm", "That whole strip as a length, across however many films the day needs."],
+    ["Cut at", "Where to mark, in mm from the right end of the piece in hand. This is the number you measure."],
+    ["Cycle mg", "Total taken over the whole cycle: Daily × Days."],
+    ["Cum mg", "Running total taken since day 1."],
+    ["Cum strips", "The same running total as whole films, at the strip strength you set."],
+    ["Banked", "What the save jar gains this cycle. A buffer if you need to step back up — not a second dose."],
+  ];
+
   /* The cycle table. Takes the schedule, writes into #schedTable and wires
      each row to select that cycle. Rows carry pills for a 2 mg restart, an n
      change, and a sliver under 1 mm. */
   function renderSchedule(s) {
-    const thead = `<tr>
-      <th class="left">Cycle</th><th>Days</th><th>Film</th>
-      <th>Cut from</th><th>Daily</th><th>Sliver</th>
-      <th>Piece mm</th><th>Cut at</th>
-      <th>Cycle mg</th><th>Cum mg</th><th>Cum strips</th><th>Banked</th>
-    </tr>`;
+    /* One place for the column meanings: the header tooltips, the glossary
+       under the table, and nothing else. Two copies of this would drift. */
+    const thead = `<tr>${COLUMN_DOC.map(([name, tip], i) =>
+      `<th${i === 0 ? ' class="left"' : ""} data-tip="${esc(tip)}" tabindex="0">${name}</th>`
+    ).join("")}</tr>`;
     $("schedTable").querySelector("thead").innerHTML = thead;
     const tb = $("schedTable").querySelector("tbody");
     tb.innerHTML = s.rows.map((r) => {
@@ -1792,6 +1860,11 @@
         render();
       });
     });
+    /* Same list as the headers and their tooltips. Written once here rather
+       than in the markup so the three can never disagree. */
+    $("colDoc").innerHTML = COLUMN_DOC.map(([name, tip]) =>
+      `<div><dt>${name}<span class="sep"> — </span></dt><dd>${tip}</dd></div>`
+    ).join("");
   }
 
   /* Three ways to state the same cut, because "cut 2.12" alone is ambiguous:
@@ -2440,6 +2513,88 @@
     const cutX = (takePct / 100) * stripW;
     const left = Math.max(0, Math.min(cutX - labelW / 2, Math.max(0, stripW - labelW)));
     label.style.left = left + "px";
+  }
+
+  /* Header tooltips for the schedule table.
+
+     One shared element on <body>, positioned fixed. It cannot live inside the
+     header: the table sits in a .scroll container with overflow-x, which clips
+     in both axes, so anything absolutely positioned inside a <th> gets cut off
+     the moment it is taller than the row.
+
+     Pointer-gated to devices that actually hover. On a phone there is no hover
+     state to reveal it and a long-press would fight the browser's own text
+     selection, so touch users get the glossary under the table instead — which
+     is why that glossary exists rather than being a nicety. Keyboard focus
+     shows it too, so the information is not mouse-only. */
+  let tipEl = null;
+  let tipFor = null;
+  const canHover = () => window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+
+  function showTip(th) {
+    const text = th.getAttribute("data-tip");
+    if (!text) return;
+    if (!tipEl) {
+      tipEl = document.createElement("div");
+      tipEl.className = "tip";
+      tipEl.setAttribute("role", "tooltip");
+      document.body.appendChild(tipEl);
+    }
+    tipFor = th;
+    tipEl.textContent = text;
+    tipEl.style.visibility = "hidden";
+    tipEl.style.display = "block";
+    /* Measure, then place: clamped to the viewport on both axes, and flipped
+       below the header if there is no room above it. */
+    const r = th.getBoundingClientRect();
+    const t = tipEl.getBoundingClientRect();
+    const pad = 8;
+    let left = r.left + r.width / 2 - t.width / 2;
+    left = Math.max(pad, Math.min(left, window.innerWidth - t.width - pad));
+    let top = r.top - t.height - 10;
+    if (top < pad) top = r.bottom + 10;
+    tipEl.style.left = Math.round(left) + "px";
+    tipEl.style.top = Math.round(top) + "px";
+    tipEl.style.visibility = "visible";
+  }
+
+  function hideTip() {
+    tipFor = null;
+    if (tipEl) tipEl.style.display = "none";
+  }
+
+  /* A scroll moves the header out from under a tooltip pinned to the viewport,
+     so the old position is wrong — but the reader may still be pointing at it,
+     and yanking the text away mid-read is worse than moving it. Follow the
+     header while it is still hovered or focused; drop it once it is not. */
+  function repositionTip() {
+    if (!tipFor) return;
+    if (tipFor.matches(":hover") || tipFor === document.activeElement) showTip(tipFor);
+    else hideTip();
+  }
+
+  /* Delegated, so it survives every re-render of the table. */
+  function wireTips() {
+    const tbl = $("schedTable");
+    /* Mouse only. A tap fires pointerover too, and on a phone the tooltip would
+       then sit there with no hover-out to dismiss it — which is exactly what
+       happened the first time this was written. */
+    tbl.addEventListener("pointerover", (e) => {
+      if ((e.pointerType && e.pointerType !== "mouse") || !canHover()) { hideTip(); return; }
+      const th = e.target.closest("th[data-tip]");
+      if (th) showTip(th); else hideTip();
+    });
+    tbl.addEventListener("pointerleave", hideTip);
+    /* Keyboard only, on any device: :focus-visible is false for the focus a tap
+       or a click leaves behind, and true for arriving by Tab. */
+    tbl.addEventListener("focusin", (e) => {
+      const th = e.target.closest("th[data-tip]");
+      if (th && th.matches(":focus-visible")) showTip(th);
+    });
+    tbl.addEventListener("focusout", hideTip);
+    window.addEventListener("scroll", repositionTip, { passive: true });
+    window.addEventListener("resize", repositionTip);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") hideTip(); });
   }
 
   /* Move the selection by delta cycles, clamped to the run. Drives the
@@ -3143,6 +3298,7 @@
       : null),
   });
 
+  wireTips();
   applyTheme(currentTheme(), false);
   loadStripScale();
   loadCalPrefs();

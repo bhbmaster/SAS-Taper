@@ -167,6 +167,10 @@ const probe = () => {
     await page.waitForFunction(() => !!window.SASTaperInternals, null, { timeout: 10000 });
     await page.evaluate(([g, c, s]) => {
       window.__groups = g; window.__clip = c; window.__spill = s;
+      /* Open the column glossary: collapsed it is one line and tells the sweep
+         nothing about the twelve definitions inside it. */
+      const cd = document.querySelector(".coldoc");
+      if (cd) cd.open = true;
       window.__selectedRow = window.SASTaperInternals.currentRow;
     }, [OVERLAP_GROUPS, CLIP_SELECTORS, SPILL_PAIRS]);
     if (theme === "light") {
@@ -446,6 +450,82 @@ const probe = () => {
 
     errs.length = 0;
     record("rendered figures @1280px", await page.evaluate(probe), errs);
+    await ctx.close();
+  }
+
+  /* 7. The schedule header tooltips. Mouse-and-keyboard only by design, so the
+        sweep cannot see them — hover has to be driven explicitly. Three things
+        matter: they appear on a desktop pointer, they stay inside the viewport
+        (they are position:fixed precisely because the table's scroll container
+        would clip anything else), and they never appear on a touch device. */
+  {
+    for (const width of [640, 1280]) {
+      const { ctx, page, errs } = await openPage(width, "dark");
+      const cols = await page.evaluate(() =>
+        document.querySelectorAll("#schedTable thead th[data-tip]").length);
+      checks++;
+      if (cols !== 12) failures.push(`schedule has ${cols} documented headers, expected 12`);
+
+      /* Bounded by what is actually there: a missing column should be reported
+         by the count check above, not crash the run in page.hover(). */
+      for (const nth of [1, 8, 12].filter((i) => i <= cols)) {
+        await page.hover(`#schedTable thead th:nth-child(${nth})`);
+        await page.waitForTimeout(80);
+        const r = await page.evaluate(() => {
+          const t = document.querySelector(".tip");
+          if (!t || getComputedStyle(t).display === "none") return null;
+          const b = t.getBoundingClientRect();
+          return {
+            text: t.textContent.trim(),
+            inside: b.left >= 0 && b.top >= 0
+              && b.right <= window.innerWidth + 1 && b.bottom <= window.innerHeight + 1,
+          };
+        });
+        checks++;
+        if (!r) failures.push(`header ${nth} @${width}px: no tooltip on hover`);
+        else if (!r.text) failures.push(`header ${nth} @${width}px: empty tooltip`);
+        else if (!r.inside) failures.push(`header ${nth} @${width}px: tooltip escapes the viewport`);
+        errs.length = 0;
+        record(`tooltip on header ${nth} @${width}px`, await page.evaluate(probe), errs);
+      }
+      await ctx.close();
+    }
+
+    /* And a real touch context: a tap must not leave a tooltip stranded with no
+       hover-out to dismiss it. The glossary is what touch readers get instead. */
+    const ctx = await browser.newContext({
+      viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true,
+    });
+    const page = await ctx.newPage();
+    await page.goto(PAGE);
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await page.waitForFunction(() => !!window.SASTaperInternals, null, { timeout: 10000 });
+    /* A real tap first, then the synthetic event the guard is actually written
+       against. The tap alone is timing-dependent — pointerleave can arrive and
+       hide the tooltip again, so a broken guard could still look clean — while
+       a bare pointerover with pointerType "touch" is exactly the case the code
+       branches on and has no follow-up event to rescue it. */
+    await page.tap("#schedTable thead th:nth-child(2)").catch(() => {});
+    await page.waitForTimeout(120);
+    let shown = await page.evaluate(() => {
+      const t = document.querySelector(".tip");
+      return !!t && getComputedStyle(t).display !== "none";
+    });
+    checks++;
+    if (shown) failures.push("tooltip appeared on a touch tap");
+
+    shown = await page.evaluate(() => {
+      const th = document.querySelector("#schedTable thead th[data-tip]");
+      th.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerType: "touch" }));
+      const t = document.querySelector(".tip");
+      return !!t && getComputedStyle(t).display !== "none";
+    });
+    checks++;
+    if (shown) failures.push("tooltip appeared for a touch pointer");
+    const defs = await page.evaluate(() => document.querySelectorAll("#colDoc div").length);
+    checks++;
+    if (defs !== 12) failures.push(`touch glossary has ${defs} entries, expected 12`);
     await ctx.close();
   }
 
