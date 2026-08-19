@@ -13,6 +13,31 @@ Default: start 8 mg, **n = 6** (16.7% every 6 days), switch to 2 mg films once t
 
 A dose bigger than one film is just several films: 16 mg on 8 mg strips is two a day. Only one of them is ever cut.
 
+## Two cut modes
+
+The cut is the same physical act either way. What differs is what stays constant.
+
+|  | **Geometric** (default) | **Linear** (easier to cut) |
+|---|---|---|
+| what you cut | 1/n of the piece **in your hand** | 1/n of the **first** strip, every time |
+| the cut | shrinks with the dose | never changes — same mg, same mm |
+| each step | same **percentage** (16.7% at n = 6) | same **milligrams** |
+| the shape | approaches zero, never arrives | lands on zero after n − 1 steps |
+| 8 mg at n = 6 | 66 days to 0.96 mg, 425 mg used | **30 days to zero, 120 mg used** |
+| CLI | default | `--cut-mode linear` |
+| cutting it | a new, smaller measurement each cycle | **measure once, reuse the same mark every day** |
+
+**Linear is the easier one to actually cut**, which is the practical reason to pick it. The mark never moves: you measure once and reuse it every day, instead of working out a new and smaller measurement each cycle — and it never shrinks into the sub-millimetre range where a razor and a ruler stop resolving. The site turns the 2 mg switch off in that mode and says why: the switch exists to rescue a cut that has got too fine, and here it never does.
+
+**It is also steeper where a taper is hardest.** Equal milligrams are growing percentages:
+
+```
+8 mg, n = 6, linear:  6.67 → 5.33 → 4.00 → 2.67 → 1.33 → 0
+drop from the previous: 20%    25%    33%    50%   100%
+```
+
+The default mode holds a flat 16.7% the whole way; this one finishes with a 50% step and then a 100% one. That is not a reason to avoid it — plenty of prescriptions are written exactly this way, "come down by a sixth of your starting dose each step" — but it is the reason the tool shows you those percentages the moment you switch. Neither shape is right for everyone; both let you hold a cycle whenever you need to.
+
 ## Why save-a-sliver
 
 The demanding part of a taper is often not the milligrams but the sense of getting less. SAS frames each day’s remaining piece as a complete strip — the dose you have — while the cut-off sliver leaves the daily routine.
@@ -42,6 +67,8 @@ There is no build step and no server. `index.html` is one self-contained file �
 
 Either way: measure your film **length only**, put that in the inputs, and the schedule / cut marks / graphs update live. Click a cycle for that day’s ruler (TAKE left, SAVE right). Print it for your prescriber.
 
+Not sure what a schedule column means? Hover its heading on a desktop, or open **What each column means** under the table — same twelve definitions either way.
+
 ## CLI
 
 ```bash
@@ -50,12 +77,14 @@ python3 taper.py --compare
 python3 taper.py --cycle 6
 python3 taper.py --n 10 --no-switch-2mg
 python3 taper.py --start-date 2026-03-01
+python3 taper.py --cut-mode linear          # same cut every cycle, ends at zero
+python3 taper.py --cut-mode linear --n 10 --target 0
 python3 taper.py --start-mg 16          # two 8 mg strips a day
 python3 taper.py --start-mg 20 --film-strength 12
 python3 test_taper.py          # math checks
 ```
 
-No extra packages. Python 3.11 is fine. Same math as the site. Cut marks are a full unused film: TAKE left, SAVE, then the already-off remainder. `--cycle N` prints only that cycle’s cut with the extra note. `--stop-mode above` matches the classic n=6/8/10 comparison (last cycle still strictly above target). `--start-date` adds real dates to the schedule, the same ones the site's calendar shows. `--film-strength` says which strength you actually hold, when it is not the one the start dose implies.
+No extra packages. Python 3.11 is fine. Same math as the site. Cut marks are a full unused film: TAKE left, SAVE, then the already-off remainder. `--cycle N` prints only that cycle’s cut with the extra note. `--stop-mode above` matches the classic n=6/8/10 comparison (last cycle still strictly above target). `--start-date` adds real dates to the schedule, the same ones the site's calendar shows. `--film-strength` says which strength you actually hold, when it is not the one the start dose implies. `--cut-mode linear` switches from the default geometric cut to the linear one; the report names the mode, the day the dose reaches zero, and the percentage each step actually is.
 
 ## Tests
 
@@ -69,7 +98,7 @@ node test_layout.js         # viewport sweep, 280px to 1920px
 
 ### `test_taper.py`
 
-40 checks over the arithmetic the schedule is built on — the closed forms against the simulation, the per-cycle invariants (dose splits exactly, length fraction equals dose fraction, the bank is one whole piece per cycle), that the daily dose never rises across a film switch, and the published film geometry. Standard library only.
+51 checks over the arithmetic the schedule is built on — the closed forms against the simulation, the per-cycle invariants (dose splits exactly, length fraction equals dose fraction, the bank is one whole piece per cycle), that the daily dose never rises across a film switch, and the published film geometry. A class of its own covers the linear mode: the cut never changes in either unit, the dose falls in equal steps, it lands on zero after exactly n − 1 of them, no cycle ever has a zero or negative dose, the closed form matches the simulation, the percentage step grows every cycle, and the two rescues the default mode needs are switched off. Standard library only.
 
 The multi-film layout gets a matrix of its own: **720 ladders, 10,597 cycles** — start doses from 1 to 32 mg against all four official strengths, `n` from 2 to 30, three film lengths, the 2 mg switch both ways — checked cycle by cycle for the properties that make the instruction safe to follow. Nothing is lost between films; milligrams still track millimetres; no mark runs off the end of a film; exactly one film a day is ever cut; you open exactly the films the dose needs and never one more; and the sliver is measured from the piece on the marked film rather than the film's own end. A further check asserts the matrix actually reaches the hard shapes — days from 1 to 16 films, days whose sliver runs onto film you never open, days with nothing to cut at all — so it cannot quietly stop covering them.
 
@@ -79,9 +108,9 @@ The taper maths is written **twice**: `buildSchedule()` in `index.html` and `bui
 
 It loads `index.html` in a headless browser, runs both implementations over the same inputs, and diffs the results — comparing all 24 fields of every cycle row, 9 summary figures, every 30-day month bucket, and the n = 6/8/10 comparison table.
 
-**31 named schedules** go through the CLI, so the argument plumbing is covered too: start doses 0.1–64 mg, `n` from 2 to 30, the 2 mg switch on and off, stretched cycles, `n`-below-3, non-default film lengths and strengths, doses needing two to eight films a day, clamp boundaries, empty ladders.
+**43 named schedules** go through the CLI, so the argument plumbing is covered too: start doses 0.1–64 mg, `n` from 2 to 30, the 2 mg switch on and off, stretched cycles, `n`-below-3, non-default film lengths and strengths, doses needing two to eight films a day, clamp boundaries, empty ladders.
 
-**640 more** go straight at `build_schedule()` in one Python process — every start dose from 1 to 32 mg against every official film strength, `n` from 2 to 30, and two non-default film lengths. That is **9,212 cycles** of the film layout compared field by field, up to a sixteen-strip day. It also checks the shape of its own coverage, so a grid that stopped producing multi-film days would fail rather than pass silently. Then `baseFilmMg` across 11 film sizes.
+**1,280 more** go straight at `build_schedule()` — the whole grid in both cut modes — in one Python process — every start dose from 1 to 32 mg against every official film strength, `n` from 2 to 30, and two non-default film lengths. That is **13,567 cycles** compared field by field, up to a sixteen-strip day. It also checks the shape of its own coverage, so a grid that stopped producing multi-film days would fail rather than pass silently. Then `baseFilmMg` across 11 film sizes.
 
 It exits **0** on a match, **1** with a list of mismatches otherwise. If Node or a browser is missing it prints `skipped` and exits 0, so a plain checkout still passes.
 
@@ -117,7 +146,7 @@ The script also finds a browser on its own in the usual places — the Playwrigh
 
 Several parts of the page are positioned from measured pixels rather than by normal flow: the ruler tick captions, the life-size cut label, the calendar grid. Those have broken four separate times — captions stacked on each other, a percentage painted over a button, "SAVE" sliced in half, the page scrolling sideways on a narrow phone. Each was found by sweeping viewports by hand, then lost again, because nothing re-ran the sweep.
 
-This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus fifteen reshaping input cases and a pass that redraws one day on each of the four film strengths — **472 viewport states** — and checks five things at each:
+This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode — **566 viewport states** — and checks five things at each:
 
 | Failure | Detected by |
 |---|---|
@@ -140,11 +169,14 @@ All three run in GitHub Actions on every push and pull request.
 
 ## Method (every day of a cycle)
 
+0. Pick a cut mode. Geometric (default) or linear — see [Two cut modes](#two-cut-modes). Everything below is the same either way; only the size of the next cut differs.
 1. Start with the current “whole strip” (cycle 1: a full 8 mg film, or several if your dose is bigger than one).
 2. Keep full width; cut along length only. Mark, then cut with a razor, not scissors.
 3. Cut `1/n` off the **right** end. Save that sliver. Take the long left piece. Once daily. If the day is more than one film, cut one of them and take the rest whole.
 4. After `n` days the save jar holds one full piece. Do not use the bank as extra daily dose or the taper never drops.
-5. Next cycle, the leftover size is the new whole strip. Repeat to the target (default 1 mg).
+5. Next cycle, the leftover size is the new whole strip. In geometric mode that means the next cut is smaller; in linear mode you cut the identical piece again. Repeat to the target (default 1 mg), or in linear mode until there is nothing left to cut.
+
+**Cutting aids:** a steel ruler and a fresh blade on a mat covers most of the ladder; if your cuts wander, purpose-made film slicers exist (search “Suboxone film cutter”). **Below what you can cut:** some people move to liquid dosing — a 2 mg film in 20 mL is *theoretically* 0.1 mg/mL — but that is not manufacturer-sanctioned, buprenorphine is only sparingly water-soluble so the real strength can differ from the arithmetic, and a homemade solution is not sterile. Raise it with your prescriber first.
 
 Hold a cycle if cravings spike, sleep goes, or you are restless and sweating. When the sliver is under ~1 mm, switch to 2 mg films. Lock up saved pieces (dangerous to kids and pets). Ask the prescriber to step quantity down with the dose.
 

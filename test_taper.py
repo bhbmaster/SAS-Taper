@@ -12,6 +12,7 @@ import unittest
 from collections import Counter
 
 from taper import (
+    CUT_MODES,
     base_film_mg,
     build_schedule,
     cut_context,
@@ -223,6 +224,128 @@ class TestFilmGeometry(unittest.TestCase):
         eight = FILM_SPECS[8][0] * FILM_SPECS[8][1] / 8
         two = FILM_SPECS[2][0] * FILM_SPECS[2][1] / 2
         self.assertAlmostEqual(two / eight, 4.0, places=9)
+
+
+class TestLinearCutMode(unittest.TestCase):
+    """The constant-step mode: cut the same amount every cycle.
+
+    Geometric cuts 1/n of the piece in your hand, so the step shrinks with the
+    dose and the ladder approaches zero without arriving. Linear cuts 1/n of the
+    ORIGINAL strip every time — same milligrams, same millimetres — so the dose
+    falls in equal steps and lands on zero.
+
+    These pin the four properties that make it that mode and not the other one,
+    plus the ways it deliberately differs from geometric.
+    """
+
+    def test_the_cut_never_changes(self):
+        # The defining property, in both units. If either drifts it is not this
+        # mode any more.
+        for start, n in [(8.0, 6), (16.0, 4), (2.0, 10), (12.5, 3), (32.0, 8)]:
+            sched = build_schedule(start_mg=start, n=n, cut_mode="linear", target_mg=0)
+            slivers = {round(r.sliver_mg, 12) for r in sched.rows}
+            cuts = {round(r.cut_mm, 12) for r in sched.rows}
+            self.assertEqual(len(slivers), 1, f"start={start} n={n} sliver moved: {slivers}")
+            self.assertEqual(len(cuts), 1, f"start={start} n={n} cut moved: {cuts}")
+            self.assertAlmostEqual(sched.rows[0].sliver_mg, start / n, places=12)
+
+    def test_the_dose_falls_in_equal_steps(self):
+        for start, n in [(8.0, 6), (16.0, 4), (12.0, 5), (32.0, 8)]:
+            sched = build_schedule(start_mg=start, n=n, cut_mode="linear", target_mg=0)
+            doses = [r.daily_mg for r in sched.rows]
+            steps = [a - b for a, b in zip(doses, doses[1:])]
+            for s in steps:
+                self.assertAlmostEqual(s, start / n, places=9, msg=f"start={start} n={n}")
+
+    def test_it_reaches_zero_after_n_minus_one_doses(self):
+        # The whole point: a fixed number of cycles to nothing, rather than an
+        # asymptote you have to pick a stopping point on.
+        for start in (8.0, 16.0, 4.0, 32.0):
+            for n in (2, 3, 6, 10, 20):
+                sched = build_schedule(start_mg=start, n=n, cut_mode="linear", target_mg=0)
+                self.assertEqual(len(sched.rows), n - 1, f"start={start} n={n}")
+                self.assertAlmostEqual(sched.rows[-1].daily_mg, start / n, places=9)
+                self.assertEqual(sched.zero_day, sched.rows[-1].day_end + 1)
+
+    def test_no_cycle_ever_has_a_zero_or_negative_dose(self):
+        # A cycle of n days at 0 mg is not an instruction. The ladder has to end
+        # before it, with zero_day reporting the landing instead.
+        for start in (0.5, 2.0, 8.0, 32.0):
+            for n in (2, 5, 6, 13, 30):
+                sched = build_schedule(start_mg=start, n=n, cut_mode="linear", target_mg=0)
+                for row in sched.rows:
+                    self.assertGreater(row.daily_mg, 0.0, f"start={start} n={n} c{row.cycle}")
+
+    def test_the_closed_form_matches_the_simulation(self):
+        for start in (2.0, 8.0, 16.0):
+            for n in (3, 6, 10):
+                for hold in (None, 9):
+                    sched = build_schedule(
+                        start_mg=start, n=n, hold_days=hold, cut_mode="linear", target_mg=0
+                    )
+                    self.assertAlmostEqual(
+                        sched.total_mg,
+                        ingested_closed_form(start, n, len(sched.rows), hold, "linear"),
+                        places=9, msg=f"start={start} n={n} hold={hold}",
+                    )
+                    # A finished run's total is the whole-run figure, not a bound.
+                    self.assertAlmostEqual(
+                        sched.total_mg, sched.ceiling_mg, places=9,
+                        msg=f"start={start} n={n} hold={hold}",
+                    )
+
+    def test_it_still_stops_at_a_target_above_zero(self):
+        # Doses are 6.67, 5.33, 4.00, 2.67 ... and "reach" includes the first
+        # one at or under the target, so a 3 mg target lands on 2.67.
+        sched = build_schedule(start_mg=8.0, n=6, cut_mode="linear", target_mg=3.0)
+        self.assertAlmostEqual(sched.end_daily_mg, 8.0 * 2 / 6, places=9)
+        self.assertIsNone(sched.zero_day, "stopped at a target, so it never reached zero")
+
+    def test_the_percentage_step_grows_every_cycle(self):
+        """Not a defect — the arithmetic of a constant step — but the reason the
+        mode needs a warning rather than just an option. Equal milligrams are
+        growing percentages, and the growth lands on the hardest part."""
+        sched = build_schedule(start_mg=8.0, n=6, cut_mode="linear", target_mg=0)
+        doses = [r.daily_mg for r in sched.rows]
+        drops = [100 * (a - b) / a for a, b in zip(doses, doses[1:])]
+        self.assertEqual([round(d) for d in drops], [20, 25, 33, 50])
+        for a, b in zip(drops, drops[1:]):
+            self.assertGreater(b, a)
+
+    def test_the_rescues_geometric_needs_are_switched_off(self):
+        # The 2 mg switch exists because the geometric sliver gets too thin to
+        # cut; here it never does. Changing n below 3 mg would change the step
+        # the mode is defined by. Both are ignored, and nothing pretends
+        # otherwise in the result.
+        sched = build_schedule(start_mg=8.0, n=6, cut_mode="linear", target_mg=0,
+                               switch_2mg=True, n_below_3mg=10)
+        self.assertFalse(any(r.switched_2mg for r in sched.rows))
+        self.assertFalse(any(r.n_changed for r in sched.rows))
+        self.assertFalse(sched.switch_never_fired)
+        self.assertTrue(all(r.film_mg == sched.base_film_mg for r in sched.rows))
+        self.assertTrue(all(r.n == 6 for r in sched.rows))
+
+    def test_the_cut_never_gets_thin(self):
+        # The practical pay-off, and the reason the 2 mg switch is unnecessary.
+        for n in (3, 6, 10, 20):
+            sched = build_schedule(start_mg=8.0, n=n, cut_mode="linear", target_mg=0)
+            thin = [r.cycle for r in sched.rows if r.cut_warn]
+            geo = build_schedule(start_mg=8.0, n=n, cut_mode="geometric",
+                                 switch_2mg=False, target_mg=0.1)
+            if any(r.cut_warn for r in geo.rows):
+                self.assertEqual(thin, [], f"n={n}: a constant cut went thin")
+
+    def test_geometric_is_the_default_and_is_unchanged(self):
+        self.assertEqual(build_schedule().cut_mode, "geometric")
+        a = build_schedule()
+        b = build_schedule(cut_mode="geometric")
+        self.assertEqual([r.daily_mg for r in a.rows], [r.daily_mg for r in b.rows])
+        self.assertIsNone(a.zero_day)
+
+    def test_an_unknown_mode_is_rejected(self):
+        with self.assertRaises(ValueError):
+            build_schedule(cut_mode="quadratic")
+        self.assertEqual(set(CUT_MODES), {"geometric", "linear"})
 
 
 class TestMultiFilmDays(unittest.TestCase):

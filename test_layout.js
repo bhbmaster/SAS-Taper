@@ -167,6 +167,10 @@ const probe = () => {
     await page.waitForFunction(() => !!window.SASTaperInternals, null, { timeout: 10000 });
     await page.evaluate(([g, c, s]) => {
       window.__groups = g; window.__clip = c; window.__spill = s;
+      /* Open the column glossary: collapsed it is one line and tells the sweep
+         nothing about the twelve definitions inside it. */
+      const cd = document.querySelector(".coldoc");
+      if (cd) cd.open = true;
       window.__selectedRow = window.SASTaperInternals.currentRow;
     }, [OVERLAP_GROUPS, CLIP_SELECTORS, SPILL_PAIRS]);
     if (theme === "light") {
@@ -176,6 +180,8 @@ const probe = () => {
     return { ctx, page, errs };
   }
 
+  /* Works for the number inputs and for the cut-mode <select> alike: both
+     rebuild the page off an "input" event. */
   const setField = (page, id, v) => page.evaluate(([i, val]) => {
     const el = document.getElementById(i);
     el.value = String(val);
@@ -269,6 +275,13 @@ const probe = () => {
        the drawing is whole films only and there is no marked bar or tick row. */
     ["whole films, no cut", { startMg: 8, n: 4, filmStrengthMg: 2 }, [1]],
     ["whole films, long run", { startMg: 24, n: 3, filmStrengthMg: 2, targetMg: 2 }, [1, 2]],
+    /* Linear mode reshapes the page: a shorter ladder, a constant cut, an
+       extra headline tile for the zero day and two warning banners. */
+    ["linear default", { cutMode: "linear" }, [1, 3, 5]],
+    ["linear to zero", { cutMode: "linear", targetMg: 0 }, [1, 5]],
+    ["linear n=30", { cutMode: "linear", n: 30, targetMg: 0 }, [1, 15, 29]],
+    ["linear multi-film", { cutMode: "linear", startMg: 32, targetMg: 0 }, [1, 2, 4]],
+    ["linear n=2", { cutMode: "linear", n: 2, targetMg: 0 }, [1]],
     ["empty ladder", { startMg: 1.1, targetMg: 1 }, [1]],
     ["max cycles", { n: 30, targetMg: 0.1 }, [1]],
     ["stretched cycles", { holdDays: 30 }, [1]],
@@ -321,6 +334,19 @@ const probe = () => {
     await page.waitForTimeout(120);
     errs.length = 0;
     record(`32 mg back to the cycle's film @${width}px`, await page.evaluate(probe), errs);
+    await ctx.close();
+  }
+
+  /* 5a. The calendar on a linear run: a much shorter ladder, so fewer cells,
+         and every one of them carries the same cut. */
+  for (const width of [280, 414, 1024]) {
+    const { ctx, page, errs } = await openPage(width, "dark");
+    await setField(page, "cutMode", "linear");
+    await setField(page, "targetMg", 0);
+    await setField(page, "startDate", "2026-08-01");
+    await page.waitForTimeout(220);
+    errs.length = 0;
+    record(`linear calendar @${width}px`, await page.evaluate(probe), errs);
     await ctx.close();
   }
 
@@ -390,6 +416,31 @@ const probe = () => {
       }
     }
 
+    /* The linear mode's defining property, read off the rendered schedule: the
+       cut column must not move from the first cycle to the last. This is the
+       thing a reader is asked to trust, and no other suite looks at the table. */
+    await setField(page, "cutMode", "linear");
+    await setField(page, "targetMg", 0);
+    await page.waitForTimeout(200);
+    const cuts = await page.evaluate(() => [...document.querySelectorAll("#schedTable tbody tr")]
+      .map((tr) => tr.children[7].textContent.trim()));
+    checks++;
+    if (cuts.length < 3) {
+      failures.push(`linear schedule has only ${cuts.length} rows`);
+    } else if (new Set(cuts).size !== 1) {
+      failures.push(`linear cut column is not constant: ${[...new Set(cuts)].join(", ")}`);
+    }
+    /* And the geometric default must still shrink, or the modes are the same. */
+    await setField(page, "cutMode", "geometric");
+    await setField(page, "targetMg", 1);
+    await page.waitForTimeout(200);
+    const geoCuts = await page.evaluate(() => [...document.querySelectorAll("#schedTable tbody tr")]
+      .map((tr) => tr.children[7].textContent.trim()));
+    checks++;
+    if (new Set(geoCuts).size < 3) {
+      failures.push("geometric cut column stopped shrinking");
+    }
+
     /* role="img" hides the axis text from assistive tech, so each chart has to
        carry a name of its own or it announces as bare "image". */
     const unnamed = await page.evaluate(() => [...document.querySelectorAll("#charts svg[role=img]")]
@@ -399,6 +450,82 @@ const probe = () => {
 
     errs.length = 0;
     record("rendered figures @1280px", await page.evaluate(probe), errs);
+    await ctx.close();
+  }
+
+  /* 7. The schedule header tooltips. Mouse-and-keyboard only by design, so the
+        sweep cannot see them — hover has to be driven explicitly. Three things
+        matter: they appear on a desktop pointer, they stay inside the viewport
+        (they are position:fixed precisely because the table's scroll container
+        would clip anything else), and they never appear on a touch device. */
+  {
+    for (const width of [640, 1280]) {
+      const { ctx, page, errs } = await openPage(width, "dark");
+      const cols = await page.evaluate(() =>
+        document.querySelectorAll("#schedTable thead th[data-tip]").length);
+      checks++;
+      if (cols !== 12) failures.push(`schedule has ${cols} documented headers, expected 12`);
+
+      /* Bounded by what is actually there: a missing column should be reported
+         by the count check above, not crash the run in page.hover(). */
+      for (const nth of [1, 8, 12].filter((i) => i <= cols)) {
+        await page.hover(`#schedTable thead th:nth-child(${nth})`);
+        await page.waitForTimeout(80);
+        const r = await page.evaluate(() => {
+          const t = document.querySelector(".tip");
+          if (!t || getComputedStyle(t).display === "none") return null;
+          const b = t.getBoundingClientRect();
+          return {
+            text: t.textContent.trim(),
+            inside: b.left >= 0 && b.top >= 0
+              && b.right <= window.innerWidth + 1 && b.bottom <= window.innerHeight + 1,
+          };
+        });
+        checks++;
+        if (!r) failures.push(`header ${nth} @${width}px: no tooltip on hover`);
+        else if (!r.text) failures.push(`header ${nth} @${width}px: empty tooltip`);
+        else if (!r.inside) failures.push(`header ${nth} @${width}px: tooltip escapes the viewport`);
+        errs.length = 0;
+        record(`tooltip on header ${nth} @${width}px`, await page.evaluate(probe), errs);
+      }
+      await ctx.close();
+    }
+
+    /* And a real touch context: a tap must not leave a tooltip stranded with no
+       hover-out to dismiss it. The glossary is what touch readers get instead. */
+    const ctx = await browser.newContext({
+      viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true,
+    });
+    const page = await ctx.newPage();
+    await page.goto(PAGE);
+    await page.evaluate(() => localStorage.clear());
+    await page.reload();
+    await page.waitForFunction(() => !!window.SASTaperInternals, null, { timeout: 10000 });
+    /* A real tap first, then the synthetic event the guard is actually written
+       against. The tap alone is timing-dependent — pointerleave can arrive and
+       hide the tooltip again, so a broken guard could still look clean — while
+       a bare pointerover with pointerType "touch" is exactly the case the code
+       branches on and has no follow-up event to rescue it. */
+    await page.tap("#schedTable thead th:nth-child(2)").catch(() => {});
+    await page.waitForTimeout(120);
+    let shown = await page.evaluate(() => {
+      const t = document.querySelector(".tip");
+      return !!t && getComputedStyle(t).display !== "none";
+    });
+    checks++;
+    if (shown) failures.push("tooltip appeared on a touch tap");
+
+    shown = await page.evaluate(() => {
+      const th = document.querySelector("#schedTable thead th[data-tip]");
+      th.dispatchEvent(new PointerEvent("pointerover", { bubbles: true, pointerType: "touch" }));
+      const t = document.querySelector(".tip");
+      return !!t && getComputedStyle(t).display !== "none";
+    });
+    checks++;
+    if (shown) failures.push("tooltip appeared for a touch pointer");
+    const defs = await page.evaluate(() => document.querySelectorAll("#colDoc div").length);
+    checks++;
+    if (defs !== 12) failures.push(`touch glossary has ${defs} entries, expected 12`);
     await ctx.close();
   }
 

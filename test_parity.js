@@ -32,6 +32,7 @@ const FLAGS = {
   holdDays: "--hold-days",
   nBelow3: "--n-below-3",
   stopMode: "--stop-mode",
+  cutMode: "--cut-mode",
   filmStrengthMg: "--film-strength",
 };
 
@@ -53,6 +54,21 @@ const CASES = [
   { startMg: 12, stripMg: 12, n: 10, targetMg: 0.5 },
   { startMg: 2, stripMg: 2, n: 8, switch2mg: false },
   { filmMm: 20 },
+  /* Linear mode: the same cut every cycle, so the dose falls in equal steps and
+     lands on zero. The interesting parts are the landing itself, an n that
+     divides the dose exactly, and the inputs the mode ignores. */
+  { cutMode: "linear" },
+  { cutMode: "linear", n: 2 },
+  { cutMode: "linear", n: 3, targetMg: 0 },
+  { cutMode: "linear", n: 30, targetMg: 0 },
+  { cutMode: "linear", targetMg: 4 },
+  { cutMode: "linear", switch2mg: false },
+  { cutMode: "linear", nBelow3: 10 },
+  { cutMode: "linear", holdDays: 9 },
+  { cutMode: "linear", startMg: 16 },
+  { cutMode: "linear", startMg: 32, targetMg: 0 },
+  { cutMode: "linear", startMg: 2, stripMg: 2, filmStrengthMg: 2 },
+  { cutMode: "linear", startMg: 1.1, targetMg: 1, stopMode: "above" },
   /* Start doses that need more than one film a day. 16 mg on 8 mg films is the
      plain two-strip case; 9.26 is where the ladder crosses a whole-film
      boundary and TAKE and SAVE stop fitting on one film; the rest push the
@@ -124,6 +140,13 @@ const SUMMARY = [
   ["baseFilmMg", "base_film_mg"],
   ["daysTo2mg", "days_to_2mg"],
   ["daysTo1mg", "days_to_1mg"],
+  ["zeroDay", "zero_day"],
+  ["cutMode", "cut_mode"],
+  /* Both flags exist to stop the tool hiding a short ladder, and neither was
+     compared until a linear run broke out of the loop early and the two sides
+     disagreed about whether that counted as truncation. */
+  ["truncated", "truncated"],
+  ["switchNeverFired", "switch_never_fired"],
 ];
 
 /* The 30-day buckets. Written twice like everything else, and until now
@@ -191,10 +214,12 @@ const MATRIX_STARTS = [1, 2, 3, 4, 6, 8, 9.26, 10, 12, 13, 16, 18, 20, 24, 28, 3
 const MATRIX_NS = [2, 3, 4, 6, 10, 30];
 const MATRIX_STRENGTHS = [null, 2, 4, 8, 12];
 const MATRIX = [];
-for (const startMg of MATRIX_STARTS) {
-  for (const n of MATRIX_NS) {
-    for (const filmStrengthMg of MATRIX_STRENGTHS) {
-      MATRIX.push({ startMg, n, filmStrengthMg, targetMg: Math.min(1, startMg / 2) });
+for (const cutMode of ["geometric", "linear"]) {
+  for (const startMg of MATRIX_STARTS) {
+    for (const n of MATRIX_NS) {
+      for (const filmStrengthMg of MATRIX_STRENGTHS) {
+        MATRIX.push({ startMg, n, filmStrengthMg, cutMode, targetMg: Math.min(1, startMg / 2) });
+      }
     }
   }
 }
@@ -206,6 +231,8 @@ for (const startMg of MATRIX_STARTS) {
     for (const filmMm of [20, 30]) {
       MATRIX.push({ startMg, n: 6, filmStrengthMg, filmMm, film2Mm: filmMm,
                     targetMg: Math.min(1, startMg / 2) });
+      MATRIX.push({ startMg, n: 6, filmStrengthMg, filmMm, film2Mm: filmMm,
+                    cutMode: "linear", targetMg: 0 });
     }
   }
 }
@@ -220,6 +247,7 @@ for c in json.load(sys.stdin):
         start_mg=c["startMg"], n=c["n"], film_strength_mg=c["filmStrengthMg"],
         film_mm=c.get("filmMm", 22.0), film_2mg_mm=c.get("film2Mm", 22.0),
         target_mg=c["targetMg"], strip_mg=8.0,
+        cut_mode=c.get("cutMode", "geometric"),
     )))
 json.dump(out, sys.stdout)
 `;
@@ -243,7 +271,7 @@ json.dump(out, sys.stdout)
       (o) => window.SASTaperInternals.buildSchedule(Object.assign({
         startMg: 8, n: 6, filmMm: 22, film2Mm: 22, targetMg: 1, stripMg: 8,
         switch2mg: true, holdDays: null, nBelow3: null, stopMode: "reach",
-        filmStrengthMg: null,
+        filmStrengthMg: null, cutMode: "geometric",
       }, o)),
       c
     );
@@ -255,12 +283,16 @@ json.dump(out, sys.stdout)
   /* compare_classic() builds its own schedules in "above" stop mode, so the
      rows above never touch it. Three starts, because the table is derived from
      whatever start/target/strip the reader has set, not from the defaults. */
-  for (const [startMg, targetMg, stripMg] of [[8, 1, 8], [16, 1, 8], [12, 0.5, 12], [32, 0.5, 8]]) {
-    const label = `compare ${startMg}/${targetMg}/${stripMg}`;
-    const py = pyRun({ startMg, targetMg, stripMg, compare: true }).compare;
+  for (const [startMg, targetMg, stripMg, cutMode] of [
+    [8, 1, 8, "geometric"], [16, 1, 8, "geometric"], [12, 0.5, 12, "geometric"],
+    [32, 0.5, 8, "geometric"], [8, 1, 8, "linear"], [8, 0, 8, "linear"],
+    [16, 0, 8, "linear"],
+  ]) {
+    const label = `compare ${startMg}/${targetMg}/${stripMg} ${cutMode}`;
+    const py = pyRun({ startMg, targetMg, stripMg, cutMode, compare: true }).compare;
     const js = await page.evaluate(
-      ([s, t, m]) => window.SASTaperInternals.compareClassic(s, t, m),
-      [startMg, targetMg, stripMg]
+      ([s, t, m, cm]) => window.SASTaperInternals.compareClassic(s, t, m, cm),
+      [startMg, targetMg, stripMg, cutMode]
     );
     compareCompare(label, js, py, fail);
   }
@@ -282,17 +314,18 @@ json.dump(out, sys.stdout)
     window.SASTaperInternals.buildSchedule(Object.assign({
       startMg: 8, n: 6, filmMm: 22, film2Mm: 22, targetMg: 1, stripMg: 8,
       switch2mg: true, holdDays: null, nBelow3: null, stopMode: "reach",
-      filmStrengthMg: null,
+      filmStrengthMg: null, cutMode: "geometric",
     }, c))), MATRIX);
 
   let matrixRows = 0;
   let widestDay = 0;
-  const shapes = { multi: 0, spareFilm: 0, noCut: 0, wholeFilms: 0 };
+  const shapes = { multi: 0, spareFilm: 0, noCut: 0, wholeFilms: 0, linear: 0, reachedZero: 0 };
   for (let i = 0; i < MATRIX.length; i++) {
     const label = "matrix " + JSON.stringify(MATRIX[i]);
     compareRows(label, jsMatrix[i], pyMatrix[i], fail);
     compareSummary(label, jsMatrix[i], pyMatrix[i], fail);
     compareMonths(label, jsMatrix[i], pyMatrix[i], fail);
+    if (jsMatrix[i].zeroDay != null) shapes.reachedZero++;
     for (const r of jsMatrix[i].rows) {
       matrixRows++;
       widestDay = Math.max(widestDay, r.filmsOut);
@@ -300,6 +333,7 @@ json.dump(out, sys.stdout)
       if (r.spareMm > 0) shapes.spareFilm++;
       if (r.cutTakeMm === 0) shapes.noCut++;
       if (r.takeFilms > 0) shapes.wholeFilms++;
+      if (jsMatrix[i].cutMode === "linear") shapes.linear++;
     }
   }
   /* A grid that only produced one-film days would agree perfectly and prove
@@ -312,7 +346,7 @@ json.dump(out, sys.stdout)
   if (pageErrors.length) fail("page errors: " + pageErrors.join("; "));
   await browser.close();
 
-  const checks = CASES.length + 11 + 4 + MATRIX.length;
+  const checks = CASES.length + 11 + 7 + MATRIX.length;
   if (failures.length) {
     console.error(`FAILED — ${failures.length} mismatch(es) across ${checks} checks:`);
     for (const f of failures.slice(0, 40)) console.error("  " + f);

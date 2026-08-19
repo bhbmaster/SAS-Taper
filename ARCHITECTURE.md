@@ -115,25 +115,64 @@ The two sets of limits are *not* identical, and that is worth knowing before you
 
 One number does two jobs, which is the whole trick: **`n` is both the cut denominator and the cycle length in days.** Cut `1/n` off the piece each day, and after `n` days the saved slivers add up to exactly one whole piece.
 
+`1/n` **of what**, though, is the one real choice in the model — and it is the `cut_mode` input:
+
+| | `geometric` (default) | `linear` (easier to cut) |
+|---|---|---|
+| the sliver | `D / n` — 1/n of the piece in hand | `D₀ / n` — 1/n of the **first** strip, fixed once |
+| the cut in mm | shrinks with the dose | never changes |
+| dose at cycle *k* | `D₀ · r^(k−1)` | `D₀ · (1 − (k−1)/n)` |
+| each step | same percentage | same milligrams |
+| where it ends | asymptotic — pick a target | zero, after exactly `n − 1` doses |
+| cutting it | a new, smaller mark each cycle | one mark, measured once, reused every day |
+
+Everything below is written for the geometric mode, and notes where linear differs.
+
 | | |
 |---|---|
 | keep ratio | `r = 1 − 1/n` |
 | strip at cycle *k* | `D_k = D₀ · r^(k−1)` |
 | daily dose in that cycle | `daily = D · r` |
-| daily sliver | `sliver = D / n` |
+| daily sliver | `sliver = D / n` (geometric) or `D₀ / n` (linear, constant) |
 | days in the cycle | `hold_days` if set, else `n` |
 | banked over the cycle | `days · sliver` — exactly `D`, one whole piece, when `days == n` |
 
 `daily + sliver = D` exactly, which is why the dose splits without remainder.
 
-Two closed forms let the tests check the simulation against algebra rather than against itself:
+Closed forms let the tests check the simulation against algebra rather than against itself:
 
 ```
-lifetime ceiling   Σ_{k≥1} days·D₀·r^k  =  days · D₀ · r/(1−r)  =  days · (n−1) · D₀
-ingested after K   Σ_{k=1..K}           =  days · n · D₀ · r · (1 − r^K)
+geometric
+  lifetime ceiling   Σ_{k≥1} days·D₀·r^k  =  days · D₀ · r/(1−r)  =  days · (n−1) · D₀
+  ingested after K   Σ_{k=1..K}           =  days · n · D₀ · r · (1 − r^K)
+
+linear
+  whole-run total    Σ_{k=1..n−1} days·D₀(1 − k/n)  =  days · D₀ · (n−1)/2
+  ingested after K   days · D₀ · (K − K(K+1)/(2n))
 ```
 
-With the default cycle length (`days = n`) the ceiling is the familiar `n(n−1)·D₀` and the ingested form is `n²·D₀·r·(1 − r^K)`.
+With the default cycle length (`days = n`) the geometric ceiling is the familiar `n(n−1)·D₀` and its ingested form is `n²·D₀·r·(1 − r^K)`. The linear figure is not a ceiling at all but the actual total, because that run finishes: 8 mg at n = 6 is 120 mg over 30 days, against 425 mg over 66 days for the geometric run down to ~1 mg.
+
+**`cut_mm` comes from the sliver, not from `piece_mm / n`.** The two are identical under geometric, where the sliver *is* the piece over n — but under linear the sliver is a fixed number of milligrams and the millimetres have to hold still with it. That constant mark is the entire point of the mode, and it is why linear is the easier one to cut: measure once, reuse it every day, and it never shrinks into the sub-millimetre range where a razor stops resolving.
+
+### What linear mode switches off, and why
+
+Two features exist to rescue the geometric mode from itself, and neither applies:
+
+- **The 2 mg switch** exists because the geometric sliver eventually gets too thin to cut. A constant cut never does, so there is nothing to rescue.
+- **`n below 3 mg`** changes `n` partway, which would change the one step the linear mode is defined by.
+
+Both are ignored when `cut_mode == "linear"`, and both front ends say so rather than leaving a control looking active.
+
+### Where the linear ladder stops
+
+`daily = D − D₀/n` hits exactly zero at cycle `n`. A cycle of `n` days at 0 mg is not an instruction, so **the loop breaks before appending it** and `zero_day` reports the landing instead — the day after the last dosing cycle ends.
+
+That break has one consequence worth knowing: it leaves the loop early, so `truncated` must be cleared explicitly. It is initialised `true` for `stop_mode == "reach"` and is otherwise only cleared where the target is met. `test_parity.js` caught exactly this — the JS side reported a completed linear run as truncated while Python did not — which is why `truncated` and `switch_never_fired` are now compared fields rather than assumed.
+
+### The honest caveat
+
+Equal milligrams are growing percentages. An 8 mg n = 6 linear run drops 20%, 25%, 33%, 50%, and the last cut is 100% — so the mode is at its steepest exactly where a taper is hardest, which is the opposite of what the rest of this tool argues for. That is not a defect in the arithmetic; it is the arithmetic. Both front ends compute those percentages from the built rows and show them, unprompted, whenever the mode is on.
 
 ### Millimetres
 
@@ -227,7 +266,7 @@ One row per cycle, 24 fields, identical on both sides (camelCase in JS, snake_ca
 | running totals | `used_mg`, `cum_mg`, `cum_strips`, `banked_mg`, `cum_banked_mg` |
 | flags | `switched_2mg`, `cut_warn`, `n_changed` |
 
-`ScheduleResult` wraps the rows with the echoed inputs, the derived `r` / `ceiling_mg` / `base_film_mg`, nine summary figures filled in by `_fill_summary`, the 30-day `months` buckets, and two honesty flags — `truncated` (hit the 40-cycle cap before the target) and `switch_never_fired`.
+`ScheduleResult` wraps the rows with the echoed inputs (including `cut_mode`), the derived `r` / `ceiling_mg` / `base_film_mg`, `zero_day` for a linear run that reaches it, ten summary figures filled in by `_fill_summary`, the 30-day `months` buckets, and two honesty flags — `truncated` (hit the 40-cycle cap before the target) and `switch_never_fired`.
 
 **Summary fields default to 0 / None, not undefined.** An empty ladder still has to answer every question asked of it: an undefined `end_day` once turned `Math.max(endDay, 1)` into `NaN` and blanked the comparison chart's axis. Both sides mirror the same defaults and `test_parity.js` checks them on two deliberately-empty cases.
 
@@ -300,11 +339,13 @@ The two Node suites share `test_browser.js`, which looks for a browser in `CHROM
 
 That skip is right locally and wrong in CI, where it would be a green tick over a page nobody tested, so the workflow has an explicit gate: after installing the browser it calls `findBrowser()` and fails the job if the answer is null. Note the skip only covers a *missing binary* — a browser that exists but fails to launch throws, and both suites exit 1.
 
-### `test_taper.py` — 40 checks
+### `test_taper.py` — 51 checks
 
 Standard library, no I/O, runs in under half a second.
 
 Named classes cover the closed forms against the simulation, the per-cycle invariants, that the daily dose never rises across a film switch, the published film geometry, the summary figures, and worked multi-film examples a reader can follow.
+
+`TestLinearCutMode` covers the second cut mode: the cut never changes in either unit, the dose falls in equal steps, it lands on zero after exactly `n − 1` of them, no cycle ever has a zero or negative dose, the closed form matches the simulation, it still stops at a target above zero, the percentage step grows every cycle, the two geometric rescues are switched off, the cut never goes thin where geometric would, and the default mode is untouched.
 
 `TestMultiFilmMatrix` covers the *space* rather than examples: **720 ladders, 10,597 cycles** — start doses 1 to 32 mg against all four official strengths, `n` from 2 to 30, three film lengths, the 2 mg switch both ways — built once in `setUpClass` and walked by six property tests:
 
@@ -319,14 +360,14 @@ Named classes cover the closed forms against the simulation, the per-cycle invar
 
 A seventh test checks **the shape of the coverage itself** — that the matrix really does produce days of 1 through 16 films, days needing a second cut film, and days with nothing to cut. A grid that quietly stopped generating multi-film days would otherwise pass everything above while testing nothing.
 
-### `test_parity.js` — 671 schedules
+### `test_parity.js` — 1,323 schedules
 
 The suite that keeps the site's promise true. It loads `index.html` in headless Chromium, reaches into `window.SASTaperInternals` (a frozen, read-only test surface exposed at the bottom of the IIFE — the page itself never uses it), and diffs against `taper.py`.
 
 Two phases:
 
-- **31 named cases** go through the CLI (`python3 taper.py --json`), so the argument plumbing is covered too. Start doses 0.1–64 mg, `n` 2–30, the switch both ways, stretched cycles, `n`-below-3, non-default lengths and strengths, clamp boundaries, empty ladders.
-- **640 matrix cases** go straight at `build_schedule()` in one Python process — 1 to 32 mg × all four strengths × `n` 2–30, plus two non-default film lengths. **9,212 cycles** of layout fields, compared field by field.
+- **43 named cases** go through the CLI (`python3 taper.py --json`), so the argument plumbing is covered too. Start doses 0.1–64 mg, `n` 2–30, the switch both ways, stretched cycles, `n`-below-3, non-default lengths and strengths, clamp boundaries, empty ladders.
+- **1,280 matrix cases** go straight at `build_schedule()` in one Python process — 1 to 32 mg × all four strengths × `n` 2–30 × **both cut modes**, plus non-default film lengths. **13,567 cycles**, compared field by field.
 
 Every one of the 24 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
 
@@ -334,9 +375,9 @@ The months and the comparison table were the last two things written twice and c
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js` — 472 viewport states
+### `test_layout.js` — 566 viewport states
 
-Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus fifteen reshaping input cases and a pass that redraws one day on each of the four film strengths.
+Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
 
 Five failure modes at every state:
 
@@ -347,6 +388,8 @@ Five failure modes at every state:
 | **clipping** — a box too small for its text | `scrollWidth`/`scrollHeight` vs `clientWidth`/`clientHeight` |
 | **spill** — an absolute label escaping its container | bounding box against its parent's |
 | **bar count** — a drawing showing a different day than it describes | one bar per film in each panel, against the layout for that panel's strength |
+
+The schedule's column tooltips get their own pass. They are `position: fixed` because the table sits in an `overflow-x` scroller that would clip anything parented to a `<th>`, and they are gated to mouse and keyboard: `pointerover` ignores non-mouse pointers, `focusin` requires `:focus-visible`. The sweep drives a real hover at two widths and asserts the tooltip appears inside the viewport, then opens a touch context and asserts a tap produces nothing — touch readers get the twelve-entry glossary under the table instead, which is why that glossary exists rather than being decoration. One `COLUMN_DOC` list feeds the headings, the tooltips and the glossary, so the three cannot disagree.
 
 It also carries a short pass over **rendered figures no other suite can see** — the display maths layered on top of the schedule. The cutting-error chart must scale with the film-length input, the comparison heading must name the target actually used, and every chart must have an accessible name. Each of those three had been wrong.
 
@@ -373,6 +416,8 @@ Every guard above was checked by injecting the fault it is meant to catch:
 | wrong layout for 2 mg film above 25 mg | 154 matrix mismatches |
 | renderer draws one bar instead of all | 372 layout failures |
 | life-size panel ignores the selected strength | bar-count mismatch at every strength but 8 mg |
+| linear cut derived from `piece_mm / n` again | `linear cut column is not constant: 3.67, 3.06, 2.44…` |
+| 2 mg switch allowed to fire in linear mode | 2,840 parity mismatches |
 | cutting-error chart hardcodes a 22 mm film | caught at 11 mm |
 | charts lose their accessible names | 7 unnamed charts reported |
 | `monthly_usage` drifts by 0.1% | 14,304 parity mismatches |
@@ -398,3 +443,6 @@ Things that are true today and that a change must keep true. Most are enforced b
 9. Each drawing shows one bar per film it is describing. — `test_layout.js`
 10. No text overlaps, clips or overflows from 280 px to 1920 px. — `test_layout.js`
 11. Summary fields are 0/None on an empty ladder, never undefined. — `test_parity.js`
+12. A linear cut is the same size in every cycle, in mg and in mm. — `test_taper.py`, and `test_layout.js` reads it off the rendered table
+13. No cycle ever carries a zero or negative dose. — `test_taper.py`
+14. The schedule's column tooltips never appear on a touch device. — `test_layout.js`
