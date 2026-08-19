@@ -103,6 +103,10 @@ function pyRun(c) {
   return JSON.parse(execFileSync("python3", args, { cwd: REPO, maxBuffer: 1 << 28 }));
 }
 
+/* Every single field-to-field comparison the run makes, so the suite can say
+   how much it actually checked rather than how many schedules it built. */
+let comparisons = 0;
+
 function compareRows(label, js, py, fail) {
   if (js.rows.length !== py.rows.length) {
     fail(`${label}: row count ${js.rows.length} (js) vs ${py.rows.length} (py)`);
@@ -119,6 +123,7 @@ function compareRows(label, js, py, fail) {
       }
       const av = a[k];
       const ev = e[key];
+      comparisons++;
       if (typeof av === "number") {
         if (!Number.isFinite(av) || Math.abs(av - ev) > TOL) {
           fail(`${label}: row ${i} ${k} = ${av} (js) vs ${ev} (py)`);
@@ -164,6 +169,7 @@ function compareMonths(label, js, py, fail) {
   ];
   for (let i = 0; i < js.months.length; i++) {
     for (const [j, p] of FIELDS) {
+      comparisons++;
       if (Math.abs(js.months[i][j] - py.months[i][p]) > 1e-9) {
         fail(`${label}: month ${i} ${j} = ${js.months[i][j]} (js) vs ${py.months[i][p]} (py)`);
       }
@@ -183,6 +189,7 @@ function compareCompare(label, js, py, fail) {
     for (const k of Object.keys(js[i])) {
       const p = snake(k);
       if (!(p in py[i])) { fail(`${label}: compare field ${k} missing from taper.py`); continue; }
+      comparisons++;
       if (Math.abs(js[i][k] - py[i][p]) > 1e-6) {
         fail(`${label}: compare row ${i} ${k} = ${js[i][k]} (js) vs ${py[i][p]} (py)`);
       }
@@ -194,6 +201,7 @@ function compareSummary(label, js, py, fail) {
   for (const [j, p] of SUMMARY) {
     const av = js[j];
     const ev = py[p];
+    comparisons++;
     if (av == null && ev == null) continue;
     if (typeof av === "number" && typeof ev === "number") {
       if (Math.abs(av - ev) > 1e-6) fail(`${label}: ${j} = ${av} (js) vs ${ev} (py)`);
@@ -357,7 +365,8 @@ json.dump(out, sys.stdout)
     + `(${matrixRows} matrix cycles, widest day ${widestDay} films: `
     + `${shapes.multi} multi-film, ${shapes.spareFilm} whose sliver runs onto unopened film, `
     + `${shapes.noCut} with nothing to cut), 11 film sizes, `
-    + `every month bucket and the n = 6/8/10 table`
+    + `every month bucket and the n = 6/8/10 table — ${comparisons.toLocaleString("en-US")} `
+    + `field comparisons in all`
   );
 })().catch((e) => {
   console.error(e);

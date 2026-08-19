@@ -143,10 +143,16 @@ const probe = () => {
   const browser = await launchOrSkip();
   if (!browser) process.exit(0);
 
+  /* Two counters, because they are two different things and the summary line
+     used to conflate them: `states` is one rendered page measured end to end
+     (a width × theme × cycle × mode combination), `checks` is every assertion
+     the run makes, most but not all of which are a state. */
   const failures = [];
   let checks = 0;
+  let states = 0;
   const record = (where, r, errs) => {
     checks++;
+    states++;
     if (r.scrollX > 0) failures.push(`${where}: page scrolls horizontally by ${r.scrollX}px`);
     r.overlaps.forEach((m) => failures.push(`${where}: ${m}`));
     r.clipped.forEach((m) => failures.push(`${where}: clipped ${m}`));
@@ -248,6 +254,64 @@ const probe = () => {
       checks++;
       if (cells.n !== cells.end) {
         failures.push(`${theme} ${width}px calendar: ${cells.n} day cells for a ${cells.end}-day run`);
+      }
+
+      /* The legend above the grid: one worked cell, its parts named, and a
+         swatch per state. It has to say the same things the cells show, so it
+         is checked against them rather than against a fixed string — and the
+         swatches have to be painted in this theme, not left transparent by a
+         colour token that exists in only one of the three blocks. */
+      const legend = await page.evaluate(() => {
+        const box = document.getElementById("calLegend");
+        if (!box || !box.offsetParent) return null;
+        const demo = box.querySelector(".cal-cell");
+        const first = document.querySelector(".cal-cell[data-cycle]");
+        const paint = (sel) => {
+          const el = box.querySelector(sel);
+          if (!el) return "missing";
+          const c = getComputedStyle(el);
+          return [c.backgroundColor, c.borderLeftColor, c.borderColor, c.outlineColor, c.boxShadow]
+            .join("|");
+        };
+        return {
+          demoLines: demo ? [...demo.children].map((e) => e.textContent.trim()) : null,
+          cellLines: first ? [...first.children].map((e) => e.textContent.trim()) : null,
+          /* Only the rows the cells actually render at this width: the
+             measurement line is dropped on a narrow screen and its bullet has
+             to go with it. */
+          visibleRows: [...box.querySelectorAll(".rows > div")]
+            .filter((e) => e.offsetParent !== null && !e.classList.contains("states")).length,
+          demoRows: demo ? [...demo.children].filter((e) => e.offsetParent !== null).length : 0,
+          swatches: ["band", "first", "film2", "today", "picked"].map((k) => [k, paint("i." + k)]),
+        };
+      });
+      checks++;
+      if (!legend) {
+        failures.push(`${theme} ${width}px: the calendar has no visible legend`);
+      } else {
+        if (legend.demoRows !== legend.visibleRows) {
+          failures.push(`${theme} ${width}px legend: ${legend.demoRows} lines in the sample cell `
+            + `but ${legend.visibleRows} explaining them`);
+        }
+        /* The sample cell has to be built the same way the real ones are —
+           both ways round, so it cannot drift into showing a unit the grid
+           does not, or losing one the grid keeps. */
+        for (const u of ["mg", "mm"]) {
+          const real = (legend.cellLines || []).join(" ").includes(u);
+          const demo = (legend.demoLines || []).join(" ").includes(u);
+          if (real !== demo) {
+            failures.push(`${theme} ${width}px legend: sample cell ${demo ? "shows" : "omits"} `
+              + `the ${u} unit but the real cells ${real ? "show" : "omit"} it`);
+          }
+        }
+        for (const [name, paint] of legend.swatches) {
+          if (paint === "missing") {
+            failures.push(`${theme} ${width}px legend: no swatch for ${name}`);
+          } else if (/rgba\(0, 0, 0, 0\)\|rgba\(0, 0, 0, 0\)/.test(paint)) {
+            failures.push(`${theme} ${width}px legend: the ${name} swatch is invisible — `
+              + `a colour token missing from this theme?`);
+          }
+        }
       }
       await ctx.close();
     }
@@ -546,6 +610,46 @@ const probe = () => {
         failures.push("the tint disappears on a 2 mg switch row");
       }
 
+      /* Every value carries its unit too, in the same small muted span as the
+         heading, so a row reads on its own without a trip back up the table.
+         Checked as "every numeric cell", not a fixed list, because the failure
+         this catches is a column added later without one. */
+      const cellUnits = await page.evaluate(() => {
+        const bad = [];
+        const rows = [...document.querySelectorAll("#schedTable tbody tr")];
+        for (const tr of rows) {
+          [...tr.children].forEach((td, i) => {
+            const txt = td.textContent.trim();
+            /* Cycle, Days and the em-dash in Δ save are the cells with no unit
+               to carry: an index, a day range, and "not applicable". */
+            if (i <= 1 || txt === "—") return;
+            if (!td.querySelector(".u")) bad.push(`col ${i} "${txt}"`);
+          });
+        }
+        return bad.slice(0, 5);
+      });
+      checks++;
+      if (cellUnits.length) {
+        failures.push(`schedule values with no unit: ${cellUnits.join(", ")}`);
+      }
+
+      /* And the units must be visibly secondary, or they compete with the
+         number they qualify — which is the whole reason they are a span. */
+      const unitStyle = await page.evaluate(() => {
+        const u = document.querySelector("#schedTable tbody td .u");
+        if (!u) return null;
+        const cu = getComputedStyle(u);
+        const cd = getComputedStyle(u.parentElement);
+        return {
+          smaller: parseFloat(cu.fontSize) < parseFloat(cd.fontSize),
+          dimmer: cu.color !== cd.color,
+        };
+      });
+      checks++;
+      if (!unitStyle) failures.push("no unit spans in the schedule body");
+      else if (!unitStyle.smaller) failures.push("cell units are not smaller than their value");
+      else if (!unitStyle.dimmer) failures.push("cell units are not muted against their value");
+
       /* Bounded by what is actually there: a missing column should be reported
          by the count check above, not crash the run in page.hover(). */
       for (const nth of [1, 8, 12].filter((i) => i <= cols)) {
@@ -612,7 +716,8 @@ const probe = () => {
   await browser.close();
 
   if (failures.length) {
-    console.error(`FAILED — ${failures.length} layout problem(s) across ${checks} checks:`);
+    console.error(`FAILED — ${failures.length} layout problem(s) across ${checks} checks `
+      + `over ${states} viewport states:`);
     const seen = new Set();
     for (const f of failures) {
       if (seen.has(f)) continue;
@@ -623,7 +728,8 @@ const probe = () => {
     process.exit(1);
   }
   console.log(
-    `OK — no overflow, overlap, clipping, spill or bar-count mismatch across ${checks} viewport states`
+    `OK — no overflow, overlap, clipping, spill or bar-count mismatch across `
+    + `${states} viewport states (${checks} checks in all)`
   );
 })().catch((e) => {
   console.error(e);

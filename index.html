@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SAS-Taper (save-a-sliver) — film schedule, cut marks, totals</title>
-  <meta name="description" content="SAS-Taper (save-a-sliver): a geometric buprenorphine film taper calculator — cycle schedule, cut marks in mm, and cumulative totals.">
+  <meta name="description" content="SAS-Taper (save-a-sliver): a geometric buprenorphine film taper calculator — cycle schedule, cut marks in mm, and running totals.">
   <link rel="canonical" href="https://bhbmaster.github.io/SAS-Taper/">
   <meta name="color-scheme" content="dark light">
   <meta name="theme-color" content="#14120f">
@@ -336,7 +336,10 @@
     /* Units, set small and muted beside the column name. Kept out of the name
        itself so the heading stays short — a wider heading is what pushes this
        table into a sideways scroll on a phone. */
-    #schedTable th .u, .coldoc dt .u {
+    #schedTable th .u,
+    #compareTable th .u,
+    #monthTable th .u,
+    .coldoc dt .u {
       font-weight: 500;
       font-size: 0.82em;
       color: var(--muted);
@@ -352,6 +355,19 @@
     #schedTable td.key { box-shadow: inset 0 0 0 999px var(--key-cell); font-weight: 700; }
     #schedTable th.key { color: var(--ink); }
     #schedTable th.key .u { color: var(--muted); }
+    /* The same unit treatment inside the cells. Repeating "mg" on every value
+       is what stops a reader having to look back up at the heading — the row
+       says what it is on its own. Weight is reset, because the tinted key
+       cells are bold and the unit is not the part to read first. */
+    #schedTable td .u,
+    #compareTable td .u,
+    #monthTable td .u,
+    .dim-table td .u {
+      font-weight: 500;
+      font-size: 0.78em;
+      color: var(--muted);
+      margin-left: 0.12em;
+    }
     .kit {
       font-size: 0.83rem;
       margin: 0 0 0.6rem;
@@ -639,9 +655,19 @@
     /* --fit is written by fitCalCells() when a cell's numbers do not fit its
        width. Applied as a multiplier so it composes with the narrow tiers below
        instead of having to out-specify them. */
-    .cal-cell .mg { font-size: calc(0.76rem * var(--fit, 1)); font-weight: 700; color: var(--ink); line-height: 1.15; }
-    .cal-cell .cut { font-size: calc(0.6rem * var(--fit, 1)); color: var(--muted); }
+    /* nowrap is what makes fitCalCells() work: it measures scrollWidth against
+       clientWidth, and a line allowed to wrap never overflows — it just grows
+       a fourth row and pushes the calendar taller. Held on one line, an
+       oversized "save 11.39 mm" reports its overflow and gets scaled down. */
+    .cal-cell .mg { font-size: calc(0.76rem * var(--fit, 1)); font-weight: 700; color: var(--ink); line-height: 1.15; white-space: nowrap; }
+    .cal-cell .cut { font-size: calc(0.6rem * var(--fit, 1)); color: var(--muted); white-space: nowrap; }
     .cal-cell .mg .sep { color: var(--muted); font-weight: 400; }
+    /* Tiny, because a 44 px cell has no room to spare — but present, so a
+       printed calendar on a fridge does not rely on the key underneath it. */
+    .cal-cell .u { font-weight: 500; font-size: 0.72em; color: var(--muted); margin-left: 0.1em; }
+    /* Set by fitCalCells() when the ×N pill is what stops a cell fitting. */
+    #calendarPanel.no-fx .cal-cell .mg .fx { display: none; }
+
     /* ×N rides on the dose line. Smaller and lighter than the dose so the big
        number still reads first, and it must not push the cell to a fourth line. */
     .cal-cell .mg .fx { font-size: 0.82em; font-weight: 600; color: var(--accent); margin-left: 0.12em; }
@@ -666,6 +692,55 @@
     .cal-cell.picked {
       box-shadow: inset 0 0 0 2px var(--accent);
       background: var(--accent-soft);
+    }
+    /* One real day cell, at full size, with its parts named beside it — and a
+       swatch for every state a cell can be in. The prose key under the grid
+       says the same things, but nobody reads a key before looking at a
+       calendar; they look, then wonder what the blue edge means.
+
+       Every colour here is the same custom property the real cell uses, so it
+       follows light, dark and print without a second definition to keep in
+       step. */
+    .cal-legend {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.9rem;
+      flex-wrap: wrap;
+      margin: 0 0 0.9rem;
+      padding: 0.6rem 0.7rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--head-bg);
+    }
+    .cal-legend .demo { width: 6.4rem; flex: 0 0 auto; }
+    .cal-legend .demo .cal-cell { min-height: 0; }
+    .cal-legend .rows { font-size: 0.72rem; color: var(--muted); }
+    .cal-legend .rows b { color: var(--ink); font-weight: 600; }
+    .cal-legend .rows div { margin: 0 0 0.18rem; }
+    .cal-legend .states {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.15rem 0.75rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.35rem;
+    }
+    .cal-legend .states span { display: inline-flex; align-items: center; gap: 0.3rem; }
+    .cal-legend i {
+      width: 0.85rem;
+      height: 0.85rem;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      flex: 0 0 auto;
+    }
+    .cal-legend i.band { background: var(--cal-band); }
+    .cal-legend i.film2 { border-left: 3px solid var(--switch); }
+    .cal-legend i.first { border-color: var(--accent); }
+    .cal-legend i.today { outline: 2px solid var(--cal-today); outline-offset: -2px; }
+    .cal-legend i.picked { box-shadow: inset 0 0 0 2px var(--accent); background: var(--accent-soft); }
+    @media (max-width: 430px) {
+      .cal-legend { gap: 0.6rem; }
+      .cal-legend .demo { width: 5.6rem; }
     }
     .cal-controls {
       display: flex;
@@ -724,6 +799,12 @@
          mark, the day's tooltip and the key underneath — dropping it here buys
          the dose the room it needs to stay legible. */
       .cal-cell .mg .fx { display: none; }
+      /* The measurement line is gone from the cells at this width, so the
+         legend must stop naming it — a bullet describing a line that is not
+         on screen is worse than no bullet. */
+      .cal-legend .measure { display: none; }
+      /* Below 360px the unit is dropped from the dose too (see the next tier);
+         the legend's own cell follows the same rules, so it stays truthful. */
     }
     @media (max-width: 360px) {
       .cal-cell,
@@ -927,7 +1008,7 @@
           <li>Start the cycle with a piece that is the current “whole strip” (cycle 1: a full 8 mg film — or several, if your dose is bigger than one film).</li>
           <li>Keep the full width. Cut only along the length. Mark, then cut with a fresh razor on a mat — not scissors.</li>
           <li>Cut 1/n off the <strong>right</strong> end. That short sliver goes in the save jar. Take the long left piece. Once daily is enough. If the day is more than one film, take the whole ones as they are and mark only the last: one cut a day, whatever the dose.</li>
-          <li>In practice you open a <strong>fresh film</strong> each day rather than keeping yesterday’s piece, so measure the same cut from the other end: mark <strong>Take mm from the left</strong>, and everything right of that mark — <strong>Save mm</strong> — goes in the jar. It is the same cut. The save is larger than the sliver, because it also carries the part earlier cycles had already taken off, and it grows every cycle: that growth is the <strong>Δ save</strong> column, and it is the sliver.</li>
+          <li>In practice you open a <strong>fresh film</strong> each day rather than keeping yesterday’s piece, so measure the same cut from the other end: mark <strong>Take mm from the left</strong>, and everything right of that mark — <strong>Save mm</strong> — goes in the jar. It is the same cut. From cycle 2 on, the save is larger than the sliver, because it also carries the part earlier cycles had already taken off; it grows every cycle, and that growth is the <strong>Δ save</strong> column — which is the sliver.</li>
           <li>Do that for n days. The save jar now holds one full piece of this cycle’s size. That is a <strong>buffer / safety net, not extra daily dose</strong>. If you eat the bank, the dose never drops.</li>
           <li>Next cycle, the leftover size is the new whole strip. In the default <strong>geometric</strong> mode that is dose × (1 − 1/n) and the cut shrinks with it; in <strong>linear</strong> mode you cut the identical piece again, so the dose steps down by the same milligrams every time. Repeat until you hit the target — or, in linear mode, until there is nothing left to cut.</li>
         </ol>
@@ -1031,6 +1112,7 @@
         <button type="button" class="ghost small" id="calModeBtn">Save</button>
         <button type="button" class="ghost small" id="calDensityBtn" aria-pressed="false">Detailed</button>
       </div>
+      <div class="cal-legend" id="calLegend"></div>
       <div id="calendar"></div>
       <p class="legend">Every day of a cycle is the same: same cut, same dose. Cycle 1 starts on the date you set above. Print this and put it where you do the cutting.</p>
     </section>
@@ -1077,31 +1159,31 @@
           </thead>
           <tbody>
             <tr data-spec="2">
-              <td class="left">2 mg / 0.5 mg</td>
-              <td class="left">22.0 mm × 12.8 mm</td>
-              <td class="left">281.6 mm²</td>
-              <td class="left">0.00710 mg/mm²</td>
+              <td class="left">2 <span class="u">mg</span> / 0.5 <span class="u">mg</span></td>
+              <td class="left">22.0 <span class="u">mm</span> × 12.8 <span class="u">mm</span></td>
+              <td class="left">281.6 <span class="u">mm²</span></td>
+              <td class="left">0.00710 <span class="u">mg/mm²</span></td>
               <td class="left">Same footprint as the 8 mg film; one-quarter the density</td>
             </tr>
             <tr data-spec="4">
-              <td class="left">4 mg / 1 mg</td>
-              <td class="left">22.0 mm × 25.6 mm</td>
-              <td class="left">563.2 mm²</td>
-              <td class="left">0.00710 mg/mm²</td>
+              <td class="left">4 <span class="u">mg</span> / 1 <span class="u">mg</span></td>
+              <td class="left">22.0 <span class="u">mm</span> × 25.6 <span class="u">mm</span></td>
+              <td class="left">563.2 <span class="u">mm²</span></td>
+              <td class="left">0.00710 <span class="u">mg/mm²</span></td>
               <td class="left">Twice the length of the 2 mg film (12.8 × 2); same density as 2 mg</td>
             </tr>
             <tr data-spec="8">
-              <td class="left">8 mg / 2 mg</td>
-              <td class="left">22.0 mm × 12.8 mm</td>
-              <td class="left">281.6 mm²</td>
-              <td class="left">0.0284 mg/mm²</td>
+              <td class="left">8 <span class="u">mg</span> / 2 <span class="u">mg</span></td>
+              <td class="left">22.0 <span class="u">mm</span> × 12.8 <span class="u">mm</span></td>
+              <td class="left">281.6 <span class="u">mm²</span></td>
+              <td class="left">0.0284 <span class="u">mg/mm²</span></td>
               <td class="left">Same footprint as the 2 mg film; 4× the density; default start</td>
             </tr>
             <tr data-spec="12">
-              <td class="left">12 mg / 3 mg</td>
-              <td class="left">22.0 mm × 19.2 mm</td>
-              <td class="left">422.4 mm²</td>
-              <td class="left">0.0284 mg/mm²</td>
+              <td class="left">12 <span class="u">mg</span> / 3 <span class="u">mg</span></td>
+              <td class="left">22.0 <span class="u">mm</span> × 19.2 <span class="u">mm</span></td>
+              <td class="left">422.4 <span class="u">mm²</span></td>
+              <td class="left">0.0284 <span class="u">mg/mm²</span></td>
               <td class="left">1.5× the length of the 8 mg film (12.8 × 1.5); same density as 8 mg</td>
             </tr>
           </tbody>
@@ -1436,8 +1518,8 @@
     let switched = false;
     let alreadySwitchedN = false;
     let day = 0;
-    let cumMg = 0;
-    let cumBanked = 0;
+    let sumMg = 0;
+    let sumBanked = 0;
     let truncated = stopMode === "reach";
     let prevDaily = null;
     let prevSaveMm = 0, prevTakeFilms = null;
@@ -1522,8 +1604,8 @@
       const banked = days * sliver;
       const dayStart = day + 1;
       const dayEnd = day + days;
-      cumMg += used;
-      cumBanked += banked;
+      sumMg += used;
+      sumBanked += banked;
 
       rows.push({
         cycle, dayStart, dayEnd, n: currentN, days, filmMg,
@@ -1531,9 +1613,9 @@
         pieceMm, cutMm, takeMm, saveMm, saveMg, deltaSaveMm,
         filmsOut: lay.filmsOut, takeFilms: lay.takeFilms,
         cutTakeMm: lay.cutTakeMm, cutSaveMm: lay.cutSaveMm, spareMm: lay.spareMm,
-        usedMg: used, cumMg,
-        cumStrips: cumMg / stripMg,
-        bankedMg: banked, cumBankedMg: cumBanked,
+        usedMg: used, sumMg,
+        sumStrips: sumMg / stripMg,
+        bankedMg: banked, sumBankedMg: sumBanked,
         switched2mg: justSwitched,
         cutWarn: cutMm < CUT_WARN_MM,
         nChanged
@@ -1585,9 +1667,9 @@
     const last = rows[rows.length - 1];
     result.endDay = last.dayEnd;
     result.endDailyMg = last.dailyMg;
-    result.totalMg = last.cumMg;
-    result.totalStrips = last.cumStrips;
-    result.totalBankedMg = last.cumBankedMg;
+    result.totalMg = last.sumMg;
+    result.totalStrips = last.sumStrips;
+    result.totalBankedMg = last.sumBankedMg;
     result.stayMg = result.startMg * result.endDay;
     result.savedVsStayMg = result.stayMg - result.totalMg;
     result.savedVsStayStrips = result.savedVsStayMg / result.stripMg;
@@ -1780,7 +1862,7 @@
         ? [{ lbl: "Off it", val: "Day " + s.zeroDay, sub: "the last cut takes the whole remaining piece" }]
         : []),
       { lbl: "Ingested", val: fmt(s.totalMg, 1) + " mg", sub: fmt(s.totalStrips, 1) + " × " + fmtG(s.stripMg) + " mg strips" },
-      { lbl: "Banked buffer", val: fmt(s.totalBankedMg, 1) + " mg", sub: fmt(s.totalBankedMg / s.stripMg, 1) + " strips · not extra dose" },
+      { lbl: "Slivers banked", val: fmt(s.totalBankedMg, 1) + " mg", sub: fmt(s.totalBankedMg / s.stripMg, 1) + " strips · buffer, not extra dose" },
       s.cutMode === "linear"
         ? { lbl: "Whole-run total", val: fmt(s.ceilingMg, 0) + " mg", sub: fmt(s.ceilingStrips, 1) + " strips — equal steps all the way to zero" }
         : { lbl: "Lifetime ceiling", val: fmt(s.ceilingMg, 0) + " mg", sub: fmt(s.ceilingStrips, 1) + " strips if n and cycle length never change" },
@@ -1849,6 +1931,12 @@
       : "";
   }
 
+  /* A value and its unit, the unit set small and muted. One helper so the
+     schedule, the compare and month tables and the calendar all mark units the
+     same way, and so a cell reads on its own without a trip back to the
+     heading. Returns just the number when there is no unit to add. */
+  const unit = (txt, u) => u ? `${txt} <span class="u">${u}</span>` : `${txt}`;
+
   /* Every schedule column: display name, unit, what it means, and whether it
      is one of the numbers a reader actually acts on.
 
@@ -1870,14 +1958,14 @@
     ["Days", "", false, "The run days this cycle covers. Every day inside it is identical: same dose, same cut, same mark."],
     ["Film", "", false, "Strength of the film you are cutting. ×N means the day needs N of them; only one is ever cut."],
     ["Take", "mg", true, "The dose — what you actually swallow each day of this cycle."],
-    ["Take", "mm", true, "That dose as a length: measure it from the left end of a full film and cut there. Across all N films on a ×N day."],
+    ["Take", "mm", true, "The dose as a length. On a one-film day that is exactly where to mark, measured from the left end. On a ×N day it spans all N films: swallow the whole ones, and what is left of it is the mark on the last — click the row to see that mark."],
     ["Save", "mg", true, "What goes in the jar each day, in milligrams. Never swallow it as extra dose."],
-    ["Save", "mm", true, "The rest of the marked film — everything right of the mark. Take mm + Save mm is the film you opened."],
+    ["Save", "mm", true, "The rest of the marked film — everything right of the mark. Take mm + Save mm is exactly the film, or films, you opened. Zero on a day that needs no cut."],
     ["Δ save", "mm", true, "How much more goes in the jar than last cycle. “—” where there is nothing comparable: a fresh 2 mg film, a day that opens fewer films, or a day with no cut at all."],
     ["Used", "mg", false, "Total taken over the whole cycle: Take × Days."],
-    ["Cum", "mg", false, "Running total taken since day 1."],
-    ["Cum", "strips", false, "The same running total as whole films, at the strip strength you set."],
-    ["Banked", "mg", false, "The ladder's own count of the sliver over this cycle — one whole piece per full cycle. Save mm is what leaves the film today; this is the buffer the method is built around."],
+    ["Sum", "mg", false, "Running total taken since day 1."],
+    ["Sum", "strips", false, "The same running total as whole films, at the strip strength you set."],
+    ["Banked", "mg", false, "The slivers of this cycle added up: one whole piece of the current size, every full cycle. That is the method's milestone and the buffer it promises — not a tally of every offcut you end up holding, which depends on whether a big offcut can serve as a whole dose."],
   ];
 
   /* The cycle table. Takes the schedule, writes into #schedTable and wires
@@ -1905,16 +1993,16 @@
       return `<tr class="${cls}" data-cycle="${r.cycle}">
         <td class="left">${r.cycle}${pills}</td>
         <td>${r.dayStart}–${r.dayEnd}</td>
-        <td>${fmtG(r.filmMg)} mg${r.filmsOut > 1 ? ` <span class="pill fx">×${r.filmsOut}</span>` : ""}</td>
-        <td class="key">${fmt(r.dailyMg, 2)}</td>
-        <td class="key">${fmt(r.takeMm, 1)}</td>
-        <td class="key">${fmt(r.saveMg, 2)}</td>
-        <td class="key">${fmt(r.saveMm, 2)}</td>
-        <td class="key">${r.deltaSaveMm === null ? "—" : fmt(r.deltaSaveMm, 2)}</td>
-        <td>${fmt(r.usedMg, 1)}</td>
-        <td>${fmt(r.cumMg, 1)}</td>
-        <td>${fmt(r.cumStrips, 1)}</td>
-        <td>${fmt(r.bankedMg, 2)}</td>
+        <td>${fmtG(r.filmMg)} <span class="u">mg</span>${r.filmsOut > 1 ? ` <span class="pill fx">×${r.filmsOut}</span>` : ""}</td>
+        <td class="key">${unit(fmt(r.dailyMg, 2), "mg")}</td>
+        <td class="key">${unit(fmt(r.takeMm, 2), "mm")}</td>
+        <td class="key">${unit(fmt(r.saveMg, 2), "mg")}</td>
+        <td class="key">${unit(fmt(r.saveMm, 2), "mm")}</td>
+        <td class="key">${r.deltaSaveMm === null ? "—" : unit(fmt(r.deltaSaveMm, 2), "mm")}</td>
+        <td>${unit(fmt(r.usedMg, 1), "mg")}</td>
+        <td>${unit(fmt(r.sumMg, 1), "mg")}</td>
+        <td>${unit(fmt(r.sumStrips, 1), "strips")}</td>
+        <td>${unit(fmt(r.bankedMg, 2), "mg")}</td>
       </tr>`;
     }).join("");
     tb.querySelectorAll("tr").forEach((tr) => {
@@ -1942,10 +2030,12 @@
      approached from opposite ends. delta is undefined where there is nothing
      comparable — a fresh 2 mg film, a day that opens fewer films, or a day
      with no cut — and shows as a dash. */
+  /* `lower` is written out rather than produced with toLowerCase(), which
+     turns the Δ of "Δ save" into a lowercase δ — a different letter. */
   const CAL_MODES = {
-    save:  { label: "Save",    short: "save",  help: "everything right of the mark on the marked film — what goes in the jar that day." },
-    take:  { label: "Take",    short: "take",  help: "the piece you swallow, measured from the left end of a full unused film. That is where you mark it." },
-    delta: { label: "Δ save",  short: "Δ",     help: "how much more goes in the jar than the last cycle that cut a film. A dash means there is nothing comparable." },
+    save:  { label: "Save",   lower: "save",   short: "save", help: "everything right of the mark on the marked film — what goes in the jar that day." },
+    take:  { label: "Take",   lower: "take",   short: "take", help: "the piece you swallow, measured from the left end of a full unused film. That is where you mark it." },
+    delta: { label: "Δ save", lower: "Δ save", short: "Δ",    help: "how much more goes in the jar than the last cycle that cut a film. A dash means there is nothing comparable." },
   };
   const CAL_ORDER = ["save", "take", "delta"];
   let calMode = "save";
@@ -2017,6 +2107,7 @@
     if (!start || !s.rows.length) {
       panel.hidden = true;
       $("calendar").innerHTML = "";
+      $("calLegend").innerHTML = "";
       $("calLede").innerHTML = "";
       return;
     }
@@ -2098,24 +2189,28 @@
         html += `<div class="d">${tag}</div>`
           /* ×2 rides on the dose line rather than taking a line of its own:
              a 44 px compact cell has room for three lines and no more. */
-          + `<div class="mg">${fmt(r.dailyMg, 2)}${mm.films > 1 ? `<span class="fx">×${mm.films}</span>` : ""}</div>`
-          /* Compact drops the label word, not the number: a 44 mm-wide cell
-             cannot hold "take 12.73" on one line at a readable size, and the
-             word is the redundant part once the legend names the mode. */
+          + `<div class="mg">${unit(fmt(r.dailyMg, 2), "mg")}${mm.films > 1 ? `<span class="fx">×${mm.films}</span>` : ""}</div>`
+          /* Number and unit only. Three months sit side by side, so a day cell
+             is about 36px wide however big the window is — "save 11.39 mm"
+             wants 70px there and shrinking it to fit makes it unreadable. The
+             unit is the half worth keeping: the mode is named on the button,
+             in the legend above the grid and in the key below it, while "mm"
+             is the only thing on the page saying what the number is. */
           + `<div class="cut">${mm.noCut || mm.value === null
-              ? (mm.noCut ? "no cut" : (calCompact ? "—" : CAL_MODES[calMode].short + " —"))
-              : (calCompact ? "" : CAL_MODES[calMode].short + " ") + fmt(mm.value, 2)}</div>`;
+              ? (mm.noCut ? "no cut" : "—")
+              : unit(fmt(mm.value, 2), "mm")}</div>`;
         html += `</div>`;
       }
       html += `</div></div>`;
       cur = new Date(Date.UTC(y, m + 1, 1, 12));
     }
     const mode = CAL_MODES[calMode];
-    html += `</div><p class="cal-key">Big number is the day's dose in mg; the second is <strong>${mode.label.toLowerCase()}</strong> in mm — ${mode.help}`
+    html += `</div><p class="cal-key">Big number is the day's dose in mg; the second is the mm figure the button above selects, currently <strong>${mode.label}</strong> — ${mode.help}`
       + ` The mm is measured on the film that carries the cut; ×N means the day needs N films and only that one is cut.`
       + ` Alternate cycles are shaded, cycles on 2 mg film carry a blue edge, the first day of each cycle is tagged c1, c2, …`
       + ` Click any day to select that cycle; the selected one is ringed.</p>`;
     $("calendar").innerHTML = now + html;
+    renderCalLegend(s);
 
     $("calendar").querySelectorAll("[data-cycle]").forEach((el) => {
       el.addEventListener("click", () => {
@@ -2137,17 +2232,74 @@
 
      Reads every width before writing any style, so the whole pass costs one
      reflow rather than one per cell. Takes and returns nothing. */
+  /* A worked day cell above the grid, with every part of it named and every
+     state it can be in shown as a swatch.
+
+     The numbers are day 1 of the actual run rather than invented ones — this
+     is a tool people dose from, and a plausible-looking made-up figure sitting
+     next to real ones is exactly the kind of number it must not print. The
+     third line follows the mode button, because that is the line whose meaning
+     changes. Colours come from the same custom properties the real cells use,
+     so light, dark and print all follow with nothing to keep in step. */
+  function renderCalLegend(s) {
+    const row = s.rows[0];
+    if (!row) { $("calLegend").innerHTML = ""; return; }
+    const mm = calMeasure(row, s);
+    const mode = CAL_MODES[calMode];
+    const value = mm.noCut || mm.value === null
+      ? "—" : unit(fmt(mm.value, 2), "mm");
+    $("calLegend").innerHTML = `
+      <div class="demo" aria-hidden="true">
+        <div class="cal-cell first">
+          <div class="d">1 · c1</div>
+          <div class="mg">${unit(fmt(row.dailyMg, 2), "mg")}</div>
+          <div class="cut">${value}</div>
+        </div>
+      </div>
+      <div class="rows">
+        <div><b>1 · c1</b> — day of the run; <b>c1</b> tags the first day of a cycle</div>
+        <div><b>${fmt(row.dailyMg, 2)} mg</b> — the dose that day; <b>×2</b> would mean two films</div>
+        <div class="measure"><b>${fmt(mm.value === null ? 0 : mm.value, 2)} mm</b> — the measurement the button above is showing, currently <b>${mode.label}</b>: ${mode.help}</div>
+        <div class="states">
+          <span><i class="band"></i>alternate cycle</span>
+          <span><i class="first"></i>cycle starts</span>
+          <span><i class="film2"></i>2 mg film</span>
+          <span><i class="today"></i>today</span>
+          <span><i class="picked"></i>selected cycle</span>
+        </div>
+      </div>`;
+  }
+
+  /* Below this the digits stop being readable, so something has to be dropped
+     instead of shrunk. */
+  const FIT_FLOOR = 0.6;
+
   function fitCalCells() {
+    const panel = $("calendarPanel");
+    panel.classList.remove("no-fx");
     const lines = [...$("calendar").querySelectorAll(".cal-cell[data-cycle] .mg, .cal-cell[data-cycle] .cut")];
-    const ratios = lines.map((el) => {
+    const measure = () => lines.map((el) => {
       const room = el.clientWidth;
       const want = el.scrollWidth;
-      /* 0.6 is the floor: past that the number is unreadable anyway, and the
-         narrow tiers drop content instead of shrinking it further. */
-      return want > room + 1 && room > 0 ? Math.max(0.6, room / want) : 1;
+      return want > room + 1 && room > 0 ? room / want : 1;
     });
+    let ratios = measure();
+    /* "13.33 mg ×2" wants 48px in the 44px a two-strip run gets at 768px, and
+       no amount of shrinking makes that readable. ×N is the part to lose: it
+       is constant across a whole cycle and is already on the schedule row, the
+       cut mark, the day's own tooltip and the key under the grid, while the
+       unit is the only thing saying what the number is. The 420px tier drops
+       it for the same reason — this just decides by measurement rather than by
+       a fixed width, and it drops it from every cell at once, because a grid
+       where some days carry ×2 and others do not is a lie about the days that
+       do not. */
+    if (ratios.some((r) => r < FIT_FLOOR)) {
+      panel.classList.add("no-fx");
+      ratios = measure();
+    }
     lines.forEach((el, i) => {
-      if (ratios[i] < 1) el.style.setProperty("--fit", ratios[i].toFixed(3));
+      if (ratios[i] < 1) el.style.setProperty("--fit", Math.max(FIT_FLOOR, ratios[i]).toFixed(3));
+      else el.style.removeProperty("--fit");
     });
   }
 
@@ -2210,7 +2362,7 @@
         ? `Every bar is one <strong>full unused ${fmtG(row.filmMg)} mg film</strong> (${fmt(fullMm, 1)} mm) — one bar per film the day needs, in the order you handle them. ${cut
           ? "Only the tall one is cut."
           : "None of them is cut."}`
-        : `This bar is a <strong>full unused ${fmtG(row.filmMg)} mg film</strong> (${fmt(fullMm, 1)} mm), not a zoomed leftover. TAKE + SAVE is what you are holding this cycle.`} ${hasGhost
+        : `This bar is a <strong>full unused ${fmtG(row.filmMg)} mg film</strong> (${fmt(fullMm, 1)} mm), not a zoomed leftover. TAKE + SAVE is the whole film, and you open one of those today.`} ${hasGhost
         ? `${multi ? "A" : "The"} hashed end was already coming off in earlier cycles (${fmt(cut.off, 1)} mm / ${fmt(cut.off * perMg, 2)} mg). It is part of today’s save, not part of today’s dose — everything right of the mark goes in the jar together.`
         : (row.cycle === 1 && !multi
           ? `Cycle 1 uses the whole unused strip, so there is no leftover from earlier cuts.`
@@ -2218,7 +2370,7 @@
       ${bars}
       ${ticks}
       <div class="strip-dims">
-        <span>TAKE ${fmt(row.dailyMg, 2)} mg · ${fmt(row.takeMm, 1)} mm</span>
+        <span>TAKE ${fmt(row.dailyMg, 2)} mg · ${fmt(row.takeMm, 2)} mm</span>
         <span>SAVE ${fmt(row.saveMg, 2)} mg · ${fmt(row.saveMm, 2)} mm</span>
         ${row.deltaSaveMm === null
           ? `<span>Δ save — · nothing comparable to last cycle</span>`
@@ -2549,10 +2701,11 @@
       <!-- No max-width: the bars stack vertically now, so clamping this row to
            one film's width only made it wrap into a column of fragments. -->
       <div class="strip-dims">
-        <span>TAKE ${fmt(takeTotalMm * perMg, 2)} mg · ${fmt(takeTotalMm, 1)} mm</span>
+        <span>TAKE ${fmt(takeTotalMm * perMg, 2)} mg · ${fmt(takeTotalMm, 2)} mm</span>
         <span>SAVE ${fmt(saveTotalMm * perMg, 2)} mg · ${fmt(saveTotalMm, 2)} mm</span>
         ${!mismatch && cut && row.deltaSaveMm !== null
-          ? `<span>Δ save ${fmt(row.deltaSaveMm, 2)} mm more than last cycle</span>` : ""}
+          ? `<span>Δ save ${fmt(row.deltaSaveMm, 2)} mm ${Math.abs(row.deltaSaveMm - row.saveMm) <= 1e-9
+              ? "· the first cut of this strip" : "more than last cycle"}</span>` : ""}
         ${ghost ? `<span>Already off original ${fmt(cut.off, 1)} mm · ${fmt(cut.off * perMg, 2)} mg</span>` : ""}
         ${multi ? `<span>${films.length} films this day · ${fmtG(spec.mg)} mg each</span>` : ""}
       </div>
@@ -2999,9 +3152,9 @@
     return svgFrame("n = 6 / 8 / 10 ladders over time", `${opts.cutMode === "linear" ? "Linear cuts" : "Classic"} 8 mg films all the way, stopping just above the target. Slower n stays higher for longer — and costs more total mg.`, inner);
   }
 
-  /* Cumulative milligrams taken, against the straight line of never tapering.
+  /* The running total of milligrams taken, against the straight line of never tapering.
      The shaded gap between them is the medication not taken. */
-  function cumulativeChart(s) {
+  function runningTotalChart(s) {
     const box = plotBox();
     const { W, H, L, R, T, B } = box;
     const iw = W - L - R, ih = H - T - B;
@@ -3012,17 +3165,17 @@
     const yS = (v) => T + (1 - v / ymax) * ih;
     let taper = `M ${xS(0)} ${yS(0)}`;
     for (const r of s.rows) {
-      taper += ` L ${xS(r.dayEnd)} ${yS(r.cumMg)}`;
+      taper += ` L ${xS(r.dayEnd)} ${yS(r.sumMg)}`;
     }
     const stay = `M ${xS(0)} ${yS(0)} L ${xS(xmax)} ${yS(stayEnd)}`;
     const fill = `${taper} L ${xS(xmax)} ${yS(stayEnd)} L ${xS(0)} ${yS(0)} Z`;
-    let inner = svgOpen(box, "Cumulative ingested vs staying put");
-    inner += gridAndAxes(box, evenTicks(xmax, 5), evenTicks(ymax, 4), xS, yS, "Day", "Cumulative mg");
+    let inner = svgOpen(box, "Running total ingested vs staying put");
+    inner += gridAndAxes(box, evenTicks(xmax, 5), evenTicks(ymax, 4), xS, yS, "Day", "Total mg");
     inner += `<path d="${fill}" fill="${C.band}" opacity="0.85"/>`;
     inner += `<path d="${stay}" fill="none" stroke="${C.stay}" stroke-dasharray="5 4" stroke-width="1.6"/>`;
     inner += `<path d="${taper}" fill="none" stroke="${C.accent}" stroke-width="2.2"/>`;
     inner += "</svg>";
-    return svgFrame("Cumulative ingested vs staying put", `Shaded gap is medication not taken vs ${fmtG(s.startMg)} mg/day for ${s.endDay} days (${fmt(s.savedVsStayStrips, 1)} strips).`, inner);
+    return svgFrame("Running total ingested vs staying put", `Shaded gap is medication not taken vs ${fmtG(s.startMg)} mg/day for ${s.endDay} days (${fmt(s.savedVsStayStrips, 1)} strips).`, inner);
   }
 
   /* Sliver length per cycle in millimetres, with a line at 1 mm — the point
@@ -3170,7 +3323,10 @@
           <div class="k" style="width:${keepPct}%"></div>
           <div class="s" style="width:${savePct}%"></div>
         </div>
-        <div class="mm">${fmt(r.dailyMg, 2)} mg · ${fmt(r.pieceMm, 1)} mm</div>
+        <!-- Named, because the millimetres here are the bar (the piece in
+             hand) while the milligrams are the dose, and those are not the
+             same length. Unlabelled they read as a mg-to-mm conversion. -->
+        <div class="mm">${fmt(r.dailyMg, 2)} mg · piece ${fmt(r.pieceMm, 1)} mm</div>
       </div>`;
     }).join("");
     const inner = `${rows}
@@ -3191,7 +3347,7 @@
       doseOverTimeChart(s, opts),
       doseLadderChart(s),
       compareOverlayChart(opts),
-      cumulativeChart(s),
+      runningTotalChart(s),
       cutPrecisionChart(s),
       cutErrorChart(s, opts),
       rxMonthChart(s),
@@ -3220,20 +3376,22 @@
     $("compareHead").textContent =
       `Compare n = 6 / 8 / 10 down to ${fmtG(opts.targetMg)} mg`;
     $("compareTable").querySelector("thead").innerHTML = `<tr>
-      <th class="left">n</th><th>Cut</th><th>Cycles</th><th>Days</th><th>End mg/d</th>
-      <th>Total mg</th><th>Strips</th><th>Ceiling mg</th><th>Stay strips</th><th>Saved strips</th>
+      <th class="left">n</th><th>Cut</th><th>Cycles</th><th>Days</th>
+      <th>End <span class="u">mg/d</span></th><th>Total <span class="u">mg</span></th>
+      <th>Strips</th><th>Ceiling <span class="u">mg</span></th>
+      <th>Stay <span class="u">strips</span></th><th>Saved <span class="u">strips</span></th>
     </tr>`;
     $("compareTable").querySelector("tbody").innerHTML = rows.map((c) => `<tr>
       <td class="left">${c.n}</td>
       <td>${fmt(c.pct, 1)}%</td>
       <td>${c.cycles}</td>
-      <td>${c.days}</td>
-      <td>${fmt(c.endDailyMg, 2)}</td>
-      <td>${fmt(c.totalMg, 1)}</td>
-      <td>${fmt(c.totalStrips, 1)}</td>
-      <td>${fmt(c.ceilingMg, 0)}</td>
-      <td>${fmt(c.stayStrips, 0)}</td>
-      <td>${fmt(c.savedStrips, 1)}</td>
+      <td>${unit(c.days, "days")}</td>
+      <td>${unit(fmt(c.endDailyMg, 2), "mg/d")}</td>
+      <td>${unit(fmt(c.totalMg, 1), "mg")}</td>
+      <td>${unit(fmt(c.totalStrips, 1), "strips")}</td>
+      <td>${unit(fmt(c.ceilingMg, 0), "mg")}</td>
+      <td>${unit(fmt(c.stayStrips, 0), "strips")}</td>
+      <td>${unit(fmt(c.savedStrips, 1), "strips")}</td>
     </tr>`).join("");
   }
 
@@ -3241,15 +3399,17 @@
      surplus a static prescription would leave. */
   function renderMonths(s) {
     $("monthTable").querySelector("thead").innerHTML = `<tr>
-      <th class="left">Month</th><th>Days</th><th>Used mg</th><th>Used strips</th><th>If Rx = 30</th><th>Surplus</th>
+      <th class="left">Month</th><th>Days</th><th>Used <span class="u">mg</span></th>
+      <th>Used <span class="u">strips</span></th><th>If Rx = 30</th>
+      <th>Surplus <span class="u">strips</span></th>
     </tr>`;
     $("monthTable").querySelector("tbody").innerHTML = (s.months || []).map((m) => `<tr>
       <td class="left">${m.month}</td>
       <td>${m.dayStart}–${m.dayEnd}</td>
-      <td>${fmt(m.usedMg, 1)}</td>
-      <td>${fmt(m.usedStrips, 1)}</td>
-      <td>${m.rxStrips}</td>
-      <td>${m.surplusStrips >= 0 ? "+" : ""}${fmt(m.surplusStrips, 1)}</td>
+      <td>${unit(fmt(m.usedMg, 1), "mg")}</td>
+      <td>${unit(fmt(m.usedStrips, 1), "strips")}</td>
+      <td>${unit(m.rxStrips, "strips")}</td>
+      <td>${unit((m.surplusStrips >= 0 ? "+" : "") + fmt(m.surplusStrips, 1), "strips")}</td>
     </tr>`).join("");
   }
 

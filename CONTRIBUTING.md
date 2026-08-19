@@ -26,6 +26,8 @@ node test_layout.js        # viewport sweep for overflow, overlap and clipping
 
 All three run in CI on every pull request.
 
+Each one prints how much it actually checked on its last line — assertions, field comparisons, viewport states. Those are the figures the README quotes, so if you change coverage, read the new numbers off a run rather than editing them by hand.
+
 `test_layout.js` is the one to remember when touching CSS or anything that positions text by measured pixels. This page's most frequent bug by far has been text colliding or overflowing at some viewport width nobody checked, and it is invisible to the other two suites.
 
 ## Health content

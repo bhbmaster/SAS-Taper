@@ -81,7 +81,7 @@ You should never have to do arithmetic while holding a razor. Five columns of th
 
 Take + Save is the film you opened, so nothing is unaccounted for. The save is bigger than that cycle's sliver, because it also carries the part earlier cycles had already taken off, and it grows every cycle — that growth is Δ save, and it is the sliver. Δ save shows a dash where there is nothing comparable: a restart on a fresh 2 mg film, a day that opens fewer films than the last, or a day whose dose is a whole number of films and needs no cut.
 
-Everything else on the row is context. Units sit small beside each heading. Not sure what a column means? Hover its heading on a desktop, or open **What each column means** under the table — same twelve definitions either way.
+Everything else on the row is context. Units sit small and muted **beside every value as well as the heading**, so a row reads on its own — the same treatment on the compare, prescription and film-size tables, and on the calendar. Not sure what a column means? Hover its heading on a desktop, or open **What each column means** under the table — same twelve definitions either way.
 
 ## CLI
 
@@ -110,11 +110,23 @@ node test_parity.js         # index.html vs taper.py
 node test_layout.js         # viewport sweep, 280px to 1920px
 ```
 
+Each suite prints how much it actually checked, because the headline test count
+badly understates it — most of the work happens inside matrix loops, and one
+test method can make tens of thousands of assertions:
+
+| Suite | Test cases | What that means |
+|---|---|---|
+| `test_taper.py` | **61 tests, ~482,000 assertions** | 1,440 ladders / 15,422 cycles in the matrix alone |
+| `test_parity.js` | **1,323 schedules, ~463,000 field comparisons** | 13,567 matrix cycles × 28 row fields, plus summaries, months and the compare table |
+| `test_layout.js` | **537 viewport states, 571 checks** | each state is a whole rendered page measured for five failure modes |
+
+Around **945,000 individual checks** in total, in about three minutes.
+
 ### `test_taper.py`
 
-57 checks over the arithmetic the schedule is built on — the closed forms against the simulation, the per-cycle invariants (dose splits exactly, length fraction equals dose fraction, the bank is one whole piece per cycle), that the daily dose never rises across a film switch, and the published film geometry. A class of its own covers the linear mode: the cut never changes in either unit, the dose falls in equal steps, it lands on zero after exactly n − 1 of them, no cycle ever has a zero or negative dose, the closed form matches the simulation, the percentage step grows every cycle, and the two rescues the default mode needs are switched off. Standard library only.
+61 test methods — and, because most of them walk a matrix, roughly 482,000 individual assertions — over the arithmetic the schedule is built on — the closed forms against the simulation, the per-cycle invariants (dose splits exactly, length fraction equals dose fraction, the bank is one whole piece per cycle), that the daily dose never rises across a film switch, and the published film geometry. A class of its own covers the linear mode: the cut never changes in either unit, the dose falls in equal steps, it lands on zero after exactly n − 1 of them, no cycle ever has a zero or negative dose, the closed form matches the simulation, the percentage step grows every cycle, and the two rescues the default mode needs are switched off. Standard library only.
 
-The multi-film layout gets a matrix of its own: **720 ladders, 10,597 cycles** — start doses from 1 to 32 mg against all four official strengths, `n` from 2 to 30, three film lengths, the 2 mg switch both ways — checked cycle by cycle for the properties that make the instruction safe to follow. Nothing is lost between films; milligrams still track millimetres; no mark runs off the end of a film; exactly one film a day is ever cut; you open exactly the films the dose needs and never one more; and the sliver is measured from the piece on the marked film rather than the film's own end. A further check asserts the matrix actually reaches the hard shapes — days from 1 to 16 films, days whose sliver runs onto film you never open, days with nothing to cut at all — so it cannot quietly stop covering them.
+The multi-film layout gets a matrix of its own: **1,440 ladders, 15,422 cycles** — start doses from 1 to 32 mg against all four official strengths, `n` from 2 to 30, three film lengths, the 2 mg switch both ways, **both cut modes** — checked cycle by cycle for the properties that make the instruction safe to follow. Nothing is lost between films; milligrams still track millimetres; no mark runs off the end of a film; exactly one film a day is ever cut; you open exactly the films the dose needs and never one more; the sliver is measured from the piece on the marked film rather than the film's own end; take and save partition the films you opened in both units; Δ save is the sliver wherever it is reported and never negative; it is blank for exactly the three stated reasons and each of those is actually reached; and the save grows on every cycle that reports one. A further check asserts the matrix reaches the hard shapes — days from 1 to 16 films, days whose sliver runs onto film you never open, days with nothing to cut at all — so it cannot quietly stop covering them.
 
 ### `test_parity.js` — what it tests and why
 
@@ -160,7 +172,7 @@ The script also finds a browser on its own in the usual places — the Playwrigh
 
 Several parts of the page are positioned from measured pixels rather than by normal flow: the ruler tick captions, the life-size cut label, the calendar grid. Those have broken four separate times — captions stacked on each other, a percentage painted over a button, "SAVE" sliced in half, the page scrolling sideways on a narrow phone. Each was found by sweeping viewports by hand, then lost again, because nothing re-ran the sweep.
 
-This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode — **570 viewport states** — and checks five things at each:
+This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode — **537 viewport states** — and checks five things at each:
 
 | Failure | Detected by |
 |---|---|
