@@ -628,6 +628,104 @@ class TestMultiFilmMatrix(unittest.TestCase):
                 self.assertEqual(line, "", msg=tag)
 
 
+class TestTakeAndSave(unittest.TestCase):
+    """The four numbers you read standing at the strip, and the fifth that says
+    the jar is filling faster.
+
+    take_mm / save_mm partition the film you opened; save_mg / daily_mg do the
+    same in milligrams. delta_save_mm is how much more the jar gets than the
+    last cycle that cut a film — the growth the method promises — and is None
+    wherever that comparison would be against a different thing.
+    """
+
+    def test_take_and_save_are_the_whole_film(self):
+        """Nothing between the two: what you do not swallow, you jar."""
+        sched = build_schedule(8.0, 6)
+        for row in sched.rows:
+            full = sched.film_2mg_mm if row.film_mg <= 2.01 else sched.film_mm
+            self.assertAlmostEqual(
+                row.take_mm + row.save_mm, row.films_out * full, places=9,
+                msg=f"cycle {row.cycle}",
+            )
+
+    def test_the_worked_default(self):
+        """8 mg, n = 6, 22 mm film, by hand.
+
+        Cycle 1 takes 5/6 of a 22 mm film — 18.33 mm — and jars the other
+        3.67 mm. Cycle 2 takes 5/6 of *that*, 15.28 mm off a fresh film, so the
+        jar gets 6.72 mm: the same 3.67 mm sliver plus the 3.06 mm the ladder
+        moved the mark. Δ save is that 3.06 mm.
+        """
+        rows = build_schedule(8.0, 6).rows
+        self.assertAlmostEqual(rows[0].take_mm, 18.3333, places=3)
+        self.assertAlmostEqual(rows[0].save_mm, 3.6667, places=3)
+        self.assertAlmostEqual(rows[0].save_mg, 1.3333, places=3)
+        self.assertAlmostEqual(rows[0].delta_save_mm, 3.6667, places=3)
+        self.assertAlmostEqual(rows[1].take_mm, 15.2778, places=3)
+        self.assertAlmostEqual(rows[1].save_mm, 6.7222, places=3)
+        self.assertAlmostEqual(rows[1].save_mg, 2.4444, places=3)
+        self.assertAlmostEqual(rows[1].delta_save_mm, 3.0556, places=3)
+
+    def test_linear_mode_saves_the_same_extra_every_cycle(self):
+        """The whole point of the mode: one mark, moved the same distance."""
+        rows = build_schedule(8.0, 6, cut_mode="linear").rows
+        deltas = [r.delta_save_mm for r in rows]
+        self.assertTrue(all(d is not None for d in deltas), deltas)
+        for d in deltas:
+            self.assertAlmostEqual(d, 22.0 / 6, places=9)
+        # And the save itself climbs by that step, film by film.
+        for i, row in enumerate(rows):
+            self.assertAlmostEqual(row.save_mm, (i + 1) * 22.0 / 6, places=9)
+
+    def test_the_2mg_restart_has_no_delta(self):
+        """A fresh 2 mg film is a different strip; "extra" would be nonsense."""
+        rows = build_schedule(8.0, 6).rows
+        switches = [r for r in rows if r.switched_2mg]
+        self.assertTrue(switches, "the default run should switch to 2 mg film")
+        for row in switches:
+            self.assertIsNone(row.delta_save_mm, f"cycle {row.cycle}")
+            # The save is real, though — it is the first cut of a new strip.
+            self.assertGreater(row.save_mm, 0.0)
+
+    def test_dropping_a_film_has_no_delta(self):
+        """16 mg on 8 mg strips opens two films a day, then one.
+
+        On the cycle where the second film stops being needed the save falls
+        rather than grows, because far less film is opened at all. Comparing
+        that with the previous cycle would say the jar shrank, which is true of
+        the film and false of the taper — so there is nothing to report.
+        """
+        rows = build_schedule(16.0, 6).rows
+        drops = [
+            (prev, row) for prev, row in zip(rows, rows[1:])
+            if row.take_films < prev.take_films and not row.switched_2mg
+        ]
+        self.assertTrue(drops, "a 16 mg start should drop from two films to one")
+        for prev, row in drops:
+            self.assertIsNone(row.delta_save_mm, f"cycle {row.cycle}")
+            self.assertLess(row.save_mm, prev.save_mm)
+
+    def test_a_whole_film_day_saves_nothing_and_keeps_the_baseline(self):
+        """No mark means no jar, and the next real cut compares with the last
+        real cut rather than with zero."""
+        sched = build_schedule(16.0, 2, film_strength_mg=8.0)
+        cut_rows = [r for r in sched.rows if r.cut_take_mm > 1e-9]
+        no_cut = [r for r in sched.rows if r.cut_take_mm <= 1e-9]
+        self.assertTrue(no_cut, "a 16 mg n=2 run should land on a film boundary")
+        for row in no_cut:
+            self.assertEqual(row.save_mm, 0.0, f"cycle {row.cycle}")
+            self.assertEqual(row.save_mg, 0.0, f"cycle {row.cycle}")
+            self.assertIsNone(row.delta_save_mm, f"cycle {row.cycle}")
+        # Every delta that is reported still lines up with a cutting cycle.
+        for prev, row in zip(cut_rows, cut_rows[1:]):
+            if row.delta_save_mm is None:
+                continue
+            self.assertAlmostEqual(
+                row.delta_save_mm, row.save_mm - prev.save_mm, places=9,
+                msg=f"cycle {row.cycle}",
+            )
+
+
 class TestSummary(unittest.TestCase):
     """The headline figures and the n = 6 / 8 / 10 comparison.
 

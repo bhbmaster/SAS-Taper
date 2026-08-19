@@ -68,6 +68,8 @@ Most changes should leave a plain 8 mg run byte-identical. Diff the rendered tex
 - **Chart colours come from `readChartPalette()`**, never hardcoded. They are baked into the SVG at render time, so a CSS variable in an SVG attribute does not resolve.
 - **The film specimen keeps its fixed orange palette in both themes.** A real Suboxone film is orange. Everything around it themes normally.
 - **Dates anchor to UTC noon.** `new Date("2026-03-01")` and local midnight both shift days across a DST boundary.
+- **"Save" is the film in front of you; "sliver" and "banked" are the ladder.** `save_mm` / `save_mg` are everything right of the take mark on a fresh film — the sliver *plus* what earlier cycles had already taken off — and `delta_save_mm` is how much more that is than last cycle. `sliver_mg` and `banked_mg` are the method's own accounting and are deliberately smaller. Do not "fix" one to match the other; they answer different questions and both are checked.
+- **`delta_save_mm` is `None` in three cases, not zero**: a 2 mg restart, a cycle that drops a whole film from the day, and a day with no cut. Each one makes "extra saved" a comparison against a different thing. Every surface renders those as a dash.
 - **Both drawings build from the same `dayFilms()` list.** Two panels deriving the day separately is how they end up showing different days.
 
 ---

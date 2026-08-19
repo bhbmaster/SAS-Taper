@@ -114,9 +114,14 @@ The method — every day of a cycle
   1. The current piece is the "whole strip" (cycle 1: a full 8 mg film).
   2. Keep full width; cut along length only. Mark, then cut with a razor, not scissors.
   3. Cut 1/n off the RIGHT end. SAVE that sliver. TAKE the long left piece. Once daily.
-  4. After n days the save jar holds one full piece — buffer, not extra dose.
+  4. In practice you open a FRESH film each day, so measure the same cut from
+     the other end: mark Take mm from the LEFT, take that, and everything right
+     of the mark — Save mm — goes in the jar. Same cut. The save is bigger than
+     the sliver because it also carries what earlier cycles took off, and it
+     grows every cycle; that growth is the +Save column, and it is the sliver.
+  5. After n days the save jar holds one full piece — buffer, not extra dose.
      If you eat the bank, the dose never drops.
-  5. Next cycle the new whole strip is dose × (1 − 1/n). Repeat to the target.
+  6. Next cycle the new whole strip is dose × (1 − 1/n). Repeat to the target.
 
 Two cut modes (--cut-mode)
   geometric (default)  Cut 1/n off the piece in your hand. The cut shrinks as
@@ -241,6 +246,22 @@ class CycleRow:
     cycle, which equals one whole piece when days == n. cut_warn flags a sliver
     under CUT_WARN_MM, where hand-cutting stops being meaningful.
 
+    take_mm / save_mg / save_mm are the three numbers the reader acts on at the
+    strip, and they are about the film in front of them rather than the ladder:
+    open a film, cut once, swallow take_mm, and everything past that mark —
+    save_mm, worth save_mg — goes in the jar. take_mm + save_mm is the film you
+    opened (films_out of them on a day whose dose needs more than one), so the
+    two partition it with nothing unaccounted for. The save grows every cycle,
+    because it is this cycle's sliver plus everything earlier cycles had
+    already taken off.
+
+    delta_save_mm is how much more that is than the last cycle which cut a
+    film — the "extra" — and equals cut_mm whenever the day keeps opening the
+    same films off the same strip. It is None in the three cases where that
+    comparison would be against a different thing: a restart on a fresh 2 mg
+    film, a cycle that drops a whole film from the day, and a whole-films-only
+    cycle with no cut at all.
+
     The films_out .. spare_mm block is film_layout() flattened onto the row:
     how many films the day needs and where its single cut falls. See FilmLayout
     for what each one means.
@@ -257,6 +278,10 @@ class CycleRow:
     sliver_mg: float
     piece_mm: float
     cut_mm: float
+    take_mm: float
+    save_mm: float
+    save_mg: float
+    delta_save_mm: Optional[float]
     films_out: int
     take_films: int
     cut_take_mm: float
@@ -578,6 +603,8 @@ def build_schedule(
     cum_banked = 0.0
     truncated = False
     prev_daily: Optional[float] = None
+    prev_save_mm: Optional[float] = 0.0
+    prev_take_films: Optional[int] = None
     rows: list[CycleRow] = []
 
     for cycle in range(1, max_cycles + 1):
@@ -638,9 +665,38 @@ def build_schedule(
         # have to hold still with it. That constant cut is the whole point of
         # the mode: the same mark, every day, from the first cut to the last.
         cut_mm = current_film_mm * sliver / film_mg
+        # The dose as a length. Take + save is the film you opened, so this is
+        # the half of that pair the reader swallows.
+        take_mm = max(0.0, piece_mm - cut_mm)
         # Where that cut actually falls on real films. Above one film's worth of
         # dose the day is several strips and only one of them gets marked.
         lay = film_layout(D, sliver, film_mg, current_film_mm)
+        # What physically goes in the jar from the film you mark: everything
+        # past the take mark. That is the day's sliver plus the part earlier
+        # cycles had already taken off, so it grows as the ladder descends —
+        # and it is the number the reader acts on, not cut_mm.
+        if lay.cut_take_mm > 1e-9:
+            save_mm = max(0.0, current_film_mm - lay.cut_take_mm)
+            save_mg = film_mg * (save_mm / current_film_mm) if current_film_mm else 0.0
+            # How much more goes in the jar than the last cycle that cut one.
+            # Identically cut_mm while the day keeps opening the same films —
+            # take(k−1) is piece(k), so the difference of two "full minus take"
+            # figures is exactly this cycle's sliver. Two things break that and
+            # both make "extra" meaningless rather than merely different: a
+            # 2 mg restart puts a different film underneath, and dropping a
+            # whole film from the day changes how much film is opened at all.
+            comparable = (
+                not just_switched
+                and prev_save_mm is not None
+                and (prev_take_films is None or prev_take_films == lay.take_films)
+            )
+            delta_save_mm = save_mm - prev_save_mm if comparable else None
+        else:
+            # The take lands on a film boundary: nothing is marked, so nothing
+            # is cut off a film to save and there is no cut to compare against.
+            save_mm = 0.0
+            save_mg = 0.0
+            delta_save_mm = None
         used = days * daily
         banked = days * sliver
 
@@ -662,6 +718,10 @@ def build_schedule(
                 sliver_mg=sliver,
                 piece_mm=piece_mm,
                 cut_mm=cut_mm,
+                take_mm=take_mm,
+                save_mm=save_mm,
+                save_mg=save_mg,
+                delta_save_mm=delta_save_mm,
                 films_out=lay.films_out,
                 take_films=lay.take_films,
                 cut_take_mm=lay.cut_take_mm,
@@ -680,6 +740,12 @@ def build_schedule(
 
         D = daily
         prev_daily = daily
+        # Only a cycle that actually cut a film moves the baseline; a
+        # whole-films-only day saves nothing, and the next cut should be
+        # compared with the last real one.
+        if lay.cut_take_mm > 1e-9:
+            prev_save_mm = save_mm
+            prev_take_films = lay.take_films
         day = day_end
 
         if stop_mode == "reach" and daily <= target_mg + 1e-12:
@@ -886,7 +952,8 @@ def ascii_ruler(
     ghost_mm: float = 0.0,
     width: int = 52,
 ) -> str:
-    """TAKE (=) on the left, SAVE (#) , already-off original (.) on the right."""
+    """TAKE (=) on the left, then the SAVE: this cycle's extra (#), then the
+    part already off before (.). Everything right of the = is saved."""
     inner = max(12, width - 2)
     take_c, save_c, ghost_c = share_cols([take_mm, save_mm, ghost_mm], inner)
     parts = [("=", take_c), ("#", save_c), (".", ghost_c)]
@@ -901,15 +968,16 @@ def cut_context(row: CycleRow, sched: ScheduleResult) -> dict[str, Any]:
         row: the cycle to describe.
         sched: its parent schedule, for the film lengths.
     Returns:
-        A dict of the three regions of a full unused film — take, save, and the
-        part already gone from earlier cycles — in both mm and mg, plus an
-        ASCII ruler. Shared by the CLI's cut block and the --json payload so
+        A dict of the three drawn regions of a full unused film — take, this
+        cycle's extra, and the part already gone from earlier cycles — in both
+        mm and mg, plus the day's take_mm / save_mm / save_mg totals (the last
+        two of those regions added together) and an ASCII ruler. Shared by the CLI's cut block and the --json payload so
         the two cannot disagree.
     """
     spec = film_spec_for_mg(row.film_mg)
     full_mm = sched.film_2mg_mm if row.film_mg <= 2.01 else sched.film_mm
-    take_mm = row.piece_mm - row.cut_mm
-    save_mm = row.cut_mm
+    take_mm = row.take_mm
+    save_mm = row.save_mm
     # The ruler draws the one film that carries the cut, so its leftover is what
     # "already off" means — not full_mm − piece_mm, which goes negative as soon
     # as the day spans more than one film.
@@ -925,7 +993,8 @@ def cut_context(row: CycleRow, sched: ScheduleResult) -> dict[str, Any]:
         "save_mm": save_mm,
         "ghost_mm": ghost_mm,
         "take_mg": row.daily_mg,
-        "save_mg": row.sliver_mg,
+        "save_mg": row.save_mg,
+        "delta_save_mm": row.delta_save_mm,
         "ghost_mg": ghost_mm * per_mm,
         "piece_mm": row.piece_mm,
         "n": row.n,
@@ -1048,41 +1117,53 @@ def print_cut_block(ctx: dict[str, Any], row: CycleRow, detailed: bool = False) 
     if ctx["no_cut"]:
         print("           no cut this cycle — every film today is taken whole")
         print(
-            f"           day total: TAKE {ctx['take_mm']:.1f} mm ({ctx['take_mg']:.2f} mg)"
-            f"  |  SAVE {ctx['save_mm']:.2f} mm ({ctx['save_mg']:.2f} mg)"
+            f"           TAKE {ctx['take_mm']:.1f} mm ({ctx['take_mg']:.2f} mg)"
+            f"  |  SAVE nothing — the dose is a whole number of films"
         )
         if detailed:
             print(f"           Keep full width ({ctx['keep_mm']:.1f} mm); shorten length only.")
         return
     print(f"           {ctx['ruler']}")
-    # The ruler is the one marked film, so its TAKE/SAVE are that film's. Only
-    # when the day spans several does that differ from the day's total.
-    bits = [
-        f"TAKE {ctx['cut_take_mm']:.1f} mm ({ctx['cut_take_mg']:.2f} mg)",
-        f"SAVE {ctx['cut_save_mm']:.2f} mm ({ctx['cut_save_mg']:.2f} mg)",
-    ]
-    if has_ghost:
-        bits.append(
-            f"already off {ctx['ghost_mm']:.1f} mm ({ctx['ghost_mg']:.2f} mg)"
-        )
-    print("           " + "  |  ".join(bits) + ("   (marked film)" if multi else ""))
+    # The ruler is the one marked film. Everything right of the take mark is
+    # saved, whether it came off this cycle or an earlier one, so TAKE and SAVE
+    # here add up to that whole film.
+    delta = ctx["delta_save_mm"]
+    # On the first cut of a strip the whole save IS this cycle's extra, and
+    # saying so twice in one line reads like a mistake.
+    extra = (
+        f", of which {delta:.2f} mm is new this cycle"
+        if delta is not None and delta > 1e-9
+        and abs(delta - ctx["save_mm"]) > 1e-9 else ""
+    )
+    print(
+        f"           TAKE {ctx['cut_take_mm']:.1f} mm ({ctx['cut_take_mg']:.2f} mg)"
+        f"  |  SAVE {ctx['save_mm']:.2f} mm ({ctx['save_mg']:.2f} mg)"
+        f"{extra}" + ("   (marked film)" if multi else "")
+    )
     if multi:
+        # Only the take spans several films; the save is all on the marked one.
         print(
-            f"           day total: TAKE {ctx['take_mm']:.1f} mm ({ctx['take_mg']:.2f} mg)"
-            f"  |  SAVE {ctx['save_mm']:.2f} mm ({ctx['save_mg']:.2f} mg)"
+            f"           day total: TAKE {ctx['take_mm']:.1f} mm "
+            f"({ctx['take_mg']:.2f} mg) across {ctx['films_out']} films"
         )
     print(
-        f"           mark {ctx['cut_save_mm']:.2f} mm from the right of the "
-        f"{ctx['marked_piece_mm']:.1f} mm piece "
-        f"{'on the marked film' if multi else 'in hand'} (TAKE/SAVE line)"
+        f"           mark {ctx['cut_take_mm']:.2f} mm from the left end of a "
+        f"full {ctx['full_mm']:.1f} mm film — left is the dose, right is the jar"
         + ("; the whole films need no cut" if row.take_films else "")
     )
+    if has_ghost:
+        print(
+            f"           carrying on from the {ctx['marked_piece_mm']:.1f} mm piece "
+            f"in hand instead? Mark {ctx['cut_save_mm']:.2f} mm from its right — "
+            f"same cut, other end."
+        )
     if detailed:
         if has_ghost:
             print(
-                "           This bar is the full unused film, not a zoomed leftover. "
-                "The dotted end was already reduced in earlier cycles — extra bank "
-                "if you start from a fresh strip, not extra daily dose."
+                "           This bar is a full unused film, not a zoomed leftover. "
+                "Everything right of the take mark is the save: the # part is this "
+                "cycle's extra, the dotted end was already coming off in earlier "
+                "cycles. All of it goes in the jar; none of it is extra daily dose."
             )
         elif not multi:
             print("           Cycle 1 uses the whole unused strip.")
@@ -1233,10 +1314,16 @@ def print_schedule(
         )
     print()
 
+    # Take and Save are the pair you act on at the strip: open a film, cut
+    # once, swallow the take, jar the save. Delta is how much more the jar
+    # gets than last cycle. Everything after them is running totals.
     headers = [
-        "Cyc", "Days", "Film", "Cut from", "Daily", "Sliver",
-        "Piece", "Cut at", "Cycle mg", "Cum mg", "Cum strips", "Banked",
+        "Cyc", "Days", "Film", "Take mg", "Take mm", "Save mg", "Save mm",
+        "+Save mm", "Cycle mg", "Cum mg", "Cum strips", "Banked",
     ]
+    print("Take = the dose and where to mark it, from the LEFT end of a full film.")
+    print("Save = everything right of that mark, which all goes in the jar.")
+    print("+Save = how much more than last cycle; — where nothing is comparable.")
     if start_date is not None:
         headers.insert(2, "Dates")
     table = []
@@ -1259,11 +1346,11 @@ def print_schedule(
                 str(row.cycle),
                 f"{row.day_start}–{row.day_end}",
                 film,
-                f"{row.cut_from_mg:5.2f}",
                 f"{row.daily_mg:5.2f}",
-                f"{row.sliver_mg:5.2f}",
-                f"{row.piece_mm:5.1f}",
-                f"{row.cut_mm:5.2f}",
+                f"{row.take_mm:5.1f}",
+                f"{row.save_mg:5.2f}",
+                f"{row.save_mm:5.2f}",
+                "    —" if row.delta_save_mm is None else f"{row.delta_save_mm:5.2f}",
                 f"{row.used_mg:6.1f}",
                 f"{row.cum_mg:7.1f}",
                 f"{row.cum_strips:6.1f}",
@@ -1289,8 +1376,9 @@ def print_schedule(
         print("Film column: " + "    ".join(key))
     print()
     print_film_table()
-    print("Cut marks (full unused film: TAKE left, SAVE, then already-off original)")
-    print("Do not measure today’s cut from the right of the original film.")
+    print("Cut marks — one full film: TAKE (=) on the left, then the SAVE:")
+    print("this cycle’s extra (#), then the part already off before (.).")
+    print("Everything right of the take mark goes in the jar.")
     print()
     selected_row = None
     for row in sched.rows:

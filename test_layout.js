@@ -226,15 +226,15 @@ const probe = () => {
           await page.click("#calDensityBtn");
           await page.waitForTimeout(80);
         }
-        for (const mode of ["off", "take", "save"]) {
-          if (mode !== "off") {
+        for (const mode of ["save", "take", "delta"]) {
+          if (mode !== "save") {
             await page.click("#calModeBtn");
             await page.waitForTimeout(80);
           }
           errs.length = 0;
           record(`${theme} ${width}px calendar ${density}/${mode}`, await page.evaluate(probe), errs);
         }
-        await page.click("#calModeBtn"); // back to "off" for the next density
+        await page.click("#calModeBtn"); // back to "save" for the next density
         await page.waitForTimeout(60);
       }
       /* Every scheduled day must have a cell, and only those. */
@@ -362,8 +362,8 @@ const probe = () => {
         await page.click("#calDensityBtn");
         await page.waitForTimeout(80);
       }
-      for (const mode of ["off", "take", "save"]) {
-        if (mode !== "off") {
+      for (const mode of ["save", "take", "delta"]) {
+        if (mode !== "save") {
           await page.click("#calModeBtn");
           await page.waitForTimeout(80);
         }
@@ -417,8 +417,9 @@ const probe = () => {
     }
 
     /* The linear mode's defining property, read off the rendered schedule: the
-       cut column must not move from the first cycle to the last. This is the
-       thing a reader is asked to trust, and no other suite looks at the table. */
+       Δ save column — how much further in the mark moves each cycle — must not
+       change from the first cycle to the last. This is the thing a reader is
+       asked to trust, and no other suite looks at the rendered table. */
     await setField(page, "cutMode", "linear");
     await setField(page, "targetMg", 0);
     await page.waitForTimeout(200);
@@ -438,7 +439,37 @@ const probe = () => {
       .map((tr) => tr.children[7].textContent.trim()));
     checks++;
     if (new Set(geoCuts).size < 3) {
-      failures.push("geometric cut column stopped shrinking");
+      failures.push("geometric Δ save column stopped shrinking");
+    }
+
+    /* The claim the tinted block is built on: every cycle puts more film in
+       the jar than the last. Read off the rendered Save mm column, because
+       that is the number the reader is being asked to believe. It resets at a
+       2 mg restart, which is exactly where Δ save shows a dash, so the run is
+       only monotonic between dashes. */
+    const saves = await page.evaluate(() => [...document.querySelectorAll("#schedTable tbody tr")]
+      .map((tr) => ({
+        save: parseFloat(tr.children[6].textContent),
+        delta: tr.children[7].textContent.trim(),
+      })));
+    checks++;
+    if (saves.length < 5) {
+      failures.push(`geometric schedule has only ${saves.length} rows to check the save against`);
+    }
+    for (let i = 1; i < saves.length; i++) {
+      if (saves[i].delta === "—") continue;
+      if (!(saves[i].save > saves[i - 1].save)) {
+        failures.push(`Save mm did not grow at cycle ${i + 1}: `
+          + `${saves[i - 1].save} then ${saves[i].save}, with Δ save ${saves[i].delta}`);
+      }
+      /* Both sides are read off the page already rounded to 2 dp, so the
+         difference of two of them can be a hundredth out from the exact delta.
+         0.02 catches a wrong column while tolerating that. */
+      const want = saves[i].save - saves[i - 1].save;
+      if (Math.abs(want - parseFloat(saves[i].delta)) > 0.02) {
+        failures.push(`Δ save at cycle ${i + 1} is ${saves[i].delta}, `
+          + `but Save mm grew by ${want.toFixed(2)}`);
+      }
     }
 
     /* role="img" hides the axis text from assistive tech, so each chart has to
@@ -483,10 +514,13 @@ const probe = () => {
         }
       }
 
-      /* The two the reader acts on — the dose and the mark — are tinted. The
-         tint is an inset shadow, not a background, because the row states set
-         td backgrounds and would paint straight over it; check it survives on
-         a 2 mg switch row, which is where that would show up. */
+      /* The block the reader acts on — take, save, and how much more the jar
+         gets than last cycle — is tinted. The tint is an inset shadow, not a
+         background, because the row states set td backgrounds and would paint
+         straight over it; check it survives on a 2 mg switch row, which is
+         where that would show up. It also has to be one contiguous run: five
+         tinted columns scattered through the row would not read as "this part
+         is the job". */
       const keyCols = await page.evaluate(() => {
         const head = [...document.querySelectorAll("#schedTable thead th")];
         const rows = [...document.querySelectorAll("#schedTable tbody tr")];
@@ -501,10 +535,13 @@ const probe = () => {
         };
       });
       checks++;
-      if (keyCols.names.join("/") !== "Daily/Cut at") {
-        failures.push(`tinted columns are ${keyCols.names.join("/") || "none"}, expected Daily/Cut at`);
+      const wantKeys = "Take/Take/Save/Save/Δ save";
+      if (keyCols.names.join("/") !== wantKeys) {
+        failures.push(`tinted columns are ${keyCols.names.join("/") || "none"}, expected ${wantKeys}`);
       }
       if (!keyCols.consistent) failures.push("tinted columns differ between header and body");
+      const contiguous = keyCols.idx.every((v, i) => i === 0 || v === keyCols.idx[i - 1] + 1);
+      if (!contiguous) failures.push(`tinted columns are not contiguous: ${keyCols.idx.join(",")}`);
       if (keyCols.tintedOnSwitchRow === false) {
         failures.push("the tint disappears on a 2 mg switch row");
       }
