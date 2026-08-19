@@ -375,7 +375,7 @@ The months and the comparison table were the last two things written twice and c
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js` — 566 viewport states
+### `test_layout.js` — 570 viewport states
 
 Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
 
@@ -389,7 +389,9 @@ Five failure modes at every state:
 | **spill** — an absolute label escaping its container | bounding box against its parent's |
 | **bar count** — a drawing showing a different day than it describes | one bar per film in each panel, against the layout for that panel's strength |
 
-The schedule's column tooltips get their own pass. They are `position: fixed` because the table sits in an `overflow-x` scroller that would clip anything parented to a `<th>`, and they are gated to mouse and keyboard: `pointerover` ignores non-mouse pointers, `focusin` requires `:focus-visible`. The sweep drives a real hover at two widths and asserts the tooltip appears inside the viewport, then opens a touch context and asserts a tap produces nothing — touch readers get the twelve-entry glossary under the table instead, which is why that glossary exists rather than being decoration. One `COLUMN_DOC` list feeds the headings, the tooltips and the glossary, so the three cannot disagree.
+The schedule's column tooltips get their own pass. They are `position: fixed` because the table sits in an `overflow-x` scroller that would clip anything parented to a `<th>`, and they are gated to mouse and keyboard: `pointerover` ignores non-mouse pointers, `focusin` requires `:focus-visible`. The sweep drives a real hover at two widths and asserts the tooltip appears inside the viewport, then opens a touch context and asserts a tap produces nothing — touch readers get the twelve-entry glossary under the table instead, which is why that glossary exists rather than being decoration. One `COLUMN_DOC` list feeds four things — the heading, its unit, the tooltip and the glossary entry — so they cannot disagree. Each entry is `[name, unit, key, meaning]`.
+
+`key` marks the two columns the reader acts on: **Daily**, the dose, and **Cut at**, the mark. They are tinted with an `inset` box-shadow rather than a `background`, because the row states (selected, 2 mg switch, thin sliver) set `td` backgrounds at higher specificity and would paint straight over a background. The sweep checks the tint survives on a switch row, that the tinted pair really is Daily and Cut at, and that a unit never runs into its name in the DOM — a CSS margin looks right and still reads as "Cut frommg" aloud.
 
 It also carries a short pass over **rendered figures no other suite can see** — the display maths layered on top of the schedule. The cutting-error chart must scale with the film-length input, the comparison heading must name the target actually used, and every chart must have an accessible name. Each of those three had been wrong.
 

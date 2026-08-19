@@ -67,7 +67,7 @@ There is no build step and no server. `index.html` is one self-contained file �
 
 Either way: measure your film **length only**, put that in the inputs, and the schedule / cut marks / graphs update live. Click a cycle for that day’s ruler (TAKE left, SAVE right). Print it for your prescriber.
 
-Not sure what a schedule column means? Hover its heading on a desktop, or open **What each column means** under the table — same twelve definitions either way.
+Two columns of the schedule are tinted: **Daily** (what to take) and **Cut at** (where to mark). Those are the two numbers you act on each morning; the rest of the row is context for them. Units sit small beside each heading. Not sure what a column means? Hover its heading on a desktop, or open **What each column means** under the table — same twelve definitions either way.
 
 ## CLI
 
@@ -146,7 +146,7 @@ The script also finds a browser on its own in the usual places — the Playwrigh
 
 Several parts of the page are positioned from measured pixels rather than by normal flow: the ruler tick captions, the life-size cut label, the calendar grid. Those have broken four separate times — captions stacked on each other, a percentage painted over a button, "SAVE" sliced in half, the page scrolling sideways on a narrow phone. Each was found by sweeping viewports by hand, then lost again, because nothing re-ran the sweep.
 
-This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode — **566 viewport states** — and checks five things at each:
+This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode — **570 viewport states** — and checks five things at each:
 
 | Failure | Detected by |
 |---|---|
@@ -176,7 +176,7 @@ All three run in GitHub Actions on every push and pull request.
 4. After `n` days the save jar holds one full piece. Do not use the bank as extra daily dose or the taper never drops.
 5. Next cycle, the leftover size is the new whole strip. In geometric mode that means the next cut is smaller; in linear mode you cut the identical piece again. Repeat to the target (default 1 mg), or in linear mode until there is nothing left to cut.
 
-**Cutting aids:** a steel ruler and a fresh blade on a mat covers most of the ladder; if your cuts wander, purpose-made film slicers exist (search “Suboxone film cutter”). **Below what you can cut:** some people move to liquid dosing — a 2 mg film in 20 mL is *theoretically* 0.1 mg/mL — but that is not manufacturer-sanctioned, buprenorphine is only sparingly water-soluble so the real strength can differ from the arithmetic, and a homemade solution is not sterile. Raise it with your prescriber first.
+**Cutting aids:** a steel ruler and a fresh blade on a mat covers most of the ladder; if your cuts wander, purpose-made film slicers exist (search “Suboxone film cutter” or “subslicer”). **Below what you can cut:** some people move to liquid dosing — a 2 mg film in 20 mL is *theoretically* 0.1 mg/mL — but that is not manufacturer-sanctioned, buprenorphine is only sparingly water-soluble so the real strength can differ from the arithmetic, and a homemade solution is not sterile. Raise it with your prescriber first.
 
 Hold a cycle if cravings spike, sleep goes, or you are restless and sweating. When the sliver is under ~1 mm, switch to 2 mg films. Lock up saved pieces (dangerous to kids and pets). Ask the prescriber to step quantity down with the dose.
 
