@@ -458,7 +458,7 @@ The months and the comparison table were the last two things written twice and c
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js` — 673 viewport states, 794 checks
+### `test_layout.js` — 673 viewport states, 795 checks
 
 Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
 
