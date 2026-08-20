@@ -820,6 +820,38 @@
     .dim-table tbody tr:hover { background: var(--row-hover); }
     .dim-table tbody tr.selected { background: var(--accent-soft); }
     .viz-nav { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    /* Which way of finding the cut is on show. A pair of pressed-state buttons
+       rather than a single toggle, because the two are alternatives of equal
+       standing and the reader should see both names before choosing. */
+    .viz-modes { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; margin: 0 0 0.7rem; }
+    .viz-modes .k { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+    .viz-modes button[aria-pressed="true"] {
+      background: var(--accent);
+      color: var(--on-accent);
+      border-color: var(--accent);
+    }
+    /* The folded-grid drawing. Cell edges are the folds you judge by eye; the
+       blade lines are the strokes you actually make, and have to read as a
+       different kind of thing entirely. */
+    .fold-grid { stroke: #9a3412; stroke-width: 0.7; stroke-dasharray: 2 3; opacity: 0.45; }
+    .fold-blade-under { stroke: #7f1d1d; stroke-width: 3.4; stroke-linecap: round; }
+    .fold-blade { stroke: #f87171; stroke-width: 1.6; stroke-linecap: round; }
+    .fold-edge { fill: none; stroke: #9a3412; stroke-width: 2; }
+    .fold-wrap { display: flex; justify-content: flex-start; }
+    .fold-wrap svg { display: block; height: auto; max-width: 100%; }
+    .fold-facts {
+      display: flex; flex-wrap: wrap; gap: 0.2rem 1.1rem;
+      font-size: 0.78rem; color: var(--muted);
+      font-variant-numeric: tabular-nums; margin: 0.55rem 0 0;
+    }
+    .fold-facts b { color: var(--ink); font-weight: 700; }
+    .fold-facts .err.ok { color: var(--accent); font-weight: 700; }
+    .fold-facts .err.off { color: var(--warn-ink); font-weight: 700; }
+    /* The chosen fraction, set as a real stacked fraction — "5/6" on one line
+       reads as a date or a ratio, and this is neither. */
+    .fold-frac { display: inline-grid; justify-items: center; vertical-align: middle; margin: 0 0.2em; }
+    .fold-frac .n, .fold-frac .d { font-size: 0.82em; font-weight: 700; line-height: 1.05; color: var(--ink); }
+    .fold-frac .r { width: 100%; min-width: 1.1em; height: 1px; background: currentColor; opacity: 0.7; margin: 0.1em 0; }
     /* ---- Charts: the grid they sit in, plus the HTML piece ladder ------ */
     .charts {
       display: grid;
@@ -929,7 +961,7 @@
       .panel, .card { box-shadow: none; }
       tbody tr.selected { background: var(--accent-soft); }
       button { display: none; }
-      .scale-row, .viz-nav { display: none; }
+      .scale-row, .viz-nav, .viz-modes { display: none; }
       .chart { break-inside: avoid; }
       /* Nothing hovers on paper: drop the tooltip and its affordance, and open
          the glossary so the printed schedule explains its own columns. */
@@ -976,6 +1008,7 @@
         <li>The cards, graphs, and schedule recalculate live. Click a cycle row (or a graph step) to see that day’s cut mark and a life-size film: <strong>TAKE on the left, SAVE on the right</strong>. The cut-mark bar is a full unused film; later cycles hash the rest that is already off.</li>
         <li>Standing at the counter you need four numbers, and the schedule’s tinted block is exactly those four plus one: <strong>Take</strong> in mg and mm, <strong>Save</strong> in mg and mm, and <strong>Δ save</strong>. Open a film, mark it at Take mm from its <strong>left</strong> end, cut once. Left of the mark is the dose; everything right of it — all of it, not just this cycle’s sliver — goes in the jar. Δ save is how much more the jar gets than last cycle, and it grows every cycle. No arithmetic at the strip.</li>
         <li>If your dose is bigger than one film — 16 mg on 8 mg strips, say — the day is simply several strips. The Film column shows <strong>×2</strong>, and only one of those strips is ever cut: take the whole ones as they are.</li>
+        <li>Under the life-size film you can switch how the cut is found. <strong>Measuring</strong> gives the exact mark in millimetres. <strong>Folding</strong> approximates the same dose as whole parts of a folded grid — halve it, halve it again, take five of six — which needs no ruler and no arithmetic. It always tells you how far off the ladder that lands, and in linear mode it lands exactly.</li>
         <li>Print / save as PDF and take it to your prescriber <em>before day 1</em> so they can match quantity and write 2 mg films for the back half.</li>
       </ol>
 
@@ -992,7 +1025,7 @@
         <div><dt>Film strength you cut (mg) <span class="def">[blank = auto]</span><span class="sep"> — </span></dt><dd>Which strength of film you actually hold. Left blank the tool picks the smallest official size that fits the start dose — 2, 4, 8 or 12 mg — and 8 mg for a start above 12 mg, where no single film holds the dose. Set it if you have something else: a 16 mg start is two 8 mg strips a day, or two 12 mg strips if that is what is in the box.</dd></div>
         <div><dt>Hold / stretch days <span class="def">[blank = same as n]</span><span class="sep"> — </span></dt><dd>Makes every cycle longer without changing the size of the cut. Set 9 with n = 6 and you still cut 1/6, but hold each dose for 9 days instead of 6 — the same taper, more settling time between drops.</dd></div>
         <div><dt>n below 3 mg <span class="def">[blank = off]</span><span class="sep"> — </span></dt><dd>Switches to a different n once the strip you are cutting from drops under 3 mg, where the same percentage is a much smaller piece of film. Setting 10 here makes the back half drop 10% per cycle instead of 16.7%.</dd></div>
-        <div><dt>Your cutting tolerance (mm) <span class="def">[0.5]</span><span class="sep"> — </span></dt><dd>How accurately you can actually cut — half a millimetre is realistic with a razor and a steel ruler. Feeds the “cutting error vs the step” graph only; it never changes the schedule. Set it to 0 to hide that graph.</dd></div>
+        <div><dt>Your cutting tolerance (mm) <span class="def">[0.5]</span><span class="sep"> — </span></dt><dd>How accurately you can actually cut — half a millimetre is realistic with a razor and a steel ruler. Feeds the “cutting error vs the step” graph, and sets how much simplicity the life-size film's <strong>Folding</strong> mode may buy: a fold no further out than your own slip is offered in place of a closer but fiddlier one. It never changes the schedule. Set it to 0 to hide that graph and to always take the closest fold.</dd></div>
         <div><dt>Half-life for the lag curve (h) <span class="def">[32]</span><span class="sep"> — </span></dt><dd>Buprenorphine's half-life, usually quoted as 24–42 hours. Draws the dashed lag curve on the first graph and nothing else. Set it to 0 to hide the curve.</dd></div>
         <div><dt>Day 1 date <span class="def">[blank = no calendar]</span><span class="sep"> — </span></dt><dd>The date you plan to start. Fills in the Calendar panel with real dates and marks today, so you can see which cycle you are on. Leave blank and the plan stays in day numbers.</dd></div>
         <div><dt>Switch to 2 mg films at or below 2.25 mg <span class="def">[on]</span><span class="sep"> — </span></dt><dd>When the strip you cut from reaches 2.25 mg, restart on a 2 mg film. A 2 mg film is a quarter the density, so the same dose is four times longer and the same cut is four times more forgiving. Turn it off to stay on one strength the whole way.</dd></div>
@@ -1006,7 +1039,7 @@
         <h3>The method — every day of a cycle</h3>
         <ol>
           <li>Start the cycle with a piece that is the current “whole strip” (cycle 1: a full 8 mg film — or several, if your dose is bigger than one film).</li>
-          <li>Keep the full width. Cut only along the length. Mark, then cut with a fresh razor on a mat — not scissors.</li>
+          <li>Keep the full width. Cut only along the length. Mark, then cut with a fresh razor on a mat — not scissors. (The film panel's <strong>Folding</strong> mode is the one exception, and it draws both cuts for you.)</li>
           <li>Cut 1/n off the <strong>right</strong> end. That short sliver goes in the save jar. Take the long left piece. Once daily is enough. If the day is more than one film, take the whole ones as they are and mark only the last: one cut a day, whatever the dose.</li>
           <li>In practice you open a <strong>fresh film</strong> each day rather than keeping yesterday’s piece, so measure the same cut from the other end: mark <strong>Take mm from the left</strong>, and everything right of that mark — <strong>Save mm</strong> — goes in the jar. It is the same cut. From cycle 2 on, the save is larger than the sliver, because it also carries the part earlier cycles had already taken off; it grows every cycle, and that growth is the <strong>Δ save</strong> column — which is the sliver.</li>
           <li>Do that for n days. The save jar now holds one full piece of this cycle’s size. That is a <strong>buffer / safety net, not extra daily dose</strong>. If you eat the bank, the dose never drops.</li>
@@ -1136,6 +1169,11 @@
           <button type="button" class="ghost" id="cycleNext">Next cycle</button>
         </div>
       </div>
+      <div class="viz-modes no-print" role="group" aria-label="How to find the cut">
+        <span class="k">Find the cut by</span>
+        <button type="button" class="ghost small" id="vizModeExact" aria-pressed="true">Measuring</button>
+        <button type="button" class="ghost small" id="vizModeFrac" aria-pressed="false">Folding</button>
+      </div>
       <div class="cal-wrap">
         <div class="cal-bar" id="calBar" title="20 mm at the current scale"></div>
         <span>20 mm calibration — match this to a real ruler</span>
@@ -1216,7 +1254,7 @@
     <section class="panel notes">
       <h2>Notes that make or break this</h2>
       <ul>
-        <li>Cut along <strong>one axis only</strong>. Keep the full width; only shorten the length. Then length fraction = dose fraction. Cutting both dimensions loses the arithmetic.</li>
+        <li>When you <strong>measure</strong>, cut along one axis only — keep the full width and only shorten the length, so length fraction = dose fraction and a single number describes the cut. The film's <strong>Folding</strong> mode does cut both axes, and the arithmetic still holds there because <em>area</em> fraction is dose fraction on an evenly made sheet; what it gives up is the single measurement, which is the point of it. What you must not do is cut both axes while thinking in lengths.</li>
         <li>Use a fresh razor/craft blade and a ruler on a clean mat, not scissors. Mark before you cut. Cutting films is not manufacturer-sanctioned; the drug is distributed reasonably evenly, which is why this method is widely used.</li>
         <li><strong>Cutting aids.</strong> A steel ruler and a fresh blade on a cutting mat is enough for most of the ladder. If your cuts wander, small purpose-made film slicers exist — search for “Suboxone film cutter” or “subslicer”. A guided cut you can repeat beats a freehand one you cannot.</li>
         <li><strong>Doses below what you can cut.</strong> Some people move to liquid (volumetric) dosing at the very bottom: dissolve a film in a measured volume of water and draw a dose with an oral syringe — a 2 mg film in 20 mL is <em>theoretically</em> 0.1 mg/mL. Treat that number as arithmetic, not as a measurement. It is <strong>not manufacturer-sanctioned</strong> (the labelling says take the film whole), buprenorphine is only sparingly water-soluble so the real concentration can differ from the calculated one, a homemade solution is not sterile, and you only absorb what you hold under the tongue — swallowed, most of it is lost. <strong>Raise it with your prescriber before trying it.</strong> There may be a better route: quartered 2 mg films, a different product, or a properly compounded liquid.</li>
@@ -1280,6 +1318,7 @@
   const STORAGE_KEY = "sas-taper-inputs-v1";
   const SCALE_KEY = "sas-taper-strip-scale";
   const CAL_MODE_KEY = "sas-taper-cal-mode";
+  const VIZ_MODE_KEY = "sas-taper-viz-mode";
   const CAL_DENSITY_KEY = "sas-taper-cal-density";
   /* CSS reference: 1 in = 96 px, 1 in = 25.4 mm. True size on a 96 PPI screen. */
   const CSS_MM = "mm";
@@ -1376,6 +1415,92 @@
      Takes the day's strip and sliver in mg plus the film's strength and length.
      Returns { filmsOut, takeFilms, cutTakeMm, cutSaveMm, spareMm }. Mirrors
      film_layout() in taper.py; test_parity.js checks every field of both. */
+  /* Subdivisions the fraction cut may fold the film into. Mirrors
+     FRAC_LONG_DIVS / FRAC_SHORT_DIVS in taper.py — the long axis gets eighths
+     because three successive halvings stay reproducible over 22 mm, the short
+     axis stops at quarters because at 12.8 mm an eighth is 1.6 mm and nobody
+     judges that by eye. */
+  const FRAC_LONG_DIVS = [1, 2, 3, 4, 8];
+  const FRAC_SHORT_DIVS = [1, 2, 3, 4];
+  const FRAC_MIN_TAB_MM = 2.0;
+
+  function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; }
+
+  /* How hard a folded cut is by hand. Lower is easier. Mirrors
+     _frac_difficulty in taper.py.
+
+     A cut across the short axis is a 12.8 mm stroke guided by the film's own
+     straight edge. A cut along the long axis is freehand down the middle and
+     materially harder to keep square, so the two are not worth the same — a
+     plain half must come out as a crosswise cut, not a lengthwise one, even
+     though both are "one cut". */
+  function fracDifficulty(L, S, columns, tab, cuts, pieces, fullMm, wideMm) {
+    const lengthwise = tab ? 1 : 0;
+    let d = (cuts - lengthwise) * 10 + lengthwise * 14 + (pieces - 1) * 4;
+    d += { 1: 0, 2: 0, 3: 2, 4: 3, 8: 6 }[L];
+    d += { 1: 0, 2: 2, 3: 5, 4: 7 }[S];
+    if (tab) {
+      const tabMm = Math.min(fullMm / L, wideMm * tab / S);
+      if (tabMm < FRAC_MIN_TAB_MM) d += 20;
+    }
+    return d;
+  }
+
+  /* Closest practical folded-grid piece to wantFrac of one film. Mirrors
+     fraction_cut() in taper.py; test_parity.js diffs the two.
+
+     tolMg caps the error a simpler cut may carry — pass the reader's own
+     cutting tolerance in milligrams, because a cut inside it is no worse than
+     the slip they would make with a rule, so the simplest of those is the
+     better instruction. It is a cap on the error itself, not a margin on top
+     of the best one: added to the best they would compound and the chosen cut
+     could land further out than the tolerance allows.
+
+     Deterministic — the same arguments always give the same cut, so the
+     drawing never moves under a reader who has changed nothing. */
+  function fractionCut(wantFrac, filmMg, fullMm, wideMm, tolMg) {
+    if (!(fullMm > 0) || !(wideMm > 0) || !(filmMg > 0)) return null;
+    const wantMg = wantFrac * filmMg;
+    const pool = [];
+    let best = Infinity;
+    for (const L of FRAC_LONG_DIVS) {
+      for (const S of FRAC_SHORT_DIVS) {
+        const total = L * S;
+        for (let cells = 1; cells <= total; cells++) {
+          const columns = Math.floor(cells / S);
+          const tab = cells - columns * S;
+          let cuts, pieces;
+          if (cells === total) { cuts = 0; pieces = 1; }
+          else if (tab === 0) { cuts = 1; pieces = 1; }
+          else {
+            cuts = (columns ? 1 : 0) + (columns + 1 < L ? 1 : 0) + 1;
+            pieces = columns ? 2 : 1;
+          }
+          const frac = cells / total;
+          const err = Math.abs(frac - wantFrac) * filmMg;
+          pool.push({ err, L, S, cells, columns, tab, cuts, pieces, frac });
+          if (err < best) best = err;
+        }
+      }
+    }
+    const cap = Math.max(best, Math.max(0, tolMg || 0));
+    const near = pool.filter((e) => e.err <= cap + 1e-12);
+    near.sort((a, b) =>
+      fracDifficulty(a.L, a.S, a.columns, a.tab, a.cuts, a.pieces, fullMm, wideMm)
+      - fracDifficulty(b.L, b.S, b.columns, b.tab, b.cuts, b.pieces, fullMm, wideMm)
+      || a.err - b.err || a.S - b.S || b.L - a.L || a.cells - b.cells);
+    const c = near[0];
+    const g = gcd(c.cells, c.L * c.S);
+    const doseMg = c.frac * filmMg;
+    return {
+      longDiv: c.L, shortDiv: c.S, cells: c.cells, columns: c.columns,
+      tabCells: c.tab, cuts: c.cuts, pieces: c.pieces, fraction: c.frac,
+      doseMg, wantMg, errorMg: doseMg - wantMg,
+      label: `${c.cells / g}/${c.L * c.S / g}`,
+      exact: Math.abs(doseMg - wantMg) < 5e-4,
+    };
+  }
+
   function filmLayout(stripMg, sliverMg, filmMg, filmMm) {
     if (!(filmMg > 0) || !(filmMm > 0)) {
       return { filmsOut: 0, takeFilms: 0, cutTakeMm: 0, cutSaveMm: 0, spareMm: 0 };
@@ -1778,6 +1903,7 @@
      in the size table, or null to follow the cycle's own. */
   let selectedCycle = 1;
   let lastSched = null;
+  let lastOpts = null;
   let stripScalePct = 100;
   let vizFilmMg = null;
 
@@ -2086,8 +2212,11 @@
       const m = localStorage.getItem(CAL_MODE_KEY);
       if (m && CAL_MODES[m]) calMode = m;
       calCompact = localStorage.getItem(CAL_DENSITY_KEY) === "compact";
+      if (localStorage.getItem(VIZ_MODE_KEY) === "fold") vizMode = "fold";
     } catch (e) { /* ignore */ }
     applyCalChrome();
+    $("vizModeExact").setAttribute("aria-pressed", String(vizMode === "exact"));
+    $("vizModeFrac").setAttribute("aria-pressed", String(vizMode === "fold"));
   }
 
   /* Persist the calendar's mode and density. Silent if storage is blocked. */
@@ -2619,8 +2748,83 @@
      whichever film strength the reader picked in the size table (vizFilmMg) or
      the cycle's own. Sizes are in CSS mm, which is true size only on a 96 PPI
      screen — hence the calibration bar and the zoom slider. */
-  function renderStripViz(s) {
+  /* Which way the life-size panel finds the cut. Only this panel — the ruler
+     above it always measures, because it is the drawing the schedule's own
+     millimetre columns refer to. */
+  let vizMode = "exact";
+
+  /* One folded film, drawn as a cutting guide: the fold grid faint, the strokes
+     you actually make bold, the piece you swallow filled orange and the rest
+     left hatched.
+
+     Takes the chosen FractionCut and the film's true size in mm. Drawn in SVG
+     rather than the flex bars the exact mode uses, because a two-axis cut is a
+     plan view and the bars cannot show a second axis at all. */
+  function foldSvg(fc, fullMm, wideMm, scale) {
+    /* The viewBox is in tenths of a millimetre; the element's CSS width is set
+       in real mm so the drawing is life-size at the panel's scale, exactly
+       like the flex bars the exact mode uses. Sizing the SVG in pixels instead
+       drew it about a fifth of true size. */
+    const U = 10;
+    const W = fullMm * U, H = wideMm * U;
+    const cw = W / fc.longDiv, rh = H / fc.shortDiv;
+    const p = fc.columns, q = fc.tabCells;
+    const o = [];
+    const uid = `f${fc.longDiv}x${fc.shortDiv}`;
+    o.push(`<svg viewBox="-4 -4 ${W + 8} ${H + 8}"`
+      + ` style="width:${(fullMm + 0.8) * scale}${CSS_MM}" role="img"`
+      + ` aria-label="A ${fullMm.toFixed(1)} by ${wideMm.toFixed(1)} millimetre film folded into`
+      + ` ${fc.longDiv} by ${fc.shortDiv}, taking ${fc.cells} of`
+      + ` ${fc.longDiv * fc.shortDiv} parts">`);
+    o.push(`<defs><pattern id="${uid}s" width="8" height="8" patternTransform="rotate(-45)"`
+      + ` patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#ffedd5"/>`
+      + `<rect width="4" height="8" fill="#fdba74"/></pattern>`
+      + `<linearGradient id="${uid}t" x1="0" y1="0" x2="0" y2="1">`
+      + `<stop offset="0" stop-color="#f3c38a"/><stop offset="1" stop-color="#e3943c"/>`
+      + `</linearGradient></defs>`);
+    o.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="url(#${uid}s)"/>`);
+    if (p) o.push(`<rect x="0" y="0" width="${p * cw}" height="${H}" fill="url(#${uid}t)"/>`);
+    if (q) o.push(`<rect x="${p * cw}" y="0" width="${cw}" height="${q * rh}" fill="url(#${uid}t)"/>`);
+    for (let i = 1; i < fc.longDiv; i++) {
+      o.push(`<line class="fold-grid" x1="${i * cw}" y1="0" x2="${i * cw}" y2="${H}"/>`);
+    }
+    for (let j = 1; j < fc.shortDiv; j++) {
+      o.push(`<line class="fold-grid" x1="0" y1="${j * rh}" x2="${W}" y2="${j * rh}"/>`);
+    }
+    /* Only the strokes you make — not every fold. A tab that runs to the
+       film's own edge needs no cut on that side. */
+    const blades = [];
+    if (q === 0) {
+      if (p > 0 && p < fc.longDiv) blades.push(["v", p * cw]);
+    } else {
+      if (p + 1 < fc.longDiv) blades.push(["v", (p + 1) * cw]);
+      if (p > 0) blades.push(["v", p * cw]);
+      blades.push(["h", q * rh, p * cw, (p + 1) * cw]);
+    }
+    for (const b of blades) {
+      const g = b[0] === "v"
+        ? `x1="${b[1]}" y1="-3" x2="${b[1]}" y2="${H + 3}"`
+        : `x1="${b[2] - 3}" y1="${b[1]}" x2="${b[3] + 3}" y2="${b[1]}"`;
+      o.push(`<line class="fold-blade-under" ${g}/><line class="fold-blade" ${g}/>`);
+    }
+    o.push(`<rect class="fold-edge" x="0" y="0" width="${W}" height="${H}" rx="3"/>`);
+    o.push("</svg>");
+    return o.join("");
+  }
+
+  const fracHtml = (label) => {
+    const [n, d] = label.split("/");
+    return `<span class="fold-frac"><span class="n">${n}</span>`
+      + `<span class="r"></span><span class="d">${d}</span></span>`;
+  };
+
+  function renderStripViz(s, o) {
     lastSched = s;
+    /* Held so the mode buttons and the scale slider can redraw without
+       re-reading the form. Display-only values live here too — cutTolMm sets
+       how much simplicity the fold may buy, and like every other use of it,
+       it never reaches buildSchedule. */
+    if (o) lastOpts = o;
     applyScaleChrome();
     const row = s.rows.find((r) => r.cycle === selectedCycle) || s.rows[0];
     if (!row) {
@@ -2664,6 +2868,11 @@
       tr.classList.toggle("selected", parseInt(tr.getAttribute("data-spec"), 10) === spec.mg);
     });
 
+    if (vizMode === "fold") {
+      renderFoldViz(row, spec, fullMm, widthMm, lay, cutTakeMm, cut, multi, mismatch, k);
+      return;
+    }
+
     const draw = films.map((f) => {
       const marked = f.kind === "cut";
       const pct = (mm) => (mm / fullMm) * 100;
@@ -2689,7 +2898,7 @@
 
     $("stripViz").innerHTML = `
       <p class="strip-side">
-        Cycle ${row.cycle} drawn on ${multi ? films.length + " ×" : "a"}
+        Cycle ${row.cycle} drawn on ${multi ? films.length + " ×" : article(spec.mg)}
         <strong>${spec.label}</strong> film${multi ? "s" : ""}
         · unused ${fmt(fullMm, 1)} × ${fmt(widthMm, 1)} mm${multi ? " each" : ""}
         ${cut ? ` · current piece ${fmt(cutTakeMm + cutSaveMm, 1)} mm` : " · no cut this cycle"}
@@ -2727,6 +2936,89 @@
      caption's measured width, and the caption itself is clamped so it never
      hangs off either end. Measured rather than set in CSS because the text
      length moves with the numbers in it. */
+  /* The folding mode of the life-size panel.
+
+     Approximates the marked film's take with whole cells of a folded grid and
+     draws where the strokes go. The dose it lands on is almost never the dose
+     the ladder asked for, so the difference is stated in milligrams every
+     time — an approximation a reader cannot see the size of is worse than no
+     approximation at all.
+
+     The reader's own cutting tolerance sets how much simplicity may be bought:
+     a fold inside it is no worse than the slip they would make with a rule.
+     Display-only, like every other use of that input — it never reaches
+     buildSchedule and cannot move the ladder. */
+  function renderFoldViz(row, spec, fullMm, widthMm, lay, cutTakeMm, cut, multi, mismatch, k) {
+    if (!cut) {
+      $("stripViz").innerHTML = `<p class="strip-side">Cycle ${row.cycle} on
+        <strong>${spec.label}</strong> film · nothing to fold.</p>
+        <p class="legend">Today is ${lay.takeFilms} whole ${fmtG(spec.mg)} mg film${lay.takeFilms === 1 ? "" : "s"}
+        and no cut at all, so there is no fraction to approximate. Switch to
+        <strong>Measuring</strong> for the full picture of the day.</p>`;
+      return;
+    }
+    const want = cutTakeMm / fullMm;
+    /* Milligrams of film per millimetre of length, so the reader's tolerance
+       in mm becomes a tolerance in dose on this strength. */
+    const tolMg = Math.max(0, (lastOpts && lastOpts.cutTolMm) || 0) * spec.mg / fullMm;
+    const fc = fractionCut(want, spec.mg, fullMm, widthMm, tolMg);
+    if (!fc) { $("stripViz").innerHTML = "<p>No film to fold.</p>"; return; }
+
+    const cellW = fullMm / fc.longDiv, cellH = widthMm / fc.shortDiv;
+    const wantMg = want * spec.mg;
+    const errCls = fc.exact || Math.abs(fc.errorMg) <= tolMg + 1e-9 ? "ok" : "off";
+    const errTxt = fc.exact
+      ? "exact"
+      : `${fc.errorMg >= 0 ? "+" : ""}${fmt(fc.errorMg, 2)} mg`;
+    const strokes = fc.cuts === 0
+      ? "no cut at all — the whole film"
+      : `${fc.cuts} straight cut${fc.cuts === 1 ? "" : "s"}`;
+
+    $("stripViz").innerHTML = `
+      <p class="strip-side">
+        Cycle ${row.cycle} on ${multi ? filmsWord(lay) : article(spec.mg)}
+        <strong>${spec.label}</strong> film${multi ? "s" : ""}
+        · fold into <strong>${fc.longDiv} × ${fc.shortDiv}</strong>
+        · take ${fracHtml(fc.label)} of it
+      </p>
+      ${multi ? `<p class="kit"><strong>${kitLine(Object.assign({}, row, lay, { filmMg: spec.mg }))}</strong>
+        The whole ones need no cut. Only the film below is folded.</p>` : ""}
+      <div class="fold-wrap">${foldSvg(fc, fullMm, widthMm, k)}</div>
+      <p class="fold-facts">
+        <span>Fold the ${fmt(fullMm, 1)} mm side into <b>${fc.longDiv}</b></span>
+        ${fc.shortDiv > 1 ? `<span>and the ${fmt(widthMm, 1)} mm side into <b>${fc.shortDiv}</b></span>` : ""}
+        <span>each part <b>${fmt(cellW, 1)} × ${fmt(cellH, 1)}</b> mm</span>
+        <span>take <b>${fc.cells}</b> of <b>${fc.longDiv * fc.shortDiv}</b></span>
+        <span><b>${strokes}</b>, ${fc.pieces} piece${fc.pieces === 1 ? "" : "s"}</span>
+      </p>
+      <p class="fold-facts">
+        <span>ladder asks for <b>${fmt(wantMg, 2)}</b> mg</span>
+        <span>this fold gives <b>${fmt(fc.doseMg, 2)}</b> mg</span>
+        <span class="err ${errCls}">${errTxt}</span>
+      </p>
+      <p class="legend">${mismatch ? `The taper runs on ${article(row.filmMg)} ${fmtG(row.filmMg)} mg film; this asks what the same day looks like folded on the <strong>${spec.label}</strong> size you picked. ` : ""}${
+        fc.columns && fc.tabCells
+          ? `Cut off <strong>${fc.columns}</strong> whole part${fc.columns === 1 ? "" : "s"} of the long side, then take <strong>${fc.tabCells}</strong> of the ${fc.shortDiv} across the next part. Both pieces are today's dose — put them under your tongue together.`
+          : (fc.tabCells
+            ? `Take <strong>${fc.tabCells}</strong> of the ${fc.shortDiv} across the first part of the long side. One piece.`
+            : `Cut off <strong>${fc.columns}</strong> of the ${fc.longDiv} parts along the long side. One straight cut, one piece.`)}
+        Everything you do not take goes in the jar, exactly as it does when you measure.</p>
+      <p class="legend"><strong>This is an approximation.</strong> A fold can only land on the fractions
+        it can make, so the dose is ${errTxt === "exact" ? "exactly right this cycle" : `${errTxt} off the ladder's`}${
+        errCls === "ok" && !fc.exact ? ` — inside the ±${fmt((lastOpts && lastOpts.cutTolMm) || 0, 2)} mm you said you can cut to, so no worse than measuring it` : ""}.
+        Switch to <strong>Measuring</strong> for the exact mark.</p>
+    `;
+  }
+
+  /* "two", "three" … for the kit sentence, falling back to the digit. */
+  function filmsWord(lay) {
+    return ["", "a", "two", "three", "four"][lay.filmsOut] || String(lay.filmsOut);
+  }
+
+  /* "an 8 mg film", not "a 8 mg film". Only 8 and 11 start with a vowel sound
+     among the strengths this tool can reach. */
+  const article = (mg) => (/^(8|11|18|80)/.test(String(mg)) ? "an" : "a");
+
   function pinStripCutLabel(takePct) {
     const strip = $("stripViz").querySelector(".strip-full.marked");
     const label = $("stripViz").querySelector(".strip-cut-label");
@@ -3432,7 +3724,7 @@
     renderSchedule(s);
     renderCalendar(s, opts);
     renderRuler(s);
-    renderStripViz(s);
+    renderStripViz(s, opts);
     renderCompare(opts);
     renderMonths(s);
   }
@@ -3515,6 +3807,18 @@
   });
   $("cyclePrev").addEventListener("click", () => shiftCycle(-1));
   $("cycleNext").addEventListener("click", () => shiftCycle(1));
+
+  /* The two ways of finding the cut. Persisted like the calendar's mode, so a
+     reader who prefers folding does not have to pick it again every visit. */
+  function setVizMode(mode) {
+    vizMode = mode === "fold" ? "fold" : "exact";
+    $("vizModeExact").setAttribute("aria-pressed", String(vizMode === "exact"));
+    $("vizModeFrac").setAttribute("aria-pressed", String(vizMode === "fold"));
+    try { localStorage.setItem(VIZ_MODE_KEY, vizMode); } catch (e) { /* private mode */ }
+    if (lastSched) renderStripViz(lastSched);
+  }
+  $("vizModeExact").addEventListener("click", () => setVizMode("exact"));
+  $("vizModeFrac").addEventListener("click", () => setVizMode("fold"));
   $("dimTable").addEventListener("click", (e) => {
     const tr = e.target.closest("tr[data-spec]");
     if (!tr) return;
@@ -3533,6 +3837,7 @@
      Read-only and unused by the page itself. */
   window.SASTaperInternals = Object.freeze({
     buildSchedule, compareClassic, baseFilmMg, keepRatio, filmLayout, dayFilms,
+    fractionCut,
     /* The cycle row the two drawings are currently showing. test_layout.js
        asserts both panels drew exactly one bar per film of this row — the
        thing that used to change shape from one cycle to the next. */

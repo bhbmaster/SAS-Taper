@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from datetime import date, timedelta
 from dataclasses import asdict, dataclass, field
@@ -26,6 +27,16 @@ DEFAULT_MONTH_DAYS = 30
 MAX_CYCLES = 40
 CUT_MODES = ("geometric", "linear")
 CUT_WARN_MM = 1.0
+
+# Subdivisions the fraction cut is allowed to fold the film into. The long axis
+# gets eighths because three successive halvings stay reproducible over 22 mm;
+# the short axis stops at quarters, because at 12.8 mm an eighth is 1.6 mm and
+# nobody is judging that by eye.
+FRAC_LONG_DIVS = (1, 2, 3, 4, 8)
+FRAC_SHORT_DIVS = (1, 2, 3, 4)
+# A tab narrower than this on its short side is not handleable, whatever the
+# arithmetic says.
+FRAC_MIN_TAB_MM = 2.0
 SITE_URL = "https://bhbmaster.github.io/SAS-Taper/"
 
 
@@ -163,6 +174,9 @@ holds the start dose, or 8 mg above 12 mg where no single film holds it
 NOTES = """\
 Practical notes
 - Cut along one axis only. Keep the full width of the film and only shorten it.
+  (The site's film panel offers a folding mode that cuts both axes instead; the
+  arithmetic holds there because area fraction is dose fraction on an evenly
+  made sheet. What you must not do is cut both axes while thinking in lengths.)
   Length fraction = dose fraction. Cutting both dimensions loses the arithmetic.
 - Use a fresh razor/craft blade and a ruler on a clean mat, not scissors. Mark
   before you cut. Cutting films is not manufacturer-sanctioned; the drug is
@@ -479,6 +493,140 @@ def film_layout(
         cut_take_mm=cut_take_mm,
         cut_save_mm=cut_save_mm,
         spare_mm=spare_mm,
+    )
+
+
+@dataclass(frozen=True)
+class FractionCut:
+    """One day's dose expressed as whole cells of a folded grid.
+
+    The film is folded into `long_div` columns across its length and
+    `short_div` rows across its width, and you take `cells` of the
+    `long_div * short_div` that makes. Those cells are always `columns` whole
+    columns plus `tab_cells` cells of the next one, so the piece is a rectangle
+    or an L — never something scattered.
+
+    cuts is how many strokes that needs and pieces how many bits of film end up
+    in your mouth. A tab that runs to the film's own edge needs no cut on that
+    side, which is what makes 5/6 on a 3x2 grid two strokes rather than three.
+
+    error_mg is the dose this lands on minus the dose the ladder asked for. It
+    is not hidden: a fraction cut is an approximation and every surface says so.
+    """
+
+    long_div: int
+    short_div: int
+    cells: int
+    columns: int
+    tab_cells: int
+    cuts: int
+    pieces: int
+    fraction: float
+    dose_mg: float
+    want_mg: float
+    error_mg: float
+
+    @property
+    def label(self) -> str:
+        """The fraction in lowest terms, as "5/6"."""
+        g = math.gcd(self.cells, self.long_div * self.short_div)
+        return f"{self.cells // g}/{self.long_div * self.short_div // g}"
+
+    @property
+    def exact(self) -> bool:
+        return abs(self.error_mg) < 5e-4
+
+
+def _frac_difficulty(
+    long_div: int, short_div: int, columns: int, tab_cells: int,
+    cuts: int, pieces: int, full_mm: float, wide_mm: float,
+) -> float:
+    """How hard this cut is by hand. Lower is easier.
+
+    A cut across the short axis is a 12.8 mm stroke guided by the film's own
+    straight edge. A cut along the long axis is freehand down the middle and
+    materially harder to keep square, so the two are not worth the same — a
+    plain half should come out as a crosswise cut, not a lengthwise one, even
+    though both are "one cut".
+    """
+    lengthwise = 1 if tab_cells else 0
+    d = (cuts - lengthwise) * 10 + lengthwise * 14 + (pieces - 1) * 4
+    # A finer fold is a harder judgement even at the same cut count, and the
+    # short axis has less room to be wrong in.
+    d += {1: 0, 2: 0, 3: 2, 4: 3, 8: 6}[long_div]
+    d += {1: 0, 2: 2, 3: 5, 4: 7}[short_div]
+    if tab_cells:
+        tab = min(full_mm / long_div, wide_mm * tab_cells / short_div)
+        if tab < FRAC_MIN_TAB_MM:
+            d += 20
+    return d
+
+
+def fraction_cut(
+    want_frac: float,
+    film_mg: float,
+    full_mm: float,
+    wide_mm: float,
+    tol_mg: float = 0.0,
+) -> Optional[FractionCut]:
+    """Closest practical folded-grid piece to `want_frac` of one film.
+
+    Args:
+        want_frac: the wanted piece as a fraction of one whole film.
+        film_mg: strength of that film.
+        full_mm: its length along the cut axis.
+        wide_mm: its width across.
+        tol_mg: the error a simpler cut may carry and still win, in absolute
+            terms. Pass the reader's own cutting tolerance in milligrams: any
+            cut inside it is no worse than the slip they would make with a
+            rule, so among those the simplest is the better instruction. Note
+            this is a cap on the error itself, not a margin on top of the best
+            one — otherwise the two would compound and the chosen cut could be
+            further out than the tolerance allows. Zero means always take the
+            closest.
+    Returns:
+        The chosen FractionCut, or None if the film has no size to fold.
+
+    Deterministic: the same arguments always give the same cut, so the drawing
+    never changes under a reader who has changed nothing.
+    """
+    if full_mm <= 0 or wide_mm <= 0 or film_mg <= 0:
+        return None
+    want_mg = want_frac * film_mg
+    best: Optional[tuple] = None
+    pool: list[tuple] = []
+    for long_div in FRAC_LONG_DIVS:
+        for short_div in FRAC_SHORT_DIVS:
+            total = long_div * short_div
+            for cells in range(1, total + 1):
+                columns, tab = divmod(cells, short_div)
+                if cells == total:
+                    cuts, pieces = 0, 1
+                elif tab == 0:
+                    cuts, pieces = 1, 1
+                else:
+                    cuts = ((1 if columns else 0)
+                            + (1 if columns + 1 < long_div else 0) + 1)
+                    pieces = 2 if columns else 1
+                frac = cells / total
+                err = abs(frac - want_frac) * film_mg
+                entry = (err, long_div, short_div, cells, columns, tab, cuts, pieces, frac)
+                pool.append(entry)
+                if best is None or err < best[0]:
+                    best = entry
+    assert best is not None
+    cap = max(best[0], max(0.0, tol_mg))
+    near = [e for e in pool if e[0] <= cap + 1e-12]
+    near.sort(key=lambda e: (
+        _frac_difficulty(e[1], e[2], e[4], e[5], e[6], e[7], full_mm, wide_mm),
+        e[0], e[2], -e[1], e[3],
+    ))
+    err, long_div, short_div, cells, columns, tab, cuts, pieces, frac = near[0]
+    return FractionCut(
+        long_div=long_div, short_div=short_div, cells=cells, columns=columns,
+        tab_cells=tab, cuts=cuts, pieces=pieces, fraction=frac,
+        dose_mg=frac * film_mg, want_mg=want_mg,
+        error_mg=frac * film_mg - want_mg,
     )
 
 

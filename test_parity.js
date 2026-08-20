@@ -106,6 +106,7 @@ function pyRun(c) {
 /* Every single field-to-field comparison the run makes, so the suite can say
    how much it actually checked rather than how many schedules it built. */
 let comparisons = 0;
+let fracChecked = 0;
 
 function compareRows(label, js, py, fail) {
   if (js.rows.length !== py.rows.length) {
@@ -260,6 +261,25 @@ for c in json.load(sys.stdin):
 json.dump(out, sys.stdout)
 `;
 
+/* fraction_cut() returns a dataclass with two derived properties, so it needs
+   its own shim rather than a bare asdict. */
+const PY_FRAC = `
+import json, sys
+from dataclasses import asdict
+from taper import fraction_cut
+out = []
+for c in json.load(sys.stdin):
+    fc = fraction_cut(c["want"], c["filmMg"], c["fullMm"], c["wideMm"], tol_mg=c["tolMg"])
+    if fc is None:
+        out.append(None)
+        continue
+    d = asdict(fc)
+    d["label"] = fc.label
+    d["exact"] = fc.exact
+    out.append(d)
+json.dump(out, sys.stdout)
+`;
+
 (async () => {
   const browser = await launchOrSkip();
   if (!browser) process.exit(0);
@@ -314,6 +334,58 @@ json.dump(out, sys.stdout)
     if (js !== py) fail(`baseFilmMg(${mg}) = ${js} (js) vs ${py} (py)`);
   }
 
+  /* fractionCut() is the second thing written twice on both sides, and unlike
+     the ladder it is a search with a tie-break — exactly the kind of code that
+     drifts silently. Swept across the whole 0-1 range on several film sizes and
+     both tolerance regimes, comparing every field of the result. */
+  {
+    const FRAC_CASES = [];
+    for (const [filmMg, fullMm, wideMm] of [[8, 22, 12.8], [2, 22, 12.8],
+                                            [12, 22, 19.2], [4, 22, 25.6],
+                                            [8, 20, 12.8], [8, 30, 12.8]]) {
+      for (const tolMg of [0, 0.05, 0.18, 0.4]) {
+        for (let i = 1; i <= 400; i++) {
+          FRAC_CASES.push({ want: i / 400, filmMg, fullMm, wideMm, tolMg });
+        }
+        /* The exact grid points too: ties are where a tie-break shows. */
+        for (const L of [1, 2, 3, 4, 8]) {
+          for (const S of [1, 2, 3, 4]) {
+            for (let k = 1; k <= L * S; k++) {
+              FRAC_CASES.push({ want: k / (L * S), filmMg, fullMm, wideMm, tolMg });
+            }
+          }
+        }
+      }
+    }
+    const jsFrac = await page.evaluate((cases) => cases.map(
+      (c) => window.SASTaperInternals.fractionCut(c.want, c.filmMg, c.fullMm, c.wideMm, c.tolMg)),
+      FRAC_CASES);
+    const pyFrac = JSON.parse(execFileSync("python3", ["-c", PY_FRAC], {
+      cwd: REPO, input: JSON.stringify(FRAC_CASES), maxBuffer: 1 << 30,
+    }));
+    const FRAC_FIELDS = [
+      ["longDiv", "long_div"], ["shortDiv", "short_div"], ["cells", "cells"],
+      ["columns", "columns"], ["tabCells", "tab_cells"], ["cuts", "cuts"],
+      ["pieces", "pieces"], ["fraction", "fraction"], ["doseMg", "dose_mg"],
+      ["wantMg", "want_mg"], ["errorMg", "error_mg"], ["label", "label"],
+      ["exact", "exact"],
+    ];
+    for (let i = 0; i < FRAC_CASES.length; i++) {
+      const c = FRAC_CASES[i], a = jsFrac[i], e = pyFrac[i];
+      const tag = `fractionCut(${c.want.toFixed(4)}, ${c.filmMg}mg, ${c.fullMm}mm, tol ${c.tolMg})`;
+      if (!a || !e) { fail(`${tag}: ${a} (js) vs ${e} (py)`); continue; }
+      for (const [j, p] of FRAC_FIELDS) {
+        comparisons++;
+        if (typeof a[j] === "number") {
+          if (Math.abs(a[j] - e[p]) > TOL) fail(`${tag}: ${j} = ${a[j]} (js) vs ${e[p]} (py)`);
+        } else if (a[j] !== e[p]) {
+          fail(`${tag}: ${j} = ${JSON.stringify(a[j])} (js) vs ${JSON.stringify(e[p])} (py)`);
+        }
+      }
+    }
+    fracChecked = FRAC_CASES.length;
+  }
+
   /* The matrix: same grid through both implementations, one process each. */
   const pyMatrix = JSON.parse(execFileSync("python3", ["-c", PY_MATRIX], {
     cwd: REPO, input: JSON.stringify(MATRIX), maxBuffer: 1 << 30,
@@ -365,8 +437,9 @@ json.dump(out, sys.stdout)
     + `(${matrixRows} matrix cycles, widest day ${widestDay} films: `
     + `${shapes.multi} multi-film, ${shapes.spareFilm} whose sliver runs onto unopened film, `
     + `${shapes.noCut} with nothing to cut), 11 film sizes, `
-    + `every month bucket and the n = 6/8/10 table — ${comparisons.toLocaleString("en-US")} `
-    + `field comparisons in all`
+    + `every month bucket and the n = 6/8/10 table, and `
+    + `${fracChecked.toLocaleString("en-US")} folded-grid cuts — `
+    + `${comparisons.toLocaleString("en-US")} field comparisons in all`
   );
 })().catch((e) => {
   console.error(e);
