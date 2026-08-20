@@ -6,6 +6,19 @@
 <title>Choosing the fold — SAS-Taper</title>
 <meta name="description" content="How SAS-Taper turns a millimetre measurement into a folding instruction: the search over folded grids, the shape rule, the difficulty score, and the drawing.">
 <meta name="color-scheme" content="dark light">
+<script>
+  /* Applied before first paint so a reader who chose Wrap does not watch the
+     listing flash as a strip and then re-wrap. Scrolling is the default, so
+     there is nothing to restore unless "on" was stored. The key must match
+     WRAP_KEY in the page script. */
+  (function () {
+    try {
+      if (localStorage.getItem("sas-taper-fold-wrap") === "on") {
+        document.documentElement.setAttribute("data-code-wrap", "on");
+      }
+    } catch (e) { /* private mode */ }
+  })();
+</script>
 <style>
   /* Light is the base set. The two blocks after it redefine only tokens, so no
      colour is ever defined in one theme and missing from another. The film
@@ -152,14 +165,62 @@
   .note code { background: rgb(128 128 128 / .16); }
 
   pre.whole { font-size: 0.74rem; line-height: 1.7; padding: 1.1rem 1.2rem; }
-  @media (max-width: 620px) { pre.whole { font-size: 0.68rem; } }
   pre {
     margin: 0; background: var(--sunk); border: 1px solid var(--line);
-    border-radius: 8px; padding: 0.8rem 0.9rem; overflow-x: auto;
+    border-radius: 8px; padding: 0.8rem 0.9rem; overflow-x: auto; min-width: 0;
     font: 400 0.78rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink);
+  }
+  @media (max-width: 620px) { pre.whole { font-size: 0.68rem; } }
+  /* The listing scrolls sideways by default at every width, and Wrap is the
+     opt-in. It is written as hard-wrapped 80-column text with the comments in
+     an aligned second column, so soft-wrapping it costs more than it saves:
+     on a 375px phone 108 of its 167 lines re-wrap, the ── rules break into
+     orphan stubs, and every continuation lands back at column 0 where it
+     reads as a new statement rather than the rest of the one above. Scrolling
+     keeps the shape the code was written in. The button is there because the
+     scroller is easy to miss and some readers want the whole line anyway.
+     Only the non-default value is stored, so the default can move later
+     without stale settings pinning old readers to it. */
+  html[data-code-wrap="on"] pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
   pre .c { color: var(--faint); }
   pre .k { color: var(--accent); }
+
+  /* min-width:0 and overflow:hidden here, and minmax(0, 1fr) on the section, all
+   pull the same way: a <pre> wide enough to scroll must not widen the page
+   behind it. Any one of the three is enough on its own today, so none of them
+   is the guard — the layout sweep measures the outcome instead. */
+  .code-panel { min-width: 0; background: var(--sunk); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .code-panel pre { border: 0; border-radius: 0; background: transparent; }
+  .code-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 0.55rem 0.8rem; flex-wrap: wrap;
+    padding: 0.4rem 0.45rem 0.4rem 0.9rem;
+    border-bottom: 1px solid var(--line); background: var(--card);
+  }
+  .code-bar .code-kicker {
+    font: 600 0.68rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint);
+  }
+  /* A pair of pressed-state buttons rather than a single toggle, because Wrap
+     and Scroll are alternatives of equal standing and both names should be
+     visible before choosing. "Wrap" here is the lines of the listing, not the
+     film — the kicker says so. */
+  .code-modes { display: inline-flex; gap: 0.2rem; background: var(--sunk);
+                border: 1px solid var(--line); border-radius: 8px; padding: 0.15rem; }
+  .code-modes button {
+    font: 500 0.78rem/1 ui-sans-serif, system-ui, sans-serif;
+    padding: 0.4rem 0.7rem; border-radius: 6px; cursor: pointer;
+    border: 1px solid transparent; background: transparent; color: var(--muted);
+  }
+  .code-modes button:hover { color: var(--accent); }
+  .code-modes button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .code-modes button[aria-pressed="true"] {
+    background: var(--card); color: var(--ink); border-color: var(--line);
+    box-shadow: var(--shadow);
+  }
 
   .facts { display: flex; flex-wrap: wrap; gap: 0.2rem 1.2rem;
            font: 400 0.78rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -246,8 +307,9 @@
   <div class="vocab" id="v2"></div>
   <div class="txt" style="max-width:68ch">
     <h3>And the names in the code</h3>
-    <p>The code below uses short names because it is real code, lifted out of
-      the tool rather than written for a diagram. Here is every one of them.</p>
+    <p>The listing below spells names out — <code>parts_taken</code> rather than
+      <code>cells</code> — because it is there to be read. The calculator's own
+      two copies stay short. Here is every name the listing uses.</p>
   </div>
   <div class="tw"><table class="gloss">
     <thead><tr><th class="f">Name</th><th class="f">Means</th><th class="f">In the picture above</th></tr></thead>
@@ -258,18 +320,22 @@
       <tr><td class="f">wide_mm</td><td>The film's <em>short</em> side in millimetres.</td><td class="f">12.8</td></tr>
       <tr><td class="f">long_div</td><td>How many parts the <em>long</em> side is folded into. "div" is short for divisions.</td><td class="f">4</td></tr>
       <tr><td class="f">short_div</td><td>How many parts the <em>short</em> side is folded into.</td><td class="f">3</td></tr>
-      <tr><td class="f">cells</td><td>How many of the little rectangles you are taking. Not how many there are — how many you keep.</td><td class="f">5 of 12</td></tr>
+      <tr><td class="f">parts_in_all</td><td>How many little rectangles the grid makes altogether — the two divisions multiplied. This is the bottom of the fraction.</td><td class="f">12</td></tr>
+      <tr><td class="f">parts_taken</td><td>How many of the little rectangles you are taking. Not how many there are — how many you keep.</td><td class="f">5 of 12</td></tr>
       <tr><td class="f">columns</td><td>How many <em>full-height</em> strips of the film that adds up to.</td><td class="f">1</td></tr>
       <tr><td class="f">tab</td><td>The leftover cells that do not make a full column — the little bit hanging off the end.</td><td class="f">2</td></tr>
+      <tr><td class="f">tab_mm</td><td>The tab’s smaller side in millimetres — the actual size of the little bit your fingers have to hold. Under 2 mm and the fold is priced as awkward.</td><td class="f">5.5</td></tr>
       <tr><td class="f">cuts</td><td>How many times you put a blade to the film.</td><td class="f">3</td></tr>
+      <tr><td class="f">cut_along_the_length</td><td>1 if one of those strokes runs the long way down the film, 0 if not. That is the freehand one, and the expensive one.</td><td class="f">1</td></tr>
+      <tr><td class="f">cut_across_the_width</td><td>How many strokes run the short way across instead, guided by the film’s own straight edge. The cheap ones.</td><td class="f">2</td></tr>
       <tr><td class="f">pieces</td><td>How many separate bits of film end up being your dose.</td><td class="f">2</td></tr>
-      <tr><td class="f">err</td><td>How far this fold's dose is from the one you wanted, in milligrams. Short for error. Never hidden from the reader.</td><td class="f">—</td></tr>
+      <tr><td class="f">error_mg</td><td>How far this fold's dose is from the one you wanted, in milligrams. Never hidden from the reader.</td><td class="f">—</td></tr>
       <tr><td class="f">difficulty</td><td>A made-up score for how hard this fold is to do by hand. Lower is easier. Only ever compared against other folds.</td><td class="f">—</td></tr>
-      <tr><td class="f">tol_mg</td><td>Your own cutting tolerance in milligrams — how far out you would be anyway, using a ruler. Short for tolerance.</td><td class="f">—</td></tr>
+      <tr><td class="f">tolerance_mg</td><td>Your own cutting tolerance in milligrams — how far out you would be anyway, using a ruler.</td><td class="f">—</td></tr>
       <tr><td class="f">candidates</td><td>The list of every fold the grid can make. 180 of them.</td><td class="f">—</td></tr>
-      <tr><td class="f">best</td><td>The smallest error any fold in that list manages.</td><td class="f">—</td></tr>
-      <tr><td class="f">cap</td><td>The most error we will accept. A fold has to be at least this close to stay in the running.</td><td class="f">—</td></tr>
-      <tr><td class="f">shortlist</td><td>The folds that are close enough — the ones still in the running once the cap is applied.</td><td class="f">—</td></tr>
+      <tr><td class="f">closest_possible</td><td>The smallest error any fold in that list manages.</td><td class="f">—</td></tr>
+      <tr><td class="f">worst_allowed</td><td>The most error we will accept. A fold has to be at least this close to stay in the running.</td><td class="f">—</td></tr>
+      <tr><td class="f">shortlist</td><td>The folds that are close enough — the ones still in the running once that ceiling is applied.</td><td class="f">—</td></tr>
       <tr><td class="f">chosen</td><td>The one fold that wins, and the one the tool draws.</td><td class="f">—</td></tr>
     </tbody>
   </table></div>
@@ -291,12 +357,20 @@
   <div class="txt" style="max-width:none">
     <span class="num">The whole algorithm</span>
     <h2>All of it, in one place</h2>
-    <p>This is the real function out of the tool, with the comments written for
-      someone meeting it for the first time. Everything after it on this page
-      is these same steps, one at a time, with a picture for each. If you would
-      rather see the pictures first, skip past it — nothing below depends on
-      having read it.</p>
+    <p>This is the search the tool runs, with the comments written for someone
+      meeting it for the first time. Everything after it on this page is these
+      same steps, one at a time, with a picture for each. If you would rather
+      see the pictures first, skip past it — nothing below depends on having
+      read it.</p>
   </div>
+  <div class="code-panel">
+    <div class="code-bar">
+      <span class="code-kicker">Lines</span>
+      <div class="code-modes" role="group" aria-label="Wrap or scroll the listing">
+        <button type="button" id="codeWrapOn" aria-pressed="false">Wrap</button>
+        <button type="button" id="codeWrapOff" aria-pressed="true">Scroll</button>
+      </div>
+    </div>
   <pre class="whole"><span class="c"># ── The grid ────────────────────────────────────────────────────────────────
 # A fold is only useful if a person can make it by eye, so the film may only be
 # divided these ways. Along its 22 mm length: into 1, 2, 3, 4 or 8 — eighths
@@ -427,11 +501,11 @@ SHORT_DIVISIONS = [1, 2, 3, 4]
     closest_possible = min(error <span class="k">for</span> _, error, *_ <span class="k">in</span> candidates)
 
     <span class="c"># The most error we will put up with. Note it is a ceiling on the error
-    # ITSELF, not a margin added on top of the best one. Written the other way
-    # round — closest_possible + tolerance — the two stack up, and the fold you
-    # end up drawing can sit further out than the tolerance the reader gave
-    # you. That bug shipped once and put a real cycle 0.22 mg out while
-    # claiming to respect 0.18.</span>
+    # ITSELF, not a margin added on top of the closest possible one. Written
+    # the other way round — closest_possible + tolerance — the two stack up,
+    # and the fold you end up drawing can sit further out than the tolerance
+    # the reader gave you. That bug shipped once and put a real cycle 0.22 mg
+    # out while claiming to respect 0.18.</span>
     worst_allowed = max(closest_possible, tolerance_mg)
 
     shortlist = [c <span class="k">for</span> c <span class="k">in</span> candidates <span class="k">if</span> c[1] &lt;= worst_allowed]
@@ -464,6 +538,7 @@ paint(columns * column_width, 0, column_width, tab * row_height)  <span class="c
 <span class="k">if</span> columns:                 line_down(columns * column_width)
 <span class="k">if</span> columns + 1 &lt; long_div:  line_down((columns + 1) * column_width)
 <span class="k">if</span> tab:                     line_across(tab * row_height)</pre>
+  </div>
 </section>
 
 <!-- 1 ------------------------------------------------------------------ -->
@@ -764,6 +839,31 @@ paint(columns × col, 0, col, tab × row)
 
 <script>
 (() => {
+  const $ = (id) => document.getElementById(id);
+
+  const WRAP_KEY = "sas-taper-fold-wrap"; /* must match the head script */
+  let codeWrap = false;
+  try { codeWrap = localStorage.getItem(WRAP_KEY) === "on"; } catch (e) { /* private mode */ }
+  function applyCodeWrap(on) {
+    /* Scrolling is the default, so it is the absence of the attribute rather
+       than a value of its own. Only the non-default value is ever stored. */
+    if (on) document.documentElement.setAttribute("data-code-wrap", "on");
+    else document.documentElement.removeAttribute("data-code-wrap");
+    $("codeWrapOn").setAttribute("aria-pressed", String(on));
+    $("codeWrapOff").setAttribute("aria-pressed", String(!on));
+  }
+  function setCodeWrap(on) {
+    codeWrap = on;
+    try {
+      if (on) localStorage.setItem(WRAP_KEY, "on");
+      else localStorage.removeItem(WRAP_KEY);
+    } catch (e) { /* private mode */ }
+    applyCodeWrap(on);
+  }
+  applyCodeWrap(codeWrap);
+  $("codeWrapOn").addEventListener("click", () => setCodeWrap(true));
+  $("codeWrapOff").addEventListener("click", () => setCodeWrap(false));
+
   const LONG = [1, 2, 3, 4, 8], SHORT = [1, 2, 3, 4];
   const FILM_MG = 8, FULL = 22, WIDE = 12.8, TOL_MM = 0.5;
   const TOL = TOL_MM * FILM_MG / FULL;          // 0.182 mg
@@ -950,7 +1050,6 @@ paint(columns × col, 0, col, tab × row)
   ];
 
   /* ---- render ----------------------------------------------------------- */
-  const $ = (id) => document.getElementById(id);
   const f2 = (v) => v.toFixed(2);
 
   function render(want) {
