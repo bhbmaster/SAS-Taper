@@ -458,7 +458,7 @@ The months and the comparison table were the last two things written twice and c
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js` — 673 viewport states, 767 checks
+### `test_layout.js` — 673 viewport states, 776 checks
 
 Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
 
@@ -471,6 +471,8 @@ Five failure modes at every state:
 | **clipping** — a box too small for its text | `scrollWidth`/`scrollHeight` vs `clientWidth`/`clientHeight` |
 | **spill** — an absolute label escaping its container | bounding box against its parent's |
 | **bar count** — a drawing showing a different day than it describes | one bar per film in each panel, against the layout for that panel's strength |
+
+`fold.html`'s algorithm listing is checked on both sides of its 620 px wrap breakpoint: on a phone it must wrap rather than sprout a nested horizontal scroller, which `overflow-x: auto` on the `<pre>` would hide from the page-level overflow check. The widths the sweep uses have to straddle that breakpoint, or a regression that only shows on a phone would never be measured.
 
 The schedule's column tooltips get their own pass. They are `position: fixed` because the table sits in an `overflow-x` scroller that would clip anything parented to a `<th>`, and they are gated to mouse and keyboard: `pointerover` ignores non-mouse pointers, `focusin` requires `:focus-visible`. The sweep drives a real hover at two widths and asserts the tooltip appears inside the viewport, then opens a touch context and asserts a tap produces nothing — touch readers get the twelve-entry glossary under the table instead, which is why that glossary exists rather than being decoration. One `COLUMN_DOC` list feeds four things — the heading, its unit, the tooltip and the glossary entry — so they cannot disagree. Each entry is `[name, unit, key, meaning]`.
 
