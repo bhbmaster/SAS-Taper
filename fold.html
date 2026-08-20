@@ -168,6 +168,20 @@
   .facts .ok { color: var(--accent); font-weight: 600; }
   .facts .no { color: var(--bad); font-weight: 600; }
 
+  /* The named-parts row: one small film per term, with the term under it. */
+  .vocab { display: grid; gap: 0.7rem; grid-template-columns: repeat(auto-fit, minmax(min(190px, 100%), 1fr)); }
+  .vocab .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 0.8rem; display: flex; flex-direction: column; gap: 0.45rem;
+  }
+  .vocab .card h4 { margin: 0; font-size: 0.9rem; font-weight: 600; }
+  .vocab .card p { font-size: 0.82rem; color: var(--muted); line-height: 1.5; }
+  .vocab .card svg { display: block; width: 100%; height: auto; }
+  table.gloss td, table.gloss th { text-align: left; white-space: normal; vertical-align: top; }
+  table.gloss td.f { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                     color: var(--accent); white-space: nowrap; }
+  table.gloss td:nth-child(2) { min-width: 22ch; }
+  table.gloss td:last-child { color: var(--faint); }
   hr { border: 0; border-top: 1px solid var(--line); margin: 3rem 0 0; }
   footer { margin-top: 2rem; font-size: 0.82rem; color: var(--faint); max-width: 62ch; }
   a { color: var(--accent); }
@@ -187,12 +201,18 @@
 <header>
   <span class="eyebrow">SAS-Taper · how it works</span>
   <h1>Choosing the fold</h1>
-  <p class="lede">The taper says cut 15.28&nbsp;mm off a 22&nbsp;mm film. Nobody has a
-    ruler that good at 6&nbsp;am. So the tool works out how to fold the film into
-    a simple grid and take whole parts of it instead — and this is how it decides
-    which grid, which parts, and where the blade goes.</p>
-  <p class="lede">Every diagram below is live. Move the slider and the whole
-    pipeline re-runs.</p>
+  <p class="lede">A buprenorphine taper asks you to take a little less film each
+    cycle — today's dose might be 15.28&nbsp;mm of a 22&nbsp;mm strip. Measuring
+    that needs a steel rule, good light and a steady hand, at six in the morning,
+    every day for two months.</p>
+  <p class="lede">Folding does not. Halve the film, halve it again, take five of
+    the six parts: no ruler, no arithmetic, and the same answer every time. The
+    catch is that a fold can only land on certain amounts, so the tool has to
+    find the closest one you can actually make. <strong>This page is how it does
+    that</strong> — which grid to fold into, which parts to take, where the blade
+    goes, and how far off the answer is.</p>
+  <p class="lede">Every diagram below is live: move the slider and the whole
+    thing runs again on the new number.</p>
 </header>
 
 <div class="driver">
@@ -210,94 +230,240 @@
   </div>
 </div>
 
+<!-- 00 — the words, before anything uses them ---------------------------- -->
+<section class="stage" style="grid-template-columns: minmax(0, 1fr);">
+  <div class="txt" style="max-width:68ch">
+    <span class="num">Start here</span>
+    <h2>The words this page uses</h2>
+    <p>All of it is about one rectangle of film and how you divide it up, so
+      there are only a handful of things to name. Every one of them is on the
+      picture below.</p>
+  </div>
+  <div class="fig"><div id="v1"></div>
+    <p class="cap">A film folded into 4 along its length and 3 across its width,
+      with 5 of the 12 parts taken. Every term on this page is labelled here.</p>
+  </div>
+  <div class="vocab" id="v2"></div>
+  <div class="txt" style="max-width:68ch">
+    <h3>And the names in the code</h3>
+    <p>The code below uses short names because it is real code, lifted out of
+      the tool rather than written for a diagram. Here is every one of them.</p>
+  </div>
+  <div class="tw"><table class="gloss">
+    <thead><tr><th class="f">Name</th><th class="f">Means</th><th class="f">In the picture above</th></tr></thead>
+    <tbody>
+      <tr><td class="f">want</td><td>The dose you are trying to hit, written as a fraction of one whole film — 0 is nothing, 1 is the entire film.</td><td class="f">—</td></tr>
+      <tr><td class="f">film_mg</td><td>How many milligrams the whole film is. Turns a fraction back into a dose.</td><td class="f">8 mg</td></tr>
+      <tr><td class="f">full_mm</td><td>The film's <em>long</em> side in millimetres.</td><td class="f">22.0</td></tr>
+      <tr><td class="f">wide_mm</td><td>The film's <em>short</em> side in millimetres.</td><td class="f">12.8</td></tr>
+      <tr><td class="f">long_div</td><td>How many parts the <em>long</em> side is folded into. "div" is short for divisions.</td><td class="f">4</td></tr>
+      <tr><td class="f">short_div</td><td>How many parts the <em>short</em> side is folded into.</td><td class="f">3</td></tr>
+      <tr><td class="f">cells</td><td>How many of the little rectangles you are taking. Not how many there are — how many you keep.</td><td class="f">5 of 12</td></tr>
+      <tr><td class="f">columns</td><td>How many <em>full-height</em> strips of the film that adds up to.</td><td class="f">1</td></tr>
+      <tr><td class="f">tab</td><td>The leftover cells that do not make a full column — the little bit hanging off the end.</td><td class="f">2</td></tr>
+      <tr><td class="f">cuts</td><td>How many times you put a blade to the film.</td><td class="f">3</td></tr>
+      <tr><td class="f">pieces</td><td>How many separate bits of film end up being your dose.</td><td class="f">2</td></tr>
+      <tr><td class="f">err</td><td>How far this fold's dose is from the one you wanted, in milligrams. Short for error. Never hidden from the reader.</td><td class="f">—</td></tr>
+      <tr><td class="f">difficulty</td><td>A made-up score for how hard this fold is to do by hand. Lower is easier. Only ever compared against other folds.</td><td class="f">—</td></tr>
+      <tr><td class="f">tol_mg</td><td>Your own cutting tolerance in milligrams — how far out you would be anyway, using a ruler. Short for tolerance.</td><td class="f">—</td></tr>
+      <tr><td class="f">candidates</td><td>The list of every fold the grid can make. 180 of them.</td><td class="f">—</td></tr>
+      <tr><td class="f">best</td><td>The smallest error any fold in that list manages.</td><td class="f">—</td></tr>
+      <tr><td class="f">cap</td><td>The most error we will accept. A fold has to be at least this close to stay in the running.</td><td class="f">—</td></tr>
+      <tr><td class="f">shortlist</td><td>The folds that are close enough — the ones still in the running once the cap is applied.</td><td class="f">—</td></tr>
+      <tr><td class="f">chosen</td><td>The one fold that wins, and the one the tool draws.</td><td class="f">—</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note">
+    <h3>One piece of Python: <code>divmod</code></h3>
+    <p><code>divmod(a, b)</code> does one division and hands back <em>both</em>
+      answers at once: how many times <code>b</code> goes into <code>a</code>,
+      and what is left over. <code>divmod(5, 3)</code> is <code>1</code> and
+      <code>2</code> — three goes into five once, with two left over.</p>
+    <p>That is exactly the question being asked of the grid. Five cells, three
+      to a column: <strong>one full column, and two cells left over.</strong>
+      Those two leftovers are the tab. One line of arithmetic decides the whole
+      shape of the piece.</p>
+  </div>
+</section>
+
 <!-- 0 — the whole thing, before the walkthrough --------------------------- -->
 <section class="stage" style="grid-template-columns: minmax(0, 1fr);">
   <div class="txt" style="max-width:none">
     <span class="num">The whole algorithm</span>
     <h2>All of it, in one place</h2>
-    <p>About eighty lines with the comments, and the rest of this page is those
-      lines slowed down. If you would rather have the walkthrough first, it
-      starts below.</p>
+    <p>This is the real function out of the tool, with the comments written for
+      someone meeting it for the first time. Everything after it on this page
+      is these same steps, one at a time, with a picture for each. If you would
+      rather see the pictures first, skip past it — nothing below depends on
+      having read it.</p>
   </div>
-  <pre class="whole"><span class="c"># The film folds into a grid: the long (22 mm) side into 1, 2, 3, 4 or 8, the
-# short (12.8 mm) side into 1, 2, 3 or 4. Eighths along the length are three
-# successive halvings, so they stay reproducible. The width stops at quarters,
-# because an eighth of 12.8 mm is 1.6 mm and nobody judges that by eye.</span>
-LONG  = [1, 2, 3, 4, 8]
-SHORT = [1, 2, 3, 4]
+  <pre class="whole"><span class="c"># ── The grid ────────────────────────────────────────────────────────────────
+# A fold is only useful if a person can make it by eye, so the film may only be
+# divided these ways. Along its 22 mm length: into 1, 2, 3, 4 or 8 — eighths
+# are just three halvings in a row, so they stay accurate. Across its 12.8 mm
+# width: only as far as 4, because an eighth of 12.8 mm is 1.6 mm, and nobody
+# is judging 1.6 mm by eye.</span>
+LONG_DIVISIONS  = [1, 2, 3, 4, 8]
+SHORT_DIVISIONS = [1, 2, 3, 4]
 
 
-<span class="k">def</span> fraction_cut(want, film_mg, full_mm, wide_mm, tol_mg):
-    <span class="c"># want    the dose as a fraction of one whole film, 0 to 1. The film is
-    #         an evenly made sheet, so area fraction IS dose fraction.
-    # tol_mg  how far out a fold may be and still count as good enough. Pass
-    #         the reader's own cutting tolerance: a fold inside it is no worse
-    #         than the slip they would make with a ruler.</span>
-    pool = []
-    <span class="k">for</span> L <span class="k">in</span> LONG:
-        <span class="k">for</span> S <span class="k">in</span> SHORT:
-            <span class="k">for</span> cells <span class="k">in</span> range(1, L * S + 1):
+<span class="k">def</span> fraction_cut(want, film_mg, full_mm, wide_mm, tolerance_mg):
+    <span class="c"># want          the dose you are after, as a fraction of one whole film.
+    #               1.0 is the entire film, 0.5 is half of it. It can be a
+    #               fraction because the film is an evenly made sheet, so the
+    #               share of the AREA you take is the share of the DOSE.
+    # film_mg       what a whole film is worth, e.g. 8 mg. Turns any fraction
+    #               back into milligrams.
+    # full_mm       the long side, 22.0 mm.
+    # wide_mm       the short side, 12.8 mm.
+    # tolerance_mg  how far off you would be anyway. If you can cut to half a
+    #               millimetre, that is 0.18 mg of dose on an 8 mg film, and a
+    #               fold that lands inside 0.18 mg is not actually worse than
+    #               measuring — so we are allowed to prefer an easier one.</span>
 
-                <span class="c"># THE SHAPE RULE. `cells` could mean any scattered set of
-                # squares, which is useless as an instruction. Splitting it
-                # once forces the piece to be whole columns plus a tab off the
-                # very next one — a rectangle, or an L, always contiguous.</span>
-                columns, tab = divmod(cells, S)
+    candidates = []
 
-                <span class="c"># CUTS FALL OUT OF THE SHAPE — nothing is searched for here.
-                # The middle term is the good one: a tab that runs to the
-                # film's own edge needs no cut on that side, because the
-                # manufacturer already made it. That is why 5/6 on a 3x2 grid
-                # is two strokes and not three.</span>
-                <span class="k">if</span> cells == L * S:
+    <span class="c"># Try every grid, and inside each grid every possible number of parts.
+    # 5 long ways x 4 short ways = 20 grids; summed over all of them there are
+    # 180 (grid, number of parts) combinations to consider. That is small
+    # enough to check the lot, so there is no cleverness here — it is a plain
+    # exhaustive search.</span>
+    <span class="k">for</span> long_div <span class="k">in</span> LONG_DIVISIONS:
+        <span class="k">for</span> short_div <span class="k">in</span> SHORT_DIVISIONS:
+            parts_in_all = long_div * short_div
+
+            <span class="k">for</span> parts_taken <span class="k">in</span> range(1, parts_in_all + 1):
+
+                <span class="c"># ── What shape is that? ─────────────────────────────────
+                # "Take 5 of the 12 parts" does not say WHICH 5, and five
+                # parts dotted around the film is not something anyone can
+                # cut. So the shape is decided here, once, and it is always
+                # the same kind of shape.
+                #
+                # divmod(a, b) is Python for "divide, and give me both
+                # answers": how many whole times b fits into a, and what is
+                # left over. divmod(5, 3) is 1 and 2 — three fits into five
+                # once, with two spare.
+                #
+                # Asked of the grid, that reads: 5 parts, 3 to a column, so
+                # ONE whole column plus TWO parts left over. Those leftovers
+                # sit in the column right next door, never anywhere else, so
+                # the piece is always a rectangle or an L — one connected bit
+                # of film you can actually pick up.</span>
+                columns, tab = divmod(parts_taken, short_div)
+
+                <span class="c"># ── How many cuts is that? ──────────────────────────────
+                # Nothing is searched for here — once you know the shape, the
+                # number of blade strokes is fixed. Four cases, that is all:</span>
+                <span class="k">if</span> parts_taken == parts_in_all:
+                    <span class="c"># The whole film. Swallow it; no blade at all.</span>
                     cuts, pieces = 0, 1
+
                 <span class="k">elif</span> tab == 0:
+                    <span class="c"># A whole number of columns and no leftover, so one
+                    # straight cut across the film does it.</span>
                     cuts, pieces = 1, 1
+
                 <span class="k">else</span>:
-                    cuts = ((1 <span class="k">if</span> columns <span class="k">else</span> 0)
-                            + (1 <span class="k">if</span> columns + 1 &lt; L <span class="k">else</span> 0)
-                            + 1)
+                    <span class="c"># There is a tab, so the column holding it has to be
+                    # separated from its neighbours and then split.
+                    #
+                    # The middle line is the interesting one. If the tab's
+                    # column is the LAST column, its outer side is already the
+                    # edge of the film — the manufacturer cut it for you — so
+                    # that stroke is free. That is the whole reason 5/6 on a
+                    # 3x2 grid takes two strokes rather than three, and 5/6 is
+                    # the very first fold of a standard taper.</span>
+                    cuts = ((1 <span class="k">if</span> columns <span class="k">else</span> 0)              <span class="c"># cut left of the tab</span>
+                            + (1 <span class="k">if</span> columns + 1 &lt; long_div <span class="k">else</span> 0)  <span class="c"># and right of it</span>
+                            + 1)                              <span class="c"># and split the tab off</span>
+                    <span class="c"># A tab plus whole columns is two separate bits of film.
+                    # Both go under the tongue; it is still one dose.</span>
                     pieces = 2 <span class="k">if</span> columns <span class="k">else</span> 1
 
-                <span class="c"># HOW HARD IT IS BY HAND. A stroke across the short axis is
-                # 12.8 mm guided by the film's own straight edge; one along
-                # the long axis is 22 mm freehand down the middle. Pricing
-                # them the same makes a plain half come out as 1x2, which is
-                # the wrong instruction — so lengthwise costs more.</span>
-                lengthwise = 1 <span class="k">if</span> tab <span class="k">else</span> 0
-                d  = (cuts - lengthwise) * 10 + lengthwise * 14
-                d += (pieces - 1) * 4
-                d += {1:0, 2:0, 3:2, 4:3, 8:6}[L]   <span class="c"># finer = harder</span>
-                d += {1:0, 2:2, 3:5, 4:7}[S]        <span class="c"># worse across</span>
-                <span class="k">if</span> tab <span class="k">and</span> min(full_mm / L, wide_mm * tab / S) &lt; 2:
-                    d += 20                         <span class="c"># too small to hold</span>
+                <span class="c"># ── How hard is it to actually do? ──────────────────────
+                # A score, invented for this job, only ever compared against
+                # other folds. Lower means easier. The numbers are weights,
+                # not units of anything.</span>
+                cut_along_the_length = 1 <span class="k">if</span> tab <span class="k">else</span> 0
+                cut_across_the_width = cuts - cut_along_the_length
 
-                err = abs(cells / (L * S) - want) * film_mg
-                pool.append((d, err, L, S, cells, columns, tab, cuts, pieces))
+                <span class="c"># Cutting ACROSS the narrow width is a 12.8 mm stroke you can
+                # run against the film's own straight edge. Cutting ALONG the
+                # length is 22 mm freehand down the middle of the film with
+                # nothing to guide you. Those are not the same job, and if you
+                # price them the same the search cheerfully suggests slicing a
+                # film lengthways down the middle to get one half — which is
+                # the harder way to do the easiest cut there is.</span>
+                difficulty  = cut_across_the_width * 10
+                difficulty += cut_along_the_length * 14
+                difficulty += (pieces - 1) * 4        <span class="c"># two bits is fiddlier than one</span>
 
-    <span class="c"># THE PICK. Buy simplicity, but only with error you were going to spend
-    # anyway. The cap is on the error ITSELF, not a margin added to the best
-    # one — added, the two compound, and the chosen fold can land further out
-    # than the tolerance the reader actually stated.</span>
-    best = min(err <span class="k">for</span> _, err, *_ <span class="k">in</span> pool)
-    cap  = max(best, tol_mg)
+                <span class="c"># Folding into 3 is a judgement; folding into 2 or 4 is not.
+                # And the same fold is harder across the narrow side, where
+                # there is less room to be wrong in.</span>
+                difficulty += {1: 0, 2: 0, 3: 2, 4: 3, 8: 6}[long_div]
+                difficulty += {1: 0, 2: 2, 3: 5, 4: 7}[short_div]
 
-    <span class="c"># Lowest difficulty wins. The keys after it never decide anything on
-    # their own; they are there so ties break the same way every time, which
-    # is what holds the drawing still for a reader who changed nothing.</span>
-    <span class="k">return</span> min((c <span class="k">for</span> c <span class="k">in</span> pool <span class="k">if</span> c[1] &lt;= cap),
-               key=<span class="k">lambda</span> c: (c[0], c[1], c[3], -c[2], c[4]))
+                <span class="c"># Whatever the arithmetic says, a scrap under 2 mm on its
+                # short side is not something fingers and a razor can handle.</span>
+                <span class="k">if</span> tab:
+                    tab_mm = min(full_mm / long_div, wide_mm * tab / short_div)
+                    <span class="k">if</span> tab_mm &lt; 2:
+                        difficulty += 20
+
+                <span class="c"># And how wrong the dose would be, in milligrams — the number
+                # that gets shown to the reader, every single time.</span>
+                error_mg = abs(parts_taken / parts_in_all - want) * film_mg
+
+                candidates.append((difficulty, error_mg, long_div, short_div,
+                                   parts_taken, columns, tab, cuts, pieces))
+
+    <span class="c"># ── Pick one ────────────────────────────────────────────────────────
+    # Two things matter and they pull against each other: how close the dose
+    # is, and how easy the fold is. The trade is settled by the reader's own
+    # tolerance — any fold inside it is no worse than what a ruler would have
+    # given them, so among THOSE we are free to take the easiest.</span>
+    closest_possible = min(error <span class="k">for</span> _, error, *_ <span class="k">in</span> candidates)
+
+    <span class="c"># The most error we will put up with. Note it is a ceiling on the error
+    # ITSELF, not a margin added on top of the best one. Written the other way
+    # round — closest_possible + tolerance — the two stack up, and the fold you
+    # end up drawing can sit further out than the tolerance the reader gave
+    # you. That bug shipped once and put a real cycle 0.22 mg out while
+    # claiming to respect 0.18.</span>
+    worst_allowed = max(closest_possible, tolerance_mg)
+
+    shortlist = [c <span class="k">for</span> c <span class="k">in</span> candidates <span class="k">if</span> c[1] &lt;= worst_allowed]
+
+    <span class="c"># Easiest wins. The keys after `difficulty` almost never get consulted —
+    # they are there so that when two folds tie, they tie the same way every
+    # time. That is what stops the picture changing under a reader who has
+    # not changed anything.</span>
+    chosen = min(shortlist, key=<span class="k">lambda</span> c: (
+        c[0],    <span class="c"># difficulty — the real decision</span>
+        c[1],    <span class="c"># then whichever is closer</span>
+        c[3],    <span class="c"># then the coarser fold across the width</span>
+        -c[2],   <span class="c"># then the finer fold along the length</span>
+        c[4],    <span class="c"># and finally the fewer parts</span>
+    ))
+    <span class="k">return</span> chosen
 
 
-<span class="c"># DRAWING IT. There is no second implementation of the geometry: the picture
-# reads `columns` and `tab` straight off the result, and the blade lines are
-# the same three conditions that produced the cut count above.</span>
-cw, rh = W / L, H / S
-fill(0, 0, columns * cw, H)              <span class="c"># the whole columns</span>
-fill(columns * cw, 0, cw, tab * rh)      <span class="c"># the tab</span>
-<span class="k">if</span> columns:         vline(columns * cw)
-<span class="k">if</span> columns + 1 &lt; L: vline((columns + 1) * cw)
-<span class="k">if</span> tab:             hline(tab * rh, across that column)</pre>
+<span class="c"># ── Draw it ─────────────────────────────────────────────────────────────────
+# The picture is built from `columns` and `tab` — the same two numbers the cut
+# count came from — so the drawing and the caption cannot drift apart. There is
+# no second idea of the geometry anywhere.</span>
+column_width = film_width / long_div      <span class="c"># on screen, not in mm</span>
+row_height   = film_height / short_div
+
+paint(0, 0, columns * column_width, film_height)            <span class="c"># the whole columns</span>
+paint(columns * column_width, 0, column_width, tab * row_height)  <span class="c"># the tab</span>
+
+<span class="c"># The blade strokes: the exact same three conditions that counted them.</span>
+<span class="k">if</span> columns:                 line_down(columns * column_width)
+<span class="k">if</span> columns + 1 &lt; long_div:  line_down((columns + 1) * column_width)
+<span class="k">if</span> tab:                     line_across(tab * row_height)</pre>
 </section>
 
 <!-- 1 ------------------------------------------------------------------ -->
@@ -305,12 +471,15 @@ fill(columns * cw, 0, cw, tab * rh)      <span class="c"># the tab</span>
   <div class="txt">
     <span class="num"><b>01</b> The target</span>
     <h2>One number, as a fraction of the film</h2>
-    <p>The ladder hands over a dose in milligrams. Because the film is one evenly
-      made sheet, <strong>area fraction is dose fraction</strong> — so the dose
-      becomes a single number between 0 and 1, and the film's actual size stops
-      mattering until it is time to draw.</p>
-    <p>That is the whole input. Everything after this is a search for the closest
-      fraction a person can fold.</p>
+    <p>The taper schedule hands over a dose in milligrams. First thing the
+      algorithm does is forget the milligrams.</p>
+    <p>A Suboxone film is one evenly made sheet, so the share of the
+      <em>area</em> you take is the share of the <em>dose</em> you get. Take a
+      third of the film, get a third of the dose. That means the whole problem
+      collapses to a single number between 0 and 1 — and the film's size, and
+      its strength, stop mattering until it is time to draw the answer.</p>
+    <p>That number is the entire input. Everything after this is a search for the
+      closest fraction a person can actually fold to.</p>
   </div>
   <div class="fig">
     <div id="f1"></div>
@@ -325,21 +494,33 @@ fill(columns * cw, 0, cw, tab * rh)      <span class="c"># the tab</span>
   <div class="txt">
     <span class="num"><b>02</b> The search space</span>
     <h2>Fold the long side into 1, 2, 3, 4 or 8 — the short side into 1, 2, 3 or 4</h2>
-    <p>Eighths along the 22&nbsp;mm length are three successive halvings, which stay
-      reproducible. The 12.8&nbsp;mm width stops at quarters, because an eighth of
-      it is 1.6&nbsp;mm and nobody judges that by eye.</p>
-    <p>That gives 20 grids, and inside each you can take any whole number of cells.
-      <strong>180 candidates, landing on 54 distinct fractions.</strong></p>
-    <p>The widest gap anywhere in that ladder is between <code>1/8</code> and
-      <code>5/32</code>, a hair over 3%. So for any target above <code>1/32</code>
-      the grid is never more than <strong>0.125&nbsp;mg</strong> away on an 8&nbsp;mg
-      film — already better than the ±0.18&nbsp;mg a ruler slip costs you.</p>
+    <p>A fold is only worth offering if a person can make it accurately without
+      tools, and the one thing hands are genuinely good at is halving. Halve a
+      22&nbsp;mm film and you have eighths in three moves, each one as easy as
+      the last — so the long side goes up to 8.</p>
+    <p>The short side is only 12.8&nbsp;mm to begin with, and an eighth of that
+      is 1.6&nbsp;mm. Nobody judges 1.6&nbsp;mm by eye, so it stops at 4.</p>
+    <p>Five ways to fold the length times four ways to fold the width is
+      <strong>20 different grids</strong>, and in each of them you can take any
+      whole number of the parts. Counted up that is <strong>180 folds to choose
+      from</strong>. Many of them come to the same amount — half is half whether
+      you got there by folding into 2 or into 8 — so between them they can hit
+      <strong>54 different fractions</strong> of a film.</p>
+    <p>Those 54 fractions are what the folding method can reach, and everything
+      in between it cannot. So the question is how wide the gaps are. The widest
+      one anywhere is between <code>1/8</code> and <code>5/32</code> — a hair over
+      3% of a film. Land in the middle of that and you are half a gap from either
+      neighbour, which on an 8&nbsp;mg film is <strong>0.125&nbsp;mg</strong>.</p>
+    <p>Worth holding onto: that worst case is <em>smaller</em> than the
+      ±0.18&nbsp;mg you would be out by anyway if your ruler slipped half a
+      millimetre. The approximation is not the weak link.</p>
   </div>
   <div class="fig">
     <div id="f2"></div>
     <p class="facts" id="d2"></p>
-    <p class="cap">All 54 reachable fractions. Taller ticks are the ones a coarse
-      grid can hit. The marker is your target.</p>
+    <p class="cap">All 54 fractions the folding method can reach. Taller ticks
+      are the easier ones — reachable with fewer cuts and coarser folds. The red
+      line is the dose you asked for; the ring is the fold that gets chosen.</p>
   </div>
 </section>
 
@@ -348,16 +529,18 @@ fill(columns * cw, 0, cw, tab * rh)      <span class="c"># the tab</span>
   <div class="txt">
     <span class="num"><b>03</b> The shape rule</span>
     <h2>Whole columns, plus a tab off the next one</h2>
-    <p>This is the constraint that makes the whole thing work. Taking <em>k</em>
-      cells out of a grid could mean any scattered set of them — useless as an
-      instruction. So <em>k</em> is split once:</p>
-    <pre><span class="k">columns</span>, <span class="k">tab</span> = divmod(cells, short_div)</pre>
-    <p>and the piece is always <strong>that many whole columns, plus that many
-      cells of the very next column</strong>. A rectangle, or an L. Never
-      scattered, never two separate corners.</p>
-    <p>One line of arithmetic, and it buys three things at once: the piece is
-      always contiguous, the cut count falls out of it, and the drawing has
-      something simple to draw.</p>
+    <p>Here is the constraint that makes the rest possible. Saying "take 5 of the
+      12 parts" does not say <em>which</em> five, and five parts scattered around
+      the film is not an instruction anyone can follow. So the shape is settled
+      once, with a single division:</p>
+    <pre><span class="k">columns</span>, <span class="k">tab</span> = divmod(parts_taken, short_div)</pre>
+    <p>Five parts, three to a column, gives <strong>one whole column and two
+      parts left over</strong>. Those leftovers — the tab — always sit in the
+      column immediately next door, never off on their own. So the piece is
+      always a rectangle or an L: one connected bit of film you can pick up.</p>
+    <p>One line of arithmetic buys three things at once. The piece is always in
+      one connected shape. The number of cuts follows from it without searching
+      for anything. And the drawing has something simple to draw.</p>
   </div>
   <div class="fig">
     <div id="f3"></div>
@@ -374,19 +557,25 @@ fill(columns * cw, 0, cw, tab * rh)      <span class="c"># the tab</span>
     <h2>The cut count is not searched for — it falls out of the shape</h2>
     <p>Given <code>columns</code> and <code>tab</code>, how many strokes the piece
       needs is fixed. There are only four cases:</p>
-    <pre><span class="c"># the whole film</span>
+    <pre><span class="c"># the whole film — swallow it, no blade at all</span>
 cuts = 0
-<span class="c"># whole columns only — one stroke across</span>
+
+<span class="c"># whole columns and nothing left over — one stroke across</span>
 cuts = 1
-<span class="c"># anything with a tab</span>
-cuts = (<span class="k">1 if columns else 0</span>)          <span class="c"># left of the tab</span>
-     + (<span class="k">1 if columns + 1 &lt; long_div else 0</span>)  <span class="c"># right of it</span>
-     + 1                        <span class="c"># the tab itself</span></pre>
-    <p>The middle term is the one worth noticing. <strong>A tab that runs to the
-      film's own edge needs no cut on that side</strong> — the manufacturer
-      already made it. That single condition is why <code>5/6</code> on a 3×2 grid
-      is two strokes and not three, and it is why the most common fold in a real
-      taper is also one of the cheapest.</p>
+
+<span class="c"># anything with a tab: free its column, then split it</span>
+cuts = (<span class="k">1 if</span> columns <span class="k">else</span> 0)
+     + (<span class="k">1 if</span> columns + 1 &lt; long_div <span class="k">else</span> 0)
+     + 1</pre>
+    <p>Reading those three lines: cut to the <em>left</em> of the tab's column,
+      unless there is nothing to its left. Cut to its <em>right</em>, unless it
+      is already the last column. Then one more to split the tab off.</p>
+    <p>The middle one is worth dwelling on. <strong>If the tab's column is the
+      last one, its outer side is already the edge of the film</strong> — the
+      manufacturer cut it for you, so that stroke is free. That single condition
+      is why <code>5/6</code> on a 3×2 grid takes two strokes rather than three.
+      And <code>5/6</code> is the very first fold of a standard 8&nbsp;mg taper,
+      so the most common cut anyone makes is also one of the cheapest.</p>
   </div>
   <div class="fig">
     <div class="shape-grid" id="f4"></div>
@@ -403,20 +592,25 @@ cuts = (<span class="k">1 if columns else 0</span>)          <span class="c"># l
     <p>Two candidates can both be "one cut" and be completely different jobs. A
       stroke across the short axis is 12.8&nbsp;mm guided by the film's own straight
       edge. A stroke along the long axis is 22&nbsp;mm freehand down the middle.</p>
-    <pre>d  = crosswise × <span class="k">10</span>
-   + lengthwise × <span class="k">14</span>
-   + (pieces − 1) × <span class="k">4</span>
-
+    <pre><span class="c"># cuts across the narrow width, and cuts along the length</span>
+difficulty  = across × <span class="k">10</span> + along × <span class="k">14</span>
+<span class="c"># two bits of film to handle instead of one</span>
+difficulty += (pieces − 1) × <span class="k">4</span>
 <span class="c"># a finer fold is a harder judgement</span>
-d += {1:0, 2:0, 3:2, 4:3, 8:6}[long_div]
+difficulty += {1:0, 2:0, 3:2, 4:3, 8:6}[long_div]
 <span class="c"># and worse still across the narrow side</span>
-d += {1:0, 2:2, 3:5, 4:7}[short_div]
-<span class="c"># a tab under 2 mm is not a thing fingers do</span>
-d += <span class="k">20</span> <span class="k">if</span> tab_mm &lt; 2</pre>
-    <p>Thirds score worse than halves because halves come from folding and thirds
-      come from judgement. The short axis scores worse than the long one because
-      it has less room to be wrong in. And a tab under 2&nbsp;mm is not something
-      fingers do, whatever the arithmetic says.</p>
+difficulty += {1:0, 2:2, 3:5, 4:7}[short_div]
+<span class="c"># a scrap under 2 mm is not something fingers do</span>
+difficulty += <span class="k">20</span> <span class="k">if</span> the tab is that small</pre>
+    <p>The numbers are weights, not units of anything — the score exists only to
+      be compared against other folds. What matters is the ordering they
+      produce.</p>
+    <p>Why those weights: folding something in half is exact and free, and
+      folding in half again gives you quarters and eighths, so 2, 4 and 8 cost
+      nothing. Thirds cannot be got that way — you have to eyeball them — so they
+      carry a penalty, and a bigger one across the narrow side where there is
+      less room to be wrong in. And a scrap under 2&nbsp;mm is not something
+      fingers and a razor handle, whatever the arithmetic says about it.</p>
   </div>
   <div class="fig">
     <div class="tw"><table>
@@ -425,8 +619,9 @@ d += <span class="k">20</span> <span class="k">if</span> tab_mm &lt; 2</pre>
       <tbody id="f5"></tbody>
     </table></div>
     <p class="facts" id="d5"></p>
-    <p class="cap">Every candidate that survives the tolerance, ranked. Lowest
-      score wins — which is not always the smallest error.</p>
+    <p class="cap">The folds close enough to still be in the running, ranked by
+      difficulty. The winner is highlighted — and notice it is not always the one
+      with the smallest error.</p>
   </div>
 </section>
 
@@ -435,20 +630,36 @@ d += <span class="k">20</span> <span class="k">if</span> tab_mm &lt; 2</pre>
   <div class="txt">
     <span class="num"><b>06</b> Picking one</span>
     <h2>Buy simplicity, but only with error you were going to spend anyway</h2>
-    <p>The tool already asks how accurately you can cut. Half a millimetre is
-      realistic, and on 8&nbsp;mg film that is ±0.18&nbsp;mg of dose — a slip you
-      make whether you fold or measure.</p>
-    <p>So any fold inside that band is <em>no worse than measuring</em>, and among
-      those the simplest one is the better instruction:</p>
-    <pre>cap  = <span class="k">max</span>(best_error, tolerance)
-pool = [c <span class="k">for</span> c <span class="k">in</span> candidates
-        <span class="k">if</span> c.error &lt;= cap]
-pick = <span class="k">min</span>(pool, key=(difficulty, error,
-                            short_div, −long_div, cells))</pre>
-    <p>The last three keys never decide anything on their own — they are there so
-      that ties break the same way every time. <strong>The same target always
-      gives the same fold</strong>, so the drawing never moves under a reader who
-      has changed nothing.</p>
+    <p>Two things matter and they pull against each other: how close the fold
+      gets to the dose, and how easy it is to do. Something has to settle the
+      trade, and the tool already knows the answer — it asks you how accurately
+      you can cut.</p>
+    <p>Half a millimetre is realistic with a razor and a steel rule, and on an
+      8&nbsp;mg film that is ±0.18&nbsp;mg of dose. That is a slip you make
+      whether you fold or measure. So any fold inside that band is
+      <strong>no worse than measuring</strong>, and among those the simplest one
+      is plainly the better instruction:</p>
+    <pre><span class="c"># the most error we will put up with</span>
+worst_allowed = <span class="k">max</span>(closest_possible, tolerance)
+
+<span class="c"># the folds still in the running</span>
+shortlist = [f <span class="k">for</span> f <span class="k">in</span> candidates
+             <span class="k">if</span> f.error &lt;= worst_allowed]
+
+<span class="c"># of those, the easiest to actually do</span>
+chosen = <span class="k">min</span>(shortlist, key=(difficulty, error,
+                              short_div, −long_div, parts))</pre>
+    <p>Read <code>max</code> there carefully, because the obvious alternative is
+      wrong. The ceiling is on the <strong>error itself</strong>, not a margin
+      added on top of the closest fold. Write it the other way round —
+      <code>closest + tolerance</code> — and the two stack: the fold you draw can
+      end up further out than the tolerance the reader actually gave you. That
+      version shipped once, and put a real cycle 0.22&nbsp;mg out while claiming
+      to respect 0.18.</p>
+    <p>The three keys after <code>difficulty</code> almost never get consulted.
+      They are there so that when two folds tie, they tie the same way every
+      time. <strong>The same dose always gives the same fold</strong>, so the
+      picture never moves under a reader who has not changed anything.</p>
   </div>
   <div class="fig">
     <div id="f6"></div>
@@ -465,21 +676,26 @@ pick = <span class="k">min</span>(pool, key=(difficulty, error,
     <h2>The picture is built from the same two numbers</h2>
     <p>There is no second implementation of the geometry. The drawing reads
       <code>columns</code> and <code>tab</code> straight off the result:</p>
-    <pre><span class="c"># the piece you swallow</span>
-rect(0, 0, columns × cw, H)          <span class="c"># the whole columns</span>
-rect(columns × cw, 0, cw, tab × rh)  <span class="c"># the tab</span>
+    <pre><span class="c"># one column and one row, on screen</span>
+col = film_width / long_div
+row = film_height / short_div
 
-<span class="c"># the strokes — the same three conditions
-# that produced the cut count</span>
+<span class="c"># the piece you swallow, in two rectangles</span>
+paint(0, 0, columns × col, film_height)
+paint(columns × col, 0, col, tab × row)
+
+<span class="c"># the blade strokes — the very same three
+# conditions that counted them earlier</span>
 <span class="k">if</span> columns:
-    vline(columns × cw)
+    line_down(columns × col)
 <span class="k">if</span> columns + 1 &lt; long_div:
-    vline((columns + 1) × cw)
+    line_down((columns + 1) × col)
 <span class="k">if</span> tab:
-    hline(tab × rh, across that column)</pre>
-    <p>Because the count and the picture come from one place, they cannot
-      disagree — and the test suite checks that anyway: the filled area must be
-      the fraction the caption claims, and the number of red lines must be the
+    line_across(tab × row)</pre>
+    <p>Because the count and the picture are built from the same two numbers,
+      they cannot drift apart — there is no second idea of the geometry to get
+      out of step. The test suite checks it anyway: the orange area has to be the
+      fraction the caption claims, and the number of red lines has to be the
       number of cuts the words promise.</p>
   </div>
   <div class="fig">
@@ -499,29 +715,35 @@ rect(columns × cw, 0, cw, tab × rh)  <span class="c"># the tab</span>
   <div style="display:grid; gap:0.9rem; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));">
     <div class="note bug">
       <h3>A plain half came out lengthwise</h3>
-      <p>Both <code>2×1</code> and <code>1×2</code> are exactly half and both are
-        "one cut", so the tie-break decided — and it picked a 22&nbsp;mm freehand
-        stroke down the middle of the film over a 12.8&nbsp;mm one against its own
-        edge. Fixed by pricing the two kinds of stroke differently, which is why
-        the <code>×14</code> term exists.</p>
+      <p>You can halve a film two ways: cut across it, or cut down its length.
+        Both give you exactly half, and both are "one cut", so nothing in the
+        scoring told them apart and the tie-break picked arbitrarily — it chose
+        slicing 22&nbsp;mm down the middle of the film over a 12.8&nbsp;mm stroke
+        run against the film's own straight edge. The harder way to do the
+        easiest cut there is. Fixed by pricing the two kinds of stroke
+        differently, which is the whole reason the <code>×14</code> term exists.</p>
     </div>
     <div class="note bug">
       <h3>The tolerance compounded</h3>
-      <p>Written as <code>best + tolerance</code> the band floats upward: a
-        candidate can be inside it while sitting further out than the tolerance
-        the reader actually stated. On cycle 2 of the default run that chose a
-        fold 0.22&nbsp;mg off while claiming to respect ±0.18. The cap has to be on
-        the error itself — <code>max(best, tolerance)</code>.</p>
+      <p>The rule is meant to say "any fold inside your stated tolerance counts
+        as good enough". Written as <code>closest + tolerance</code> it says
+        something else: it takes however close the best fold got and allows a
+        whole tolerance <em>on top of that</em>. The two stack. On cycle 2 of the
+        default run it picked a fold 0.22&nbsp;mg out while the page claimed to
+        respect ±0.18. The ceiling has to sit on the error itself —
+        <code>max(closest, tolerance)</code>.</p>
     </div>
   </div>
   <div class="note">
     <h3>And one thing that fell out for free</h3>
-    <p>In the tool's <strong>linear</strong> cut mode the dose drops by the same
-      amount every cycle, so the sequence of targets is <code>5/6, 2/3, 1/2, 1/3,
-      1/6</code> — every one of them a fraction this grid hits exactly. A linear
-      taper can be cut from the first day to the last without measuring anything.
-      Nobody designed that; it is just what happens when a constant step meets a
-      grid of simple fractions.</p>
+    <p>The tool offers a <strong>linear</strong> taper, where the dose drops by
+      the same number of milligrams every cycle rather than the same percentage.
+      Do that from 8&nbsp;mg and the doses you need are <code>5/6, 2/3, 1/2, 1/3,
+      1/6</code> of a film — every single one a fraction this grid hits
+      <em>exactly</em>, with no approximation at all. A linear taper can be cut
+      from the first day to the last without ever picking up a ruler. Nobody
+      designed that; it is just what happens when a constant step meets a grid of
+      simple fractions.</p>
   </div>
 </section>
 
@@ -531,9 +753,12 @@ rect(columns × cw, 0, cw, tab × rh)  <span class="c"># the tab</span>
   <a href="https://github.com/bhbmaster/SAS-Taper/blob/main/taper.py">taper.py</a>
 </nav>
 <footer>
-  The algorithm is <code>fraction_cut()</code> in <code>taper.py</code> and
-  <code>fractionCut()</code> in <code>index.html</code>, written twice and diffed
-  against each other across 13,920 cases on every run. Not medical advice.
+  The algorithm lives in two places — <code>fraction_cut()</code> in
+  <code>taper.py</code> and <code>fractionCut()</code> in <code>index.html</code>
+  — because the calculator runs in a browser and the command-line tool does not.
+  Writing it twice means it can drift, so a test runs both over 13,920 cases on
+  every commit and compares every field of the answer. This page carries a third
+  copy, for the diagrams; nothing is dosed off this page. Not medical advice.
 </footer>
 </div>
 
@@ -636,6 +861,93 @@ rect(columns × cw, 0, cw, tab × rh)  <span class="c"># the tab</span>
     s.push("</svg>");
     return s.join("");
   }
+
+  /* ---- the vocabulary figures, drawn once -------------------------------- */
+
+  /* One film with every term labelled. Deliberately a 4x3 grid taking 5 cells,
+     because that is the case with all the interesting parts in it at once: a
+     full column, a tab that is not a whole column, and all three kinds of
+     line. Leader lines are hand-placed — there are eight of them and a layout
+     algorithm would be more code than the picture. */
+  function namedPartsSvg() {
+    const L = 4, S = 3, cells = 5;
+    const cw = W / L, rh = H / S;
+    const columns = 1, tab = 2;
+    const PADX = 128, PADT = 40, PADB = 62;
+    const o = [`<svg viewBox="${-PADX} ${-PADT} ${W + PADX * 2} ${H + PADT + PADB}"`
+      + ` role="img" aria-label="A film folded into four along its length and three`
+      + ` across its width, with five of the twelve parts taken, and every part labelled">`];
+    o.push(`<defs><pattern id="np_s" width="8" height="8" patternTransform="rotate(-45)"`
+      + ` patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#ffedd5"/>`
+      + `<rect width="4" height="8" fill="#fdba74"/></pattern>`
+      + `<linearGradient id="np_t" x1="0" y1="0" x2="0" y2="1">`
+      + `<stop offset="0" stop-color="#f3c38a"/><stop offset="1" stop-color="#e3943c"/>`
+      + `</linearGradient></defs>`);
+    o.push(`<rect width="${W}" height="${H}" fill="url(#np_s)"/>`);
+    o.push(`<rect width="${columns * cw}" height="${H}" fill="url(#np_t)"/>`);
+    o.push(`<rect x="${columns * cw}" width="${cw}" height="${tab * rh}" fill="url(#np_t)"/>`);
+    for (let i = 1; i < L; i++) o.push(`<line class="grid-line" x1="${i * cw}" y1="0" x2="${i * cw}" y2="${H}"/>`);
+    for (let j = 1; j < S; j++) o.push(`<line class="grid-line" x1="0" y1="${j * rh}" x2="${W}" y2="${j * rh}"/>`);
+    for (const g of [`x1="${cw}" y1="-3" x2="${cw}" y2="${H + 3}"`,
+                     `x1="${2 * cw}" y1="-3" x2="${2 * cw}" y2="${H + 3}"`,
+                     `x1="${cw - 3}" y1="${tab * rh}" x2="${2 * cw + 3}" y2="${tab * rh}"`]) {
+      o.push(`<line class="blade-u" ${g}/><line class="blade" ${g}/>`);
+    }
+    o.push(`<rect class="edge" width="${W}" height="${H}" rx="3"/>`);
+
+    const lab = (x, y, text, anchor) =>
+      `<text x="${x}" y="${y}" text-anchor="${anchor}" font-size="11" font-weight="600"`
+      + ` fill="currentColor" font-family="ui-monospace,monospace">${text}</text>`;
+    const lead = (x1, y1, x2, y2) =>
+      `<path d="M ${x1} ${y1} L ${x2} ${y2}" fill="none" stroke="currentColor"`
+      + ` stroke-width="0.9" opacity=".55"/>`;
+
+    // one cell — outlined, so the label has something crisp to point at
+    o.push(`<rect x="${3 * cw}" y="${2 * rh}" width="${cw}" height="${rh}" fill="none"`
+      + ` stroke="currentColor" stroke-width="1.4" opacity=".85"/>`);
+    o.push(lead(3 * cw + cw / 2, rh * 2.5, W + 26, H + 22));
+    o.push(lab(W + 30, H + 26, "one cell", "start"));
+    // a whole column
+    o.push(lead(cw / 2, H / 2, -26, H / 2));
+    o.push(lab(-30, H / 2 + 4, "a whole column", "end"));
+    // the tab
+    o.push(lead(cw * 1.5, rh, cw * 1.5, -22));
+    o.push(lab(cw * 1.5, -26, "the tab", "middle"));
+    // fold line
+    o.push(lead(3 * cw, rh * 0.5, W + 26, -6));
+    o.push(lab(W + 30, -2, "a fold line", "start"));
+    // cut line
+    o.push(lead(2 * cw, rh * 2.6, W + 26, H + 2));
+    o.push(lab(W + 30, H + 6, "a cut line", "start"));
+    // take / save
+    o.push(lab(cw / 2, H + 20, "TAKE", "middle"));
+    o.push(lab(3 * cw, H + 20, "SAVE", "middle"));
+    // the two sides
+    o.push(`<line x1="0" y1="${H + 34}" x2="${W}" y2="${H + 34}" stroke="currentColor"`
+      + ` stroke-width="0.9" opacity=".55"/>`);
+    o.push(lab(W / 2, H + 50, "the long side — 22.0 mm, folded into 4", "middle"));
+    o.push(`<line x1="-14" y1="0" x2="-14" y2="${H}" stroke="currentColor"`
+      + ` stroke-width="0.9" opacity=".55"/>`);
+    o.push(`<text x="-20" y="${H / 2}" text-anchor="middle" font-size="10.5" font-weight="600"`
+      + ` fill="currentColor" font-family="ui-monospace,monospace"`
+      + ` transform="rotate(-90 -20 ${H / 2})">the short side — 12.8 mm, into 3</text>`);
+    o.push("</svg>");
+    return o.join("");
+  }
+
+  const VOCAB_CARDS = [
+    [shape(4, 3, 1), "A cell",
+     "One of the little rectangles the folds make. Fold the long side into 4 and "
+     + "the short side into 3 and you get 12 of them. Here a cell is 5.5 &times; 4.3 mm."],
+    [shape(4, 1, 1), "A column",
+     "One cell tall is a cell; the full height of the film is a column. A column "
+     + "is what a single straight cut across the film gives you, which is why the "
+     + "algorithm counts in columns first and cells second."],
+    [shape(4, 3, 2), "A tab",
+     "The cells left over when what you need is not a whole number of columns. "
+     + "The tab is always in the column right next to the full ones, never off on "
+     + "its own, so the piece stays in one connected shape."],
+  ];
 
   /* ---- render ----------------------------------------------------------- */
   const $ = (id) => document.getElementById(id);
@@ -754,6 +1066,13 @@ rect(columns × cw, 0, cw, tab × rh)  <span class="c"># the tab</span>
     ["c1", 18.3333 / 22], ["c2", 15.2778 / 22], ["c3", 12.7315 / 22],
     ["c4", 10.6096 / 22], ["c6", 7.3678 / 22], ["c7", 6.1398 / 22],
   ];
+  /* The vocabulary figures never change, so they are drawn once rather than
+     on every slider move. */
+  $("v1").innerHTML = namedPartsSvg();
+  $("v2").innerHTML = VOCAB_CARDS.map(([c, title, body], i) =>
+    `<div class="card">${filmSvg(c, { tag: "v" + i, noBlades: true })}`
+    + `<h4>${title}</h4><p>${body}</p></div>`).join("");
+
   $("presets").innerHTML = PRESETS.map(([n, v]) =>
     `<button type="button" data-v="${v}">${n}</button>`).join("");
   $("presets").addEventListener("click", (e) => {
