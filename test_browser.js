@@ -4,8 +4,13 @@
  * CHROMIUM_PATH first, then a Playwright download cache (Linux and macOS
  * defaults), then whatever Chrome or Chromium is already installed.
  *
- * Both test_parity.js and test_layout.js need a browser and both must skip
- * cleanly without one, so the logic lives here rather than in each.
+ * test_layout.js is the only suite that needs a browser — it measures a
+ * rendered page, which nothing else can do. test_parity.js used to need one
+ * too, before the maths moved into a generated block it can lift out of
+ * index.html and run in Node directly.
+ *
+ * The suite must skip cleanly when there is no browser, so a bare checkout
+ * still passes; CI closes that hole with an explicit findBrowser() gate.
  */
 
 "use strict";

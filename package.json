@@ -10,8 +10,10 @@
   },
   "license": "MIT",
   "scripts": {
-    "test": "node test_parity.js && node test_layout.js",
+    "gen": "python3 gen_core.py",
+    "test": "python3 gen_core.py --check && node test_parity.js && node test_layout.js",
     "test:py": "python3 test_taper.py",
+    "test:gen": "python3 gen_core.py --check",
     "test:parity": "node test_parity.js",
     "test:layout": "node test_layout.js",
     "test:all": "python3 test_taper.py && node test_parity.js && node test_layout.js"

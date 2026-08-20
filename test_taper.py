@@ -11,6 +11,8 @@ import math
 import unittest
 from collections import Counter
 
+import gen_core
+from gen_core import Unsupported, camel, translate_source
 from taper import (
     CUT_MODES,
     base_film_mg,
@@ -877,6 +879,199 @@ class TestSummary(unittest.TestCase):
     def test_keep_ratio(self):
         self.assertAlmostEqual(keep_ratio(6), 5 / 6)
         self.assertAlmostEqual(build_schedule().r, 5 / 6)
+
+
+class TestCoreGenerator(unittest.TestCase):
+    """gen_core.py, which is now the other half of the maths.
+
+    The ladder is written once, in taper.py, and translated into the block in
+    index.html. That makes drift impossible and makes the translator trusted
+    code — so what it accepts, what it refuses, and how it handles the four
+    places Python and JavaScript disagree all need pinning down.
+
+    test_parity.js is the other half of this: it runs the generated block
+    against build_schedule() over 1,323 schedules. These are the unit tests
+    under it, and they are here rather than in a fourth suite because this
+    repo has three and that is enough.
+    """
+
+    def js(self, source: str) -> str:
+        """Translate a snippet wrapped in core markers."""
+        return translate_source(
+            f"{gen_core.CORE_BEGIN}\n{source}\n{gen_core.CORE_END}\n"
+        )
+
+    def refuses(self, source: str, because: str) -> str:
+        with self.assertRaises(Unsupported, msg=f"should refuse: {because}") as caught:
+            self.js(source)
+        return str(caught.exception)
+
+    # -- naming -----------------------------------------------------------
+
+    def test_names_become_camel_case(self):
+        self.assertEqual(camel("cut_take_mm"), "cutTakeMm")
+        self.assertEqual(camel("switched_2mg"), "switched2mg")
+        self.assertEqual(camel("days_to_2mg"), "daysTo2mg")
+        self.assertEqual(camel("_fill_summary"), "fillSummary")
+        self.assertEqual(camel("MAX_CYCLES"), "MAX_CYCLES")
+
+    def test_overrides_are_applied_and_checked(self):
+        self.assertEqual(camel("film_2mg_mm"), "film2Mm")
+        self.assertEqual(camel("n_below_3mg"), "nBelow3")
+        # Every override has to still name something in taper.py, or the table
+        # would silently stop applying and index.html would read a key that is
+        # no longer there.
+        gen_core.check_overrides(open(gen_core.PY_FILE, encoding="utf-8").read())
+        with self.assertRaises(Unsupported):
+            gen_core.check_overrides("nothing here")
+
+    def test_dict_keys_are_camel_cased_too(self):
+        js = self.js('def f():\n    return {"end_daily_mg": 1.0}')
+        self.assertIn("endDailyMg: 1.0", js)
+
+    # -- the four semantic traps ------------------------------------------
+
+    def test_int_truncates_toward_zero_and_floordiv_floors(self):
+        js = self.js("def f(a: float, b: float) -> float:\n    return int(a) + a // b")
+        self.assertIn("Math.trunc(a)", js)
+        self.assertIn("Math.floor(a / b)", js)
+
+    def test_negative_index_is_rewritten(self):
+        js = self.js("def f(xs: list[float]) -> float:\n    return xs[-1]")
+        self.assertIn("xs[xs.length - 1]", js)
+        self.assertNotIn("[-1]", js)
+
+    def test_list_repetition_becomes_fill(self):
+        js = self.js("def f(n: int) -> list[float]:\n    return [0.0] * n")
+        self.assertIn("new Array(n).fill(0.0)", js)
+
+    def test_is_none_becomes_a_null_comparison(self):
+        js = self.js("def f(x: float) -> bool:\n    return x is None")
+        self.assertIn("x === null", js)
+
+    def test_a_list_in_a_boolean_position_is_refused(self):
+        """The trap that made this rule: [] is falsy in Python, truthy in JS."""
+        message = self.refuses(
+            "def f(rows: list[float]) -> int:\n"
+            "    if not rows:\n        return 0\n    return 1",
+            "a bare list in a boolean position",
+        )
+        self.assertIn("truthy in JavaScript", message)
+
+    def test_a_number_in_a_boolean_position_is_allowed(self):
+        js = self.js(
+            "def f(hold_days: int) -> int:\n"
+            "    if hold_days and hold_days >= 1:\n        return hold_days\n    return 6"
+        )
+        self.assertIn("if ((holdDays && holdDays >= 1))", js)
+
+    # -- scope ------------------------------------------------------------
+
+    def test_locals_are_hoisted_out_of_their_blocks(self):
+        """Python scopes a local to the function; `let` scopes it to the block.
+
+        Declaring at first assignment put `sliver` inside the `if` arm and left
+        the `else` arm assigning a name that did not exist. Strict mode in
+        test_parity.js catches it at run time; this catches it here.
+        """
+        js = self.js(
+            "def f(flag: bool) -> float:\n"
+            "    if flag:\n        v = 1.0\n    else:\n        v = 2.0\n"
+            "    return v"
+        )
+        self.assertIn("let v;", js)
+        self.assertNotIn("let v = 1.0", js)
+
+    def test_for_else_becomes_a_flag(self):
+        js = self.js(
+            "def f(n: int) -> int:\n"
+            "    for i in range(0, n):\n"
+            "        if i > 2:\n            break\n"
+            "    else:\n        return -1\n"
+            "    return i"
+        )
+        self.assertIn("ranToEnd1 = true;", js)
+        self.assertIn("ranToEnd1 = false;", js)
+        self.assertIn("if (ranToEnd1) {", js)
+
+    # -- what it will not guess at ----------------------------------------
+
+    def test_unsupported_constructs_are_refused_by_name(self):
+        for source, because in [
+            ("def f(xs: list[float]) -> list[float]:\n    return [x for x in xs]",
+             "list comprehension"),
+            ("def f(n: int) -> int:\n    while n > 0:\n        n -= 1\n    return n",
+             "while loop"),
+            ("def f() -> int:\n    try:\n        return 1\n    except ValueError:\n"
+             "        return 2",
+             "try/except"),
+            ("def f(xs: list[float]) -> float:\n    return sum(xs)",
+             "a builtin that is not whitelisted"),
+            ("def f(s: str) -> str:\n    return s.upper()",
+             "a string method"),
+            ("def f(a: int, b: int) -> int:\n    return a % b",
+             "modulo, which differs on negatives"),
+        ]:
+            message = self.refuses(source, because)
+            self.assertIn("taper.py:", message)
+
+    def test_a_dataclass_method_is_refused(self):
+        """Why FilmSpec's two derived figures moved out of the core."""
+        message = self.refuses(
+            "@dataclass\nclass R:\n    a: float\n\n"
+            "    @property\n    def double(self) -> float:\n        return self.a * 2",
+            "a method on a record",
+        )
+        self.assertIn("methods are not supported", message)
+
+    def test_the_skip_mark_leaves_a_function_out(self):
+        js = self.js(
+            "def kept(a: float) -> float:\n    return a\n\n"
+            f"{gen_core.SKIP_MARK} — not needed by the site\n"
+            "def dropped(a: float) -> float:\n    return a"
+        )
+        self.assertIn("function kept(", js)
+        self.assertNotIn("function dropped(", js)
+
+    # -- output ------------------------------------------------------------
+
+    def test_comments_survive_the_translation(self):
+        """A generated block nobody can read is worse than the duplication."""
+        js = self.js(
+            "def f(a: float) -> float:\n"
+            "    # the reason this is here\n"
+            "    return a"
+        )
+        self.assertIn("// the reason this is here", js)
+
+    def test_dataclass_defaults_reach_the_object_literal(self):
+        """Where index.html's empty-ladder defaults now come from."""
+        js = self.js(
+            "@dataclass\nclass R:\n"
+            "    a: float\n    flag: bool = False\n"
+            "    items: list[float] = field(default_factory=list)\n\n"
+            "def f() -> R:\n    return R(a=1.0)"
+        )
+        self.assertIn("flag: false", js)
+        self.assertIn("items: []", js)
+
+    def test_keyword_arguments_become_positional_with_the_gaps_filled(self):
+        """Python can skip a middle argument by name; JavaScript cannot."""
+        js = self.js(
+            "def g(a: float = 1.0, b: float = 2.0, c: float = 3.0) -> float:\n"
+            "    return a\n\n"
+            "def f() -> float:\n    return g(c=9.0)"
+        )
+        self.assertIn("g(1.0, 2.0, 9.0)", js)
+
+    def test_the_checked_in_block_is_what_taper_py_produces(self):
+        """The same gate test_parity.js and CI run, so a stale block fails here too."""
+        block = gen_core.generate()
+        html = open(gen_core.HTML_FILE, encoding="utf-8").read()
+        self.assertEqual(
+            gen_core.current_block(html), block,
+            "index.html carries a stale copy of the maths — run: python3 gen_core.py",
+        )
 
 
 def _count_assertions() -> dict:

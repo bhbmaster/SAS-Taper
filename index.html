@@ -1233,7 +1233,7 @@
         <li>Strictly unofficially, the method can be called <strong>SAS-Sub-minning</strong> — the stat you are grinding down is Suboxone.</li>
       </ul>
     </section>
-    <p class="foot">SAS-Taper (save-a-sliver) · <a href="https://github.com/bhbmaster/SAS-Taper">github.com/bhbmaster/SAS-Taper</a> · same math as <code>taper.py</code></p>
+    <p class="foot">SAS-Taper (save-a-sliver) · <a href="https://github.com/bhbmaster/SAS-Taper">github.com/bhbmaster/SAS-Taper</a> · math generated from <code>taper.py</code></p>
   </div>
 
 <script>
@@ -1243,8 +1243,9 @@
  * dependencies. People open it from disk, offline, and it has to work.
  *
  * Layout of what follows:
- *   constants and film specs   the four official Suboxone sizes
- *   maths                      buildSchedule and friends — the ladder itself
+ *   storage keys               localStorage names and the CSS mm unit
+ *   generated core             the ladder maths, translated from taper.py
+ *   core adapter               the form's options object into the maths
  *   input handling             reading, clamping and persisting the form
  *   renderers                  cards, warnings, schedule, calendar, rulers
  *   chart infrastructure       shared SVG plumbing, then the eight charts
@@ -1252,9 +1253,11 @@
  *
  * Two things to know before changing anything here:
  *
- * 1. The ladder maths exists twice, here and in taper.py, and the page tells
- *    people the two agree. Change one, change the other, and run
- *    test_parity.js — they have drifted before.
+ * 1. The ladder maths is NOT written here. It lives once, between the CORE
+ *    markers in taper.py, and gen_core.py translates it into the generated
+ *    block below — which is why the footer can say the page and the CLI agree.
+ *    To change the maths, change taper.py and run `python3 gen_core.py`.
+ *    Editing the block by hand is caught by `python3 gen_core.py --check`.
  *
  * 2. Several parts are positioned from measured pixels rather than by flow:
  *    the ruler tick captions, the life-size cut label, the calendar grid.
@@ -1266,16 +1269,6 @@
  * reach the maths.
  */
 (function () {
-  /* MAX_CYCLES caps a run that would otherwise never reach its target; hitting
-     it is reported rather than hidden. CUT_WARN_MM is where a hand-cut sliver
-     stops being meaningful. SWITCH_AT_MG is the strip size that triggers the
-     restart on 2 mg film. MONTH_DAYS and RX_STRIPS drive the prescription
-     table. All five match taper.py. */
-  const MAX_CYCLES = 40;
-  const CUT_WARN_MM = 1.0;
-  const SWITCH_AT_MG = 2.25;
-  const MONTH_DAYS = 30;
-  const RX_STRIPS = 30;
   /* Versioned so a future change of shape can ignore stale entries. */
   const STORAGE_KEY = "sas-taper-inputs-v1";
   const SCALE_KEY = "sas-taper-strip-scale";
@@ -1283,32 +1276,657 @@
   const CAL_DENSITY_KEY = "sas-taper-cal-density";
   /* CSS reference: 1 in = 96 px, 1 in = 25.4 mm. True size on a 96 PPI screen. */
   const CSS_MM = "mm";
-  /* The four official Suboxone film sizes. mg / nal are buprenorphine and
-     naloxone; cutMm is the side this tool cuts along and keepMm the side kept
-     at full width.
 
-     Every strength is 22 mm on the cut side, which is why the film-length
-     input is the same number whichever you start on. The 2 and 4 mg films
-     share one density and the 8 and 12 mg another that is four times higher —
-     that ratio is the whole reason switching to 2 mg film makes the same cut
-     four times more forgiving. Must match FILM_SPECS in taper.py. */
+  /* ===== GENERATED CORE — do not edit by hand ===== */
+  /* The ladder maths, translated from the CORE regions of taper.py by
+     gen_core.py. Do not edit this block: `python3 gen_core.py --check` fails
+     on any hand-edit, and `node test_parity.js` runs it against the Python it
+     came from. To change the maths, change taper.py and regenerate.
+
+     The comments below are the ones in taper.py, carried across so this reads
+     as something other than machine output. The names are camelCase because
+     the translator converts them; everything else is as it is written there. */
+
+  const DEFAULT_START_MG = 8.0;
+  const DEFAULT_N = 6;
+  const DEFAULT_FILM_MM = 22.0;
+  const DEFAULT_TARGET_MG = 1.0;
+  const DEFAULT_STRIP_MG = 8.0;
+  const SWITCH_AT_MG = 2.25;
+  const RX_STRIPS = 30;
+  const MONTH_DAYS = 30;
+  const MAX_CYCLES = 40;
+  const CUT_MODES = ["geometric", "linear"];
+  const CUT_WARN_MM = 1.0;
+
+  /* FilmSpec — One official Suboxone film size.
+
+     mg / nal are the buprenorphine and naloxone content. cut_mm is the side this
+     tool cuts along (22 mm on every strength, which is why the film-length input
+     is the same number whichever you start on); keep_mm is the side kept at full
+     width. */
+  // Fields: mg, nal, cutMm, keepMm, label
+
+  // The strengths in ascending order. base_film_mg() walks this rather than
+  // sorting FILM_SPECS, so the order is written down rather than inferred from
+  // dict keys — which is also what lets the JS translation stay a literal.
+  const FILM_STRENGTHS = [2.0, 4.0, 8.0, 12.0];
+
+  // Official Suboxone film sizes. Cut along cut_mm; keep keep_mm as full width.
   const FILM_SPECS = {
-    2: { mg: 2, nal: 0.5, cutMm: 22.0, keepMm: 12.8, label: "2 mg / 0.5 mg" },
-    4: { mg: 4, nal: 1, cutMm: 22.0, keepMm: 25.6, label: "4 mg / 1 mg" },
-    8: { mg: 8, nal: 2, cutMm: 22.0, keepMm: 12.8, label: "8 mg / 2 mg" },
-    12: { mg: 12, nal: 3, cutMm: 22.0, keepMm: 19.2, label: "12 mg / 3 mg" }
-  };
+      2: { mg: 2, nal: 0.5, cutMm: 22.0, keepMm: 12.8, label: "2 mg / 0.5 mg" },
+      4: { mg: 4, nal: 1.0, cutMm: 22.0, keepMm: 25.6, label: "4 mg / 1 mg" },
+      8: { mg: 8, nal: 2.0, cutMm: 22.0, keepMm: 12.8, label: "8 mg / 2 mg" },
+      12: { mg: 12, nal: 3.0, cutMm: 22.0, keepMm: 19.2, label: "12 mg / 3 mg" }
+    };
 
   /* Round a film strength to the nearest official one at or above it.
-     filmMg -> 2, 4, 8 or 12, the key into FILM_SPECS. The 0.01 tolerances
-     absorb float drift from the geometric ladder, so 1.9999 still keys to 2.
-     Mirrors spec_key_for_mg in taper.py. */
+
+     Args:
+         film_mg: strength being cut, in mg.
+     Returns:
+         One of 2, 4, 8, 12 — the key into FILM_SPECS. Tolerances of 0.01 absorb
+         float drift from the geometric ladder, so 1.9999 still keys to 2. */
   function specKeyForMg(filmMg) {
-    if (filmMg <= 2.01) return 2;
-    if (filmMg <= 4.01) return 4;
-    if (filmMg <= 8.01) return 8;
+    if (filmMg <= 2.01) {
+      return 2;
+    }
+    if (filmMg <= 4.01) {
+      return 4;
+    }
+    if (filmMg <= 8.01) {
+      return 8;
+    }
     return 12;
   }
+
+  /* CycleRow — One cycle of the ladder — n days at a fixed dose and a fixed cut.
+
+     cut_from_mg is the piece you start the cycle holding; daily_mg is what you
+     take each day after removing sliver_mg. piece_mm and cut_mm are the same two
+     quantities in millimetres of film — totals for the day, which can exceed one
+     film when the dose does. banked_mg is the cycle's slivers added up, which
+     is exactly one whole piece when days == n — the method's milestone, not a
+     tally of every offcut the reader physically ends up holding. cut_warn flags
+     a sliver under CUT_WARN_MM, where hand-cutting stops being meaningful.
+
+     take_mm / save_mg / save_mm are the three numbers the reader acts on at the
+     strip, and they are about the film in front of them rather than the ladder:
+     open a film, cut once, swallow take_mm, and everything past that mark —
+     save_mm, worth save_mg — goes in the jar. take_mm + save_mm is the film you
+     opened (films_out of them on a day whose dose needs more than one), so the
+     two partition it with nothing unaccounted for. The save grows every cycle,
+     because it is this cycle's sliver plus everything earlier cycles had
+     already taken off.
+
+     delta_save_mm is how much more that is than the last cycle which cut a
+     film — the "extra" — and equals cut_mm whenever the day keeps opening the
+     same films off the same strip. It is None in the three cases where that
+     comparison would be against a different thing: a restart on a fresh 2 mg
+     film, a cycle that drops a whole film from the day, and a whole-films-only
+     cycle with no cut at all.
+
+     The films_out .. spare_mm block is film_layout() flattened onto the row:
+     how many films the day needs and where its single cut falls. See FilmLayout
+     for what each one means. */
+  // Fields: cycle, dayStart, dayEnd, n, days, filmMg, cutFromMg, dailyMg, sliverMg, pieceMm, cutMm, takeMm, saveMm, saveMg, deltaSaveMm, filmsOut, takeFilms, cutTakeMm, cutSaveMm, spareMm, usedMg, sumMg, sumStrips, bankedMg, sumBankedMg, switched2mg, cutWarn, nChanged
+
+  /* MonthRow — One 30-day bucket of the run, for matching the prescription to the dose.
+
+     used_strips is ingested-equivalent, not strips dispensed; surplus_strips is
+     what a static rx_strips prescription would leave over — the stockpile. */
+  // Fields: month, dayStart, dayEnd, usedMg, usedStrips, rxStrips, surplusStrips
+
+  /* ScheduleResult — A built ladder: the inputs it came from, the cycles, and the totals.
+
+     Everything from base_film_mg down is derived. The summary fields default to
+     0/None so an empty ladder still answers every question asked of it. These
+     defaults are the site's too: gen_core.py reads them off this class and
+     writes them into the object literal, so there is no second list of them to
+     fall out of step. An undefined end_day once turned Math.max(endDay, 1) into
+     NaN and broke a chart.
+
+     cut_mode is "geometric" (cut 1/n off what is left, so the step shrinks and
+     the dose never quite reaches zero) or "linear" (cut the same 1/n of the
+     ORIGINAL strip every cycle, so the step never changes and the dose lands on
+     zero after n − 1 of them). r is the geometric keep ratio and describes the
+     linear mode not at all — there the per-cycle drop grows every step.
+
+     zero_day is the first day at 0 mg, which only a linear run reaches.
+
+     truncated means the run hit MAX_CYCLES before reaching the target;
+     switch_never_fired means the 2 mg switch was wanted but could not fire
+     without raising the dose. Both are reported rather than hidden. */
+  // Fields: startMg, n, filmMm, film2Mm, targetMg, stripMg, switch2mg, holdDays, nBelow3, stopMode, cutMode, r, ceilingMg, ceilingStrips, baseFilmMg, truncated, switchNeverFired, rows, months, daysTo2mg, doseAt2mg, daysTo1mg, doseAt1mg, zeroDay, endDay, endDailyMg, totalMg, totalStrips, totalBankedMg, stayMg, savedVsStayMg, savedVsStayStrips
+
+  /* Fraction of the piece kept after one day's cut: 1 − 1/n.
+
+     The whole taper is this number applied once per cycle. n = 6 keeps 5/6, so
+     each cycle is 16.7% lower than the one before. */
+  function keepRatio(n) {
+    return (1.0 - (1.0 / n));
+  }
+
+  /* Film strength the plan is built on: the smallest that holds the start dose.
+
+     Args:
+         start_mg: the dose on day 1.
+     Returns:
+         One of 2, 4, 8, 12 — or 8 for a start above 12 mg, where no single film
+         holds the dose and the day is made up of several. 8 mg is the strength
+         people are normally tapering from and the one the 2 mg switch assumes;
+         --film-strength overrides this if you hold something else. */
+  function baseFilmMg(startMg) {
+    let mg;
+    for (mg of FILM_STRENGTHS) {
+      if (startMg <= (mg + 1e-09)) {
+        return Number(mg);
+      }
+    }
+    return 8.0;
+  }
+
+  /* FilmLayout — How one day of a cycle is laid out across real films.
+
+     A day's strip can be longer than one film: a 32 mg start on 8 mg strips is
+     four of them. The dose arithmetic does not care — it is all milligrams —
+     but the person holding a razor does.
+
+     Think of the day's strip as the films laid end to end. You take from the
+     left; everything past the mark goes in the jar. So the only films worth
+     opening are the ones the TAKE reaches:
+
+         take_films    whole films swallowed untouched, no cut
+         the marked film  TAKE cut_take_mm | SAVE cut_save_mm | already off
+
+     That is **one cut a day**, on one film, wherever the dose lands. A film
+     the take never reaches would be opened only to put it straight in the jar,
+     so it is left in the box instead and counted in spare_mm.
+
+     spare_mm is the part of today's sliver sitting on those unopened films. It
+     is zero whenever the day fits inside the films the take needs, which is
+     every cycle of any run that fits on one film.
+
+     When the take lands exactly on a film boundary there is no marked film at
+     all — take the whole ones and nothing needs measuring. */
+  // Fields: filmsOut, takeFilms, cutTakeMm, cutSaveMm, spareMm
+
+  /* Lay one day's strip across whole films, with a single cut.
+
+     Args:
+         strip_mg: the day's whole strip — what you start the day holding.
+         sliver_mg: the part of it saved, strip_mg / n.
+         film_mg: strength of one film you are cutting.
+         film_mm: length of one such film along the cut axis.
+     Returns:
+         A FilmLayout. Guarantees:
+           take_films * film_mm + cut_take_mm  == the day's TAKE length
+           cut_save_mm + spare_mm              == the day's SLIVER length
+           films_out                           == the films you actually open
+         and at most one of them carries a mark. */
+  function filmLayout(stripMg, sliverMg, filmMg, filmMm) {
+    let mmPerMg, takeMg, takeMm, sliverMm, takeFilms, cutTakeMm, leftoverMm, cutSaveMm,
+        spareMm;
+    if ((filmMg <= 0 || filmMm <= 0)) {
+      return { filmsOut: 0, takeFilms: 0, cutTakeMm: 0.0, cutSaveMm: 0.0, spareMm: 0.0 };
+    }
+    mmPerMg = (filmMm / filmMg);
+    takeMg = Math.max(0.0, (stripMg - sliverMg));
+    takeMm = (takeMg * mmPerMg);
+    sliverMm = (Math.max(0.0, sliverMg) * mmPerMg);
+    // int() truncates and both operands are positive, so this is floor(). The
+    // 1e-9 keeps an exact multiple — 16 mg of 8 mg film — off the wrong side of
+    // the boundary after the geometric ladder's float drift.
+    takeFilms = Math.trunc(((takeMg / filmMg) + 1e-09));
+    cutTakeMm = (takeMm - (takeFilms * filmMm));
+    if (cutTakeMm < 1e-09) {
+      // The take ends on a film boundary. Nothing is measured today: swallow
+      // the whole films and leave the sliver's film in the box.
+      return {
+        filmsOut: takeFilms,
+        takeFilms: takeFilms,
+        cutTakeMm: 0.0,
+        cutSaveMm: 0.0,
+        spareMm: sliverMm
+      };
+    }
+    // Everything past the mark on the marked film goes in the jar. Only as much
+    // of it as fits is today's sliver; any remainder is on film never opened.
+    leftoverMm = (filmMm - cutTakeMm);
+    cutSaveMm = Math.min(leftoverMm, sliverMm);
+    spareMm = (sliverMm - cutSaveMm);
+    if (spareMm < 1e-09) {
+      spareMm = 0.0;
+    }
+    return {
+      filmsOut: (takeFilms + 1),
+      takeFilms: takeFilms,
+      cutTakeMm: cutTakeMm,
+      cutSaveMm: cutSaveMm,
+      spareMm: spareMm
+    };
+  }
+
+  /* Total mg the ladder would ever deliver, per cut mode.
+
+     Args:
+         start_mg: dose on day 1.
+         n: cut denominator and default cycle length.
+         days_per_cycle: hold days, or None for n.
+         cut_mode: "geometric" or "linear".
+     Returns:
+         geometric — days × (n − 1) × D0. The run never reaches zero, so this is
+         a ceiling: Σ_k days·D0·r^k = days·D0·r/(1−r) = days·D0·(n−1).
+         linear — days × D0 × (n − 1) / 2, which is not a ceiling but the whole
+         total, because a constant step does reach zero after n − 1 doses:
+         Σ_{k=1..n−1} D0(1 − k/n) = D0 (n−1)/2. */
+  function lifetimeCeilingMg(startMg, n, daysPerCycle = null, cutMode = "geometric") {
+    let days;
+    days = ((daysPerCycle && daysPerCycle >= 1) ? daysPerCycle : n);
+    if (cutMode === "linear") {
+      return (((days * startMg) * (n - 1)) / 2.0);
+    }
+    return ((days * (n - 1)) * startMg);
+  }
+
+  /* Build the geometric taper.
+
+     stop_mode:
+       reach — include the first cycle whose daily dose is <= target (default).
+       above — stop after the last cycle still strictly above target
+               (classic n=6/8/10 comparison tables).
+
+     cut_mode:
+       geometric — cut 1/n off the piece in your hand (default). The cut shrinks
+               with the dose, every cycle is the same percentage step, and the
+               dose approaches zero without arriving.
+       linear  — cut the same amount every cycle: 1/n of the ORIGINAL strip, in
+               the same milligrams and the same millimetres, from the first day
+               to the last. The dose falls in equal steps and reaches zero after
+               n − 1 of them. Because the cut never gets thinner there is nothing
+               for the 2 mg switch to rescue, and changing n partway would break
+               the one constant the mode is built on, so both are ignored here. */
+  function buildScheduleCore(
+    startMg = DEFAULT_START_MG,
+    n = DEFAULT_N,
+    filmMm = DEFAULT_FILM_MM,
+    targetMg = DEFAULT_TARGET_MG,
+    stripMg = DEFAULT_STRIP_MG,
+    switch2mg = true,
+    switchAtMg = SWITCH_AT_MG,
+    film2Mm = DEFAULT_FILM_MM,
+    filmStrengthMg = null,
+    holdDays = null,
+    nBelow3 = null,
+    maxCycles = MAX_CYCLES,
+    stopMode = "reach",
+    cutMode = "geometric",
+    rxStrips = RX_STRIPS,
+    monthDays = MONTH_DAYS
+  ) {
+    let filmMg, currentFilmMm, linear, stepMg, D, currentN, switched, alreadySwitchedN,
+        day, sumMg, sumBanked, truncated, prevDaily, prevSaveMm, prevTakeFilms, rows,
+        cycle, result, nChanged, justSwitched, days, pieceMm, cutMm, takeMm, lay, used,
+        banked, dayStart, dayEnd, sliver, daily, saveMm, saveMg, comparable, deltaSaveMm,
+        ranToEnd1;
+    if (n < 2) {
+      throw new Error("n must be at least 2");
+    }
+    if ((startMg <= 0 || filmMm <= 0 || stripMg <= 0 || targetMg < 0)) {
+      throw new Error("doses, film length, and strip strength must be positive");
+    }
+    if (!["reach", "above"].includes(stopMode)) {
+      throw new Error("stop_mode must be 'reach' or 'above'");
+    }
+    if (!CUT_MODES.includes(cutMode)) {
+      throw new Error("cut_mode must be 'geometric' or 'linear'");
+    }
+    // Day 1 cuts the start dose out of one film, so the base film has to be the
+    // smallest official strength that holds it: 8 mg by default, 12 mg for a
+    // 12 mg start, 2 or 4 mg for a low start.
+    filmMg = (filmStrengthMg ? Number(filmStrengthMg) : baseFilmMg(startMg));
+    currentFilmMm = (filmMg <= (2.0 + 1e-09) ? film2Mm : filmMm);
+    linear = cutMode === "linear";
+    // The one constant of the linear mode, fixed before the first cut and never
+    // recomputed: 1/n of the ORIGINAL strip, in mg. Everything else follows.
+    stepMg = (Number(startMg) / n);
+    D = Number(startMg);
+    currentN = Math.trunc(n);
+    switched = false;
+    alreadySwitchedN = false;
+    day = 0;
+    sumMg = 0.0;
+    sumBanked = 0.0;
+    truncated = false;
+    prevDaily = null;
+    prevSaveMm = 0.0;
+    prevTakeFilms = null;
+    rows = [];
+    ranToEnd1 = true;
+    for (cycle = 1; cycle < (maxCycles + 1); cycle++) {
+      nChanged = false;
+      // Both of these are geometric-mode rescues. In linear mode the cut never
+      // gets thinner, so there is nothing for the 2 mg switch to fix, and
+      // changing n would change the step the whole mode is defined by.
+      if ((!linear && nBelow3 && nBelow3 >= 2 && D < 3.0 && currentN !== nBelow3 && !alreadySwitchedN)) {
+        currentN = Math.trunc(nBelow3);
+        alreadySwitchedN = true;
+        nChanged = true;
+      }
+      justSwitched = false;
+      if ((!linear && switch2mg && !switched && filmMg > (2.0 + 1e-09) && D <= (switchAtMg + 1e-12) && (prevDaily === null || (2.0 * keepRatio(currentN)) < prevDaily))) {
+        D = 2.0;
+        filmMg = 2.0;
+        currentFilmMm = film2Mm;
+        switched = true;
+        justSwitched = true;
+      }
+      if (linear) {
+        sliver = stepMg;
+        daily = (D - sliver);
+        // The last cut takes the dose to exactly zero. A cycle of n days at
+        // 0 mg is not an instruction, so the ladder ends before it and the
+        // summary reports the day the dose reaches zero instead.
+        if (daily <= 1e-12) {
+          ranToEnd1 = false;
+          break;
+        }
+      } else {
+        sliver = (D / currentN);
+        daily = (D * keepRatio(currentN));
+      }
+      if ((stopMode === "above" && daily <= (targetMg + 1e-12))) {
+        ranToEnd1 = false;
+        break;
+      }
+      days = ((holdDays && holdDays >= 1) ? Math.trunc(holdDays) : currentN);
+      pieceMm = ((currentFilmMm * D) / filmMg);
+      // From the sliver, not from piece_mm / n. The two are identical in
+      // geometric mode, where the sliver IS the piece over n — but in linear
+      // mode the sliver is a fixed number of milligrams, and the millimetres
+      // have to hold still with it. That constant cut is the whole point of
+      // the mode: the same mark, every day, from the first cut to the last.
+      cutMm = ((currentFilmMm * sliver) / filmMg);
+      // The dose as a length. Take + save is the film you opened, so this is
+      // the half of that pair the reader swallows.
+      takeMm = Math.max(0.0, (pieceMm - cutMm));
+      // Where that cut actually falls on real films. Above one film's worth of
+      // dose the day is several strips and only one of them gets marked.
+      lay = filmLayout(D, sliver, filmMg, currentFilmMm);
+      // What physically goes in the jar from the film you mark: everything
+      // past the take mark. That is the day's sliver plus the part earlier
+      // cycles had already taken off, so it grows as the ladder descends —
+      // and it is the number the reader acts on, not cut_mm.
+      if (lay.cutTakeMm > 1e-09) {
+        saveMm = Math.max(0.0, (currentFilmMm - lay.cutTakeMm));
+        saveMg = (currentFilmMm ? (filmMg * (saveMm / currentFilmMm)) : 0.0);
+        // How much more goes in the jar than the last cycle that cut one.
+        // Identically cut_mm while the day keeps opening the same films —
+        // take(k−1) is piece(k), so the difference of two "full minus take"
+        // figures is exactly this cycle's sliver. Two things break that and
+        // both make "extra" meaningless rather than merely different: a
+        // 2 mg restart puts a different film underneath, and dropping a
+        // whole film from the day changes how much film is opened at all.
+        comparable = (!justSwitched && prevSaveMm !== null && (prevTakeFilms === null || prevTakeFilms === lay.takeFilms));
+        deltaSaveMm = (comparable ? (saveMm - prevSaveMm) : null);
+      } else {
+        // The take lands on a film boundary: nothing is marked, so nothing
+        // is cut off a film to save and there is no cut to compare against.
+        saveMm = 0.0;
+        saveMg = 0.0;
+        deltaSaveMm = null;
+      }
+      used = (days * daily);
+      banked = (days * sliver);
+      dayStart = (day + 1);
+      dayEnd = (day + days);
+      sumMg += used;
+      sumBanked += banked;
+      rows.push({
+        cycle: cycle,
+        dayStart: dayStart,
+        dayEnd: dayEnd,
+        n: currentN,
+        days: days,
+        filmMg: filmMg,
+        cutFromMg: D,
+        dailyMg: daily,
+        sliverMg: sliver,
+        pieceMm: pieceMm,
+        cutMm: cutMm,
+        takeMm: takeMm,
+        saveMm: saveMm,
+        saveMg: saveMg,
+        deltaSaveMm: deltaSaveMm,
+        filmsOut: lay.filmsOut,
+        takeFilms: lay.takeFilms,
+        cutTakeMm: lay.cutTakeMm,
+        cutSaveMm: lay.cutSaveMm,
+        spareMm: lay.spareMm,
+        usedMg: used,
+        sumMg: sumMg,
+        sumStrips: (sumMg / stripMg),
+        bankedMg: banked,
+        sumBankedMg: sumBanked,
+        switched2mg: justSwitched,
+        cutWarn: cutMm < CUT_WARN_MM,
+        nChanged: nChanged
+      });
+      D = daily;
+      prevDaily = daily;
+      // Only a cycle that actually cut a film moves the baseline; a
+      // whole-films-only day saves nothing, and the next cut should be
+      // compared with the last real one.
+      if (lay.cutTakeMm > 1e-09) {
+        prevSaveMm = saveMm;
+        prevTakeFilms = lay.takeFilms;
+      }
+      day = dayEnd;
+      if ((stopMode === "reach" && daily <= (targetMg + 1e-12))) {
+        ranToEnd1 = false;
+        break;
+      }
+    }
+    if (ranToEnd1) {
+      // Fell out of the loop with the target still above us.
+      truncated = stopMode === "reach";
+    }
+    result = {
+      startMg: startMg,
+      n: n,
+      filmMm: filmMm,
+      film2Mm: film2Mm,
+      targetMg: targetMg,
+      stripMg: stripMg,
+      switch2mg: switch2mg,
+      holdDays: holdDays,
+      nBelow3: nBelow3,
+      stopMode: stopMode,
+      cutMode: cutMode,
+      r: keepRatio(n),
+      ceilingMg: lifetimeCeilingMg(startMg, n, holdDays, cutMode),
+      ceilingStrips: (lifetimeCeilingMg(startMg, n, holdDays, cutMode) / stripMg),
+      baseFilmMg: (filmStrengthMg ? Number(filmStrengthMg) : baseFilmMg(startMg)),
+      truncated: truncated,
+      switchNeverFired: Boolean((!linear && switch2mg && !switched && rows.length > 0 && rows[rows.length - 1].dailyMg < 2.0)),
+      rows: rows,
+      months: [],
+      daysTo2mg: null,
+      doseAt2mg: null,
+      daysTo1mg: null,
+      doseAt1mg: null,
+      zeroDay: null,
+      endDay: 0,
+      endDailyMg: 0.0,
+      totalMg: 0.0,
+      totalStrips: 0.0,
+      totalBankedMg: 0.0,
+      stayMg: 0.0,
+      savedVsStayMg: 0.0,
+      savedVsStayStrips: 0.0
+    };
+    fillSummary(result, rxStrips, monthDays);
+    return result;
+  }
+
+  /* Fill in the whole-run totals on a built schedule, in place.
+
+     Args:
+         result: a ScheduleResult whose .rows are already populated.
+         rx_strips: strips per month the prescription currently supplies, used
+             for the surplus column.
+         month_days: days per billing month, normally 30.
+     Returns:
+         None — result is mutated. On an empty ladder every summary field keeps
+         its dataclass default of 0/None. */
+  function fillSummary(result, rxStrips = RX_STRIPS, monthDays = MONTH_DAYS) {
+    let rows, row, last;
+    rows = result.rows;
+    if (rows.length === 0) {
+      return;
+    }
+    result.endDay = rows[rows.length - 1].dayEnd;
+    result.endDailyMg = rows[rows.length - 1].dailyMg;
+    result.totalMg = rows[rows.length - 1].sumMg;
+    result.totalStrips = rows[rows.length - 1].sumStrips;
+    result.totalBankedMg = rows[rows.length - 1].sumBankedMg;
+    result.stayMg = (result.startMg * result.endDay);
+    result.savedVsStayMg = (result.stayMg - result.totalMg);
+    result.savedVsStayStrips = (result.savedVsStayMg / result.stripMg);
+    for (row of rows) {
+      if ((result.daysTo2mg === null && row.dailyMg <= (2.0 + 1e-09))) {
+        result.daysTo2mg = row.dayStart;
+        result.doseAt2mg = row.dailyMg;
+      }
+      if ((result.daysTo1mg === null && row.dailyMg <= (1.0 + 0.12))) {
+        // ~1 mg: first cycle at or under ~1.12 mg (covers the classic 1.08
+        // landing). Same convention as ~2 mg — the first day at that dose.
+        result.daysTo1mg = row.dayStart;
+        result.doseAt1mg = row.dailyMg;
+      }
+    }
+    // A linear run lands on zero. The ladder stops before the cycle that would
+    // have you taking nothing, so the first zero day is the day after the last
+    // dose — but only if the run actually got that far, rather than stopping at
+    // a target or the cycle cap on the way.
+    if ((result.cutMode === "linear" && !result.truncated)) {
+      last = rows[rows.length - 1];
+      if ((last.dailyMg - last.sliverMg) <= 1e-12) {
+        result.zeroDay = (last.dayEnd + 1);
+      }
+    }
+    result.months = monthlyUsage(rows, result.stripMg, monthDays, rxStrips);
+  }
+
+  /* Bucket the ladder into fixed 30-day months.
+
+     Args:
+         rows: the cycle rows, which may straddle month boundaries.
+         strip_mg: strength of one dispensed film, for the mg→strips conversion.
+         month_days: length of a bucket, normally 30.
+         rx_strips: strips the prescription supplies per bucket.
+     Returns:
+         One MonthRow per bucket. Cycles are split across buckets day by day
+         rather than assigned whole, so a cycle spanning a boundary contributes
+         to both. */
+  function monthlyUsage(rows, stripMg, monthDays = MONTH_DAYS, rxStrips = RX_STRIPS) {
+    let endDay, nMonths, used, row, out, i, mg, d, strips;
+    if (rows.length === 0) {
+      return [];
+    }
+    endDay = rows[rows.length - 1].dayEnd;
+    nMonths = Math.floor(((endDay + monthDays) - 1) / monthDays);
+    used = new Array(nMonths).fill(0.0);
+    for (row of rows) {
+      for (d = row.dayStart; d < (row.dayEnd + 1); d++) {
+        used[Math.floor((d - 1) / monthDays)] += row.dailyMg;
+      }
+    }
+    out = [];
+    for (i = 0; i < used.length; i++) {
+      mg = used[i];
+      strips = (mg / stripMg);
+      out.push({
+        month: (i + 1),
+        dayStart: ((i * monthDays) + 1),
+        dayEnd: Math.min(((i + 1) * monthDays), endDay),
+        usedMg: mg,
+        usedStrips: strips,
+        rxStrips: rxStrips,
+        surplusStrips: (rxStrips - strips)
+      });
+    }
+    return out;
+  }
+
+  /* Side-by-side at the target: one strength all the way, last cycle above it.
+
+     Runs in whichever cut mode the caller is using, so the panel compares three
+     speeds of the same method rather than quietly showing the other one. */
+  function compareClassicCore(
+    startMg = DEFAULT_START_MG,
+    targetMg = DEFAULT_TARGET_MG,
+    stripMg = DEFAULT_STRIP_MG,
+    ns = [6, 8, 10],
+    cutMode = "geometric"
+  ) {
+    let out, n, sched;
+    out = [];
+    for (n of ns) {
+      sched = buildScheduleCore(startMg, n, DEFAULT_FILM_MM, targetMg, stripMg, false, SWITCH_AT_MG, DEFAULT_FILM_MM, null, null, null, MAX_CYCLES, "above", cutMode);
+      out.push({
+        n: n,
+        pct: (100.0 / n),
+        cycles: sched.rows.length,
+        days: sched.endDay,
+        endDailyMg: sched.endDailyMg,
+        totalMg: sched.totalMg,
+        totalStrips: sched.totalStrips,
+        ceilingMg: sched.ceilingMg,
+        ceilingStrips: sched.ceilingStrips,
+        stayStrips: ((sched.endDay * startMg) / stripMg),
+        savedStrips: sched.savedVsStayStrips
+      });
+    }
+    return out;
+  }
+  /* ===== END GENERATED CORE ===== */
+
+  /* ===== CORE ADAPTER — hand-written ===== */
+  /* The two entry points, in the shape the page uses them.
+
+     buildScheduleCore and compareClassicCore above are the generated
+     translation of build_schedule() and compare_classic(), so they take the
+     same arguments in the same order as the Python does. The page has an
+     options object instead, and these two do the mapping. This is the only
+     place the form's field names meet the maths.
+
+     cutTolMm, halfLifeH and startDate are deliberately not passed through:
+     they are display-only, and keeping them out of here is what stops a chart
+     control from moving the ladder.
+
+     buildScheduleCore throws on out-of-range input, exactly where taper.py
+     raises. It cannot fire from here — clampOpts() bounds every field first,
+     and this is its only caller — but the page would rather throw than quietly
+     compute something else if that ever stopped being true. */
+  function buildSchedule(opts) {
+    return buildScheduleCore(
+      opts.startMg, opts.n, opts.filmMm, opts.targetMg, opts.stripMg,
+      opts.switch2mg, SWITCH_AT_MG, opts.film2Mm, opts.filmStrengthMg,
+      opts.holdDays, opts.nBelow3, MAX_CYCLES,
+      opts.stopMode || "reach",
+      opts.cutMode === "linear" ? "linear" : "geometric",
+      RX_STRIPS, MONTH_DAYS
+    );
+  }
+
+  /* The n = 6 / 8 / 10 comparison. The three values of n are an argument to the
+     generated function, so the panel names them here. */
+  function compareClassic(startMg, targetMg, stripMg, cutMode) {
+    return compareClassicCore(startMg, targetMg, stripMg, [6, 8, 10],
+      cutMode === "linear" ? "linear" : "geometric");
+  }
+  /* ===== END CORE ADAPTER ===== */
 
   /* The side kept at full width, in mm, for a given film strength. */
   function filmWidthMm(filmMg) {
@@ -1322,89 +1940,6 @@
 
   const $ = (id) => document.getElementById(id);
 
-  /* Fraction of the piece kept after one day's cut: 1 − 1/n. The whole taper
-     is this number applied once per cycle — n = 6 keeps 5/6, so each cycle
-     lands 16.7% below the one before. */
-  function keepRatio(n) { return 1 - 1 / n; }
-
-  /* Σ_k days·D0·r^k = days·D0·r/(1−r) = days·(n−1)·D0. With the default cycle
-     length (days = n) that is the familiar n(n−1)·D0. */
-  function lifetimeCeilingMg(startMg, n, daysPerCycle, cutMode) {
-    const days = daysPerCycle && daysPerCycle >= 1 ? daysPerCycle : n;
-    /* Geometric never reaches zero, so this really is a ceiling:
-       Σ days·D0·r^k = days·D0·(n−1). Linear does reach zero after n−1 doses,
-       so the same call returns the whole total instead: D0·(n−1)/2 per day. */
-    if (cutMode === "linear") return days * startMg * (n - 1) / 2;
-    return days * (n - 1) * startMg;
-  }
-
-  /* Day 1 cuts the start dose out of one film, so the base film has to be the
-     smallest official strength that holds it. */
-  function baseFilmMg(startMg) {
-    for (const mg of [2, 4, 8, 12]) {
-      if (startMg <= mg + 1e-9) return mg;
-    }
-    /* Above 12 mg no single film holds the dose, so the day is several strips.
-       8 mg is the strength people normally taper from and the one the 2 mg
-       switch assumes; the Film strength input overrides it. */
-    return 8;
-  }
-
-  /* How one day of a cycle is laid out across real films.
-
-     A day's strip can be longer than one film: a 32 mg start on 8 mg strips is
-     four of them. The dose arithmetic does not care — it is all milligrams —
-     but the person holding a razor does.
-
-     Think of the day's strip as the films laid end to end. You take from the
-     left; everything past the mark goes in the jar. So the only films worth
-     opening are the ones the TAKE reaches:
-
-       takeFilms        whole films swallowed untouched, no cut
-       the marked film  TAKE cutTakeMm | SAVE cutSaveMm | already off
-
-     That is one cut a day, on one film, wherever the dose lands. A film the
-     take never reaches would be opened only to put it straight in the jar, so
-     it is left in the box instead and counted in spareMm — the part of today's
-     sliver sitting on film you never open. spareMm is zero whenever the day
-     fits inside the films the take needs, which is every cycle of any run that
-     fits on one film.
-
-     When the take lands exactly on a film boundary there is no marked film at
-     all: take the whole ones, and nothing needs measuring.
-
-     Takes the day's strip and sliver in mg plus the film's strength and length.
-     Returns { filmsOut, takeFilms, cutTakeMm, cutSaveMm, spareMm }. Mirrors
-     film_layout() in taper.py; test_parity.js checks every field of both. */
-  function filmLayout(stripMg, sliverMg, filmMg, filmMm) {
-    if (!(filmMg > 0) || !(filmMm > 0)) {
-      return { filmsOut: 0, takeFilms: 0, cutTakeMm: 0, cutSaveMm: 0, spareMm: 0 };
-    }
-    const mmPerMg = filmMm / filmMg;
-    const takeMg = Math.max(0, stripMg - sliverMg);
-    const takeMm = takeMg * mmPerMg;
-    const sliverMm = Math.max(0, sliverMg) * mmPerMg;
-
-    /* The 1e-9 keeps an exact multiple — 16 mg of 8 mg film — off the wrong
-       side of the boundary after the geometric ladder's float drift. */
-    const takeFilms = Math.floor(takeMg / filmMg + 1e-9);
-    const cutTakeMm = takeMm - takeFilms * filmMm;
-
-    if (cutTakeMm < 1e-9) {
-      /* The take ends on a film boundary. Nothing is measured today: swallow
-         the whole films and leave the sliver's film in the box. */
-      return { filmsOut: takeFilms, takeFilms, cutTakeMm: 0, cutSaveMm: 0, spareMm: sliverMm };
-    }
-
-    /* Everything past the mark on the marked film goes in the jar. Only as much
-       of it as fits is today's sliver; any remainder is on film never opened. */
-    const leftoverMm = filmMm - cutTakeMm;
-    const cutSaveMm = Math.min(leftoverMm, sliverMm);
-    let spareMm = sliverMm - cutSaveMm;
-    if (spareMm < 1e-9) spareMm = 0;
-    return { filmsOut: takeFilms + 1, takeFilms, cutTakeMm, cutSaveMm, spareMm };
-  }
-
   /* Writes the fallback back into the field. Without this an empty or junk box
      silently computed on the default: the start-dose input could read blank
      while the whole page showed an 8 mg schedule. */
@@ -1415,6 +1950,7 @@
     if (document.activeElement !== el) el.value = String(fallback);
     return fallback;
   }
+
   /* An optional positive integer field. Returns null for blank, non-numeric
      or non-positive input, which callers read as "unset" — that is how a blank
      Hold days falls back to n and a blank n-below-3 stays off. */
@@ -1475,287 +2011,6 @@
       if (el && document.activeElement !== el) el.value = String(c);
     }
     return notes;
-  }
-
-  /* Build the whole ladder. This is the core of the tool, and the half of it
-     that is written twice — build_schedule() in taper.py must produce the same
-     rows, which test_parity.js checks field by field.
-
-     Takes an opts object: startMg, n, filmMm, film2Mm, targetMg, stripMg,
-     switch2mg (bool), holdDays (or null for n), nBelow3 (or null for off) and
-     stopMode — "reach" includes the first cycle at or under the target,
-     "above" stops before it, which is what the n = 6/8/10 comparison wants.
-
-     Returns a schedule: the echoed inputs, the derived r/ceiling/baseFilmMg,
-     a rows array of cycles, and the summary totals filled in by fillSummary.
-     Also two honesty flags — truncated when the run hit MAX_CYCLES before the
-     target, switchNeverFired when the 2 mg switch was wanted but could not
-     fire without raising the dose. Both surface as banners rather than
-     silently returning a short ladder. */
-  function buildSchedule(opts) {
-    const startMg = opts.startMg;
-    const n0 = opts.n;
-    const filmMm = opts.filmMm;
-    const film2Mm = opts.film2Mm;
-    const targetMg = opts.targetMg;
-    const stripMg = opts.stripMg;
-    const switch2mg = opts.switch2mg;
-    const holdDays = opts.holdDays;
-    const nBelow3 = opts.nBelow3;
-    const stopMode = opts.stopMode || "reach";
-    const cutMode = opts.cutMode === "linear" ? "linear" : "geometric";
-    const linear = cutMode === "linear";
-
-    const filmStrength = opts.filmStrengthMg || baseFilmMg(startMg);
-    /* The one constant of the linear mode, fixed before the first cut and never
-       recomputed: 1/n of the ORIGINAL strip, in mg. Everything else follows. */
-    const stepMg = startMg / n0;
-    let filmMg = filmStrength;
-    let currentFilmMm = filmMg <= 2.0 + 1e-9 ? film2Mm : filmMm;
-
-    let D = startMg;
-    let currentN = n0;
-    let switched = false;
-    let alreadySwitchedN = false;
-    let day = 0;
-    let sumMg = 0;
-    let sumBanked = 0;
-    let truncated = stopMode === "reach";
-    let prevDaily = null;
-    let prevSaveMm = 0, prevTakeFilms = null;
-    const rows = [];
-
-    for (let cycle = 1; cycle <= MAX_CYCLES; cycle++) {
-      let nChanged = false;
-      /* Both of these are geometric-mode rescues. In linear mode the cut never
-         gets thinner, so there is nothing for the 2 mg switch to fix, and
-         changing n would change the step the whole mode is defined by. */
-      if (!linear && nBelow3 && nBelow3 >= 2 && D < 3.0 && currentN !== nBelow3 && !alreadySwitchedN) {
-        currentN = nBelow3;
-        alreadySwitchedN = true;
-        nChanged = true;
-      }
-
-      let justSwitched = false;
-      /* Restarting on a 2 mg film pins the whole strip at 2 mg, so only do it
-         while the resulting daily dose is still a step down. */
-      if (!linear && switch2mg && !switched && filmMg > 2.0 + 1e-9 && D <= SWITCH_AT_MG + 1e-12
-          && (prevDaily === null || 2.0 * keepRatio(currentN) < prevDaily)) {
-        D = 2.0;
-        filmMg = 2.0;
-        currentFilmMm = film2Mm;
-        switched = true;
-        justSwitched = true;
-      }
-
-      let sliver, daily;
-      if (linear) {
-        sliver = stepMg;
-        daily = D - sliver;
-        /* The last cut takes the dose to exactly zero. A cycle of n days at
-           0 mg is not an instruction, so the ladder ends before it and the
-           summary reports the day the dose reaches zero instead.
-
-           truncated has to be cleared here. It starts true for stopMode
-           "reach" and is only cleared where the target is met, so leaving it
-           alone would report a completed run as one that hit the cycle cap —
-           which is how taper.py behaves, and how test_parity.js caught it. */
-        if (daily <= 1e-12) { truncated = false; break; }
-      } else {
-        sliver = D / currentN;
-        daily = D * keepRatio(currentN);
-      }
-
-      if (stopMode === "above" && daily <= targetMg + 1e-12) break;
-
-      const days = holdDays && holdDays >= 1 ? holdDays : currentN;
-      const pieceMm = currentFilmMm * D / filmMg;
-      /* From the sliver, not from pieceMm / n. The two are identical in
-         geometric mode, where the sliver IS the piece over n — but in linear
-         mode the sliver is a fixed number of milligrams, and the millimetres
-         have to hold still with it. That constant cut is the whole point. */
-      const cutMm = currentFilmMm * sliver / filmMg;
-      /* The dose as a length. Take + save is the film you opened, so this is
-         the half of that pair the reader swallows. */
-      const takeMm = Math.max(0, pieceMm - cutMm);
-      /* Where that cut actually falls on real films. Above one film's worth of
-         dose the day is several strips and only one of them gets marked. */
-      const lay = filmLayout(D, sliver, filmMg, currentFilmMm);
-      /* What physically goes in the jar from the film you mark: everything
-         past the take mark. That is the day's sliver plus the part earlier
-         cycles had already taken off, so it grows as the ladder descends —
-         and it is the number the reader acts on, not cutMm. */
-      let saveMm = 0, saveMg = 0, deltaSaveMm = null;
-      if (lay.cutTakeMm > 1e-9) {
-        saveMm = Math.max(0, currentFilmMm - lay.cutTakeMm);
-        saveMg = currentFilmMm ? filmMg * (saveMm / currentFilmMm) : 0;
-        /* How much more goes in the jar than the last cycle that cut one.
-           Identically cutMm while the day keeps opening the same films —
-           take(k−1) is piece(k), so the difference of two "full minus take"
-           figures is exactly this cycle's sliver. Two things break that and
-           both make "extra" meaningless rather than merely different: a 2 mg
-           restart puts a different film underneath, and dropping a whole film
-           from the day changes how much film is opened at all. */
-        const comparable = !justSwitched && prevSaveMm !== null
-          && (prevTakeFilms === null || prevTakeFilms === lay.takeFilms);
-        deltaSaveMm = comparable ? saveMm - prevSaveMm : null;
-      }
-      const used = days * daily;
-      const banked = days * sliver;
-      const dayStart = day + 1;
-      const dayEnd = day + days;
-      sumMg += used;
-      sumBanked += banked;
-
-      rows.push({
-        cycle, dayStart, dayEnd, n: currentN, days, filmMg,
-        cutFromMg: D, dailyMg: daily, sliverMg: sliver,
-        pieceMm, cutMm, takeMm, saveMm, saveMg, deltaSaveMm,
-        filmsOut: lay.filmsOut, takeFilms: lay.takeFilms,
-        cutTakeMm: lay.cutTakeMm, cutSaveMm: lay.cutSaveMm, spareMm: lay.spareMm,
-        usedMg: used, sumMg,
-        sumStrips: sumMg / stripMg,
-        bankedMg: banked, sumBankedMg: sumBanked,
-        switched2mg: justSwitched,
-        cutWarn: cutMm < CUT_WARN_MM,
-        nChanged
-      });
-
-      D = daily;
-      prevDaily = daily;
-      /* Only a cycle that actually cut a film moves the baseline; a
-         whole-films-only day saves nothing, and the next cut should be
-         compared with the last real one. */
-      if (lay.cutTakeMm > 1e-9) { prevSaveMm = saveMm; prevTakeFilms = lay.takeFilms; }
-      day = dayEnd;
-      if (stopMode === "reach" && daily <= targetMg + 1e-12) { truncated = false; break; }
-    }
-
-    const result = {
-      startMg, n: n0, filmMm, film2Mm, targetMg, stripMg, switch2mg, holdDays, nBelow3, stopMode,
-      cutMode,
-      r: keepRatio(n0),
-      ceilingMg: lifetimeCeilingMg(startMg, n0, holdDays, cutMode),
-      ceilingStrips: lifetimeCeilingMg(startMg, n0, holdDays, cutMode) / stripMg,
-      baseFilmMg: filmStrength,
-      truncated,
-      /* Only a real miss if the ladder ran past 2 mg still on the bigger film. */
-      switchNeverFired: !linear && switch2mg && !switched && rows.length > 0
-        && rows[rows.length - 1].dailyMg < 2.0,
-      rows
-    };
-    fillSummary(result);
-    return result;
-  }
-
-  /* Add the whole-run totals to a schedule, in place. Takes the result whose
-     .rows are already built; returns nothing. Also finds the first day at or
-     under ~2 mg and ~1 mg, and buckets the run into months. */
-  function fillSummary(result) {
-    const rows = result.rows;
-    /* Defined even for an empty ladder, matching the dataclass defaults in
-       taper.py. Leaving them undefined meant Math.max(sched.endDay, 1) came out
-       NaN rather than 1, so a guard that looked safe was not — the comparison
-       chart then wrote x="NaN" into every axis label. */
-    Object.assign(result, {
-      endDay: 0, endDailyMg: 0, totalMg: 0, totalStrips: 0, totalBankedMg: 0,
-      stayMg: 0, savedVsStayMg: 0, savedVsStayStrips: 0,
-      daysTo2mg: null, doseAt2mg: null, daysTo1mg: null, doseAt1mg: null, zeroDay: null,
-      months: [],
-    });
-    if (!rows.length) return;
-    const last = rows[rows.length - 1];
-    result.endDay = last.dayEnd;
-    result.endDailyMg = last.dailyMg;
-    result.totalMg = last.sumMg;
-    result.totalStrips = last.sumStrips;
-    result.totalBankedMg = last.sumBankedMg;
-    result.stayMg = result.startMg * result.endDay;
-    result.savedVsStayMg = result.stayMg - result.totalMg;
-    result.savedVsStayStrips = result.savedVsStayMg / result.stripMg;
-    result.daysTo2mg = null;
-    result.doseAt2mg = null;
-    result.daysTo1mg = null;
-    result.doseAt1mg = null;
-    for (const row of rows) {
-      if (result.daysTo2mg == null && row.dailyMg <= 2.0 + 1e-9) {
-        result.daysTo2mg = row.dayStart;
-        result.doseAt2mg = row.dailyMg;
-      }
-      /* Same convention as ~2 mg — the first day at that dose. */
-      if (result.daysTo1mg == null && row.dailyMg <= 1.0 + 0.12) {
-        result.daysTo1mg = row.dayStart;
-        result.doseAt1mg = row.dailyMg;
-      }
-    }
-    /* A linear run lands on zero. The ladder stops before the cycle that would
-       have you taking nothing, so the first zero day is the day after the last
-       dose — but only if the run actually got that far, rather than stopping at
-       a target or the cycle cap on the way. */
-    if (result.cutMode === "linear" && !result.truncated
-        && last.dailyMg - last.sliverMg <= 1e-12) {
-      result.zeroDay = last.dayEnd + 1;
-    }
-    result.months = monthlyUsage(rows, result.stripMg);
-  }
-
-  /* Bucket the ladder into fixed 30-day months. Takes the cycle rows and the
-     strip strength; returns one entry per month with mg used, ingested-
-     equivalent strips, and the surplus a static 30-strip prescription would
-     leave over. Cycles straddling a boundary are split day by day rather than
-     assigned whole. */
-  function monthlyUsage(rows, stripMg) {
-    if (!rows.length) return [];
-    const endDay = rows[rows.length - 1].dayEnd;
-    const nMonths = Math.ceil(endDay / MONTH_DAYS);
-    const used = Array(nMonths).fill(0);
-    for (const row of rows) {
-      for (let d = row.dayStart; d <= row.dayEnd; d++) {
-        used[Math.floor((d - 1) / MONTH_DAYS)] += row.dailyMg;
-      }
-    }
-    return used.map((mg, i) => {
-      const strips = mg / stripMg;
-      return {
-        month: i + 1,
-        dayStart: i * MONTH_DAYS + 1,
-        dayEnd: Math.min((i + 1) * MONTH_DAYS, endDay),
-        usedMg: mg,
-        usedStrips: strips,
-        rxStrips: RX_STRIPS,
-        surplusStrips: RX_STRIPS - strips
-      };
-    });
-  }
-
-  /* The n = 6 / 8 / 10 comparison. Rebuilds the ladder three times on 8 mg
-     films the whole way with stopMode "above", so every row ends strictly
-     above the target and the three are compared on equal terms.
-     Returns one row per n with cycles, days, end dose, totals and ceiling. */
-  function compareClassic(startMg, targetMg, stripMg, cutMode) {
-    return [6, 8, 10].map((n) => {
-      const sched = buildSchedule({
-        startMg, n, filmMm: 22, film2Mm: 22, targetMg, stripMg,
-        switch2mg: false, holdDays: null, nBelow3: null, stopMode: "above",
-        cutMode: cutMode === "linear" ? "linear" : "geometric"
-      });
-      return {
-        n,
-        pct: 100 / n,
-        cycles: sched.rows.length,
-        /* fillSummary bails on an empty ladder, leaving endDay unassigned —
-           which rendered as the literal string "undefined". taper.py:187
-           defaults it to 0; match that. */
-        days: sched.endDay == null ? 0 : sched.endDay,
-        endDailyMg: sched.endDailyMg,
-        totalMg: sched.totalMg,
-        totalStrips: sched.totalStrips,
-        ceilingMg: sched.ceilingMg,
-        ceilingStrips: sched.ceilingStrips,
-        stayStrips: sched.endDay * startMg / stripMg,
-        savedStrips: sched.savedVsStayStrips
-      };
-    });
   }
 
   /* Fixed-decimal number for display. Returns an em dash for null, undefined
@@ -3526,11 +3781,13 @@
     if (lastSched) renderStripViz(lastSched);
   });
 
-  /* Test surface. The ladder maths lives twice — here and in taper.py — and the
-     footer promises the two agree, but everything in this file is sealed inside
-     the IIFE, so nothing could check it. test_parity.js drives a headless
-     browser, calls this, and diffs every row against `taper.py --json`.
-     Read-only and unused by the page itself. */
+  /* Test surface. Everything in this file is sealed inside the IIFE, so
+     test_layout.js could not otherwise reach the maths behind what it is
+     measuring. Read-only and unused by the page itself.
+
+     test_parity.js no longer comes through here: it lifts the generated block
+     and its adapter straight out of this file and runs them in Node, which is
+     why it needs no browser. */
   window.SASTaperInternals = Object.freeze({
     buildSchedule, compareClassic, baseFilmMg, keepRatio, filmLayout, dayFilms,
     /* The cycle row the two drawings are currently showing. test_layout.js

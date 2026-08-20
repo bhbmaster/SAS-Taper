@@ -1,26 +1,82 @@
 #!/usr/bin/env node
 /* Parity checks for SAS-Taper. Run: node test_parity.js
  *
- * The ladder maths is implemented twice — buildSchedule() in index.html and
- * build_schedule() in taper.py — and the site's footer promises the two agree.
- * test_taper.py only covers the Python side, so this diffs the JS one against
- * it: same inputs into both, then every row field compared.
+ * The ladder maths is written once, in the CORE regions of taper.py, and
+ * gen_core.py translates it into the generated block in index.html. This
+ * suite checks the translation: it lifts that block straight out of the HTML,
+ * runs it in Node, and diffs every field against the Python it came from.
  *
- * Needs playwright-core and a Chromium. If neither is present the script says
- * so and exits 0 — a checkout without a browser should not fail the suite.
+ * So it is no longer guarding two hand-written copies against drift — that is
+ * impossible now — but it is still the acceptance test for the translator,
+ * which is trusted code that nobody would otherwise exercise. It also runs
+ * the hand-written adapter next to the generated block, so what is tested is
+ * the same entry point the page calls.
+ *
+ * Two things it checks before comparing anything:
+ *   - `python3 gen_core.py --check`, so a stale block in index.html fails here
+ *     rather than shipping.
+ *   - the block is evaluated in strict mode, where assigning to a name that
+ *     was never declared throws. Python scopes locals to the function and
+ *     `let` scopes them to the block, and that is exactly the mistake a
+ *     translator makes.
+ *
+ * No browser and no Node dependencies: this is plain arithmetic in plain
+ * JavaScript, and it runs in a bare checkout in about a second. Only
+ * test_layout.js needs Chromium now.
  */
 
 "use strict";
 
+const fs = require("fs");
+const path = require("path");
 const { execFileSync } = require("child_process");
-const { launchOrSkip, PAGE } = require("./test_browser");
 
 const REPO = __dirname;
 const TOL = 1e-9;
 
-/* dailyMg -> daily_mg. The two sides name the same 19 row fields in their own
-   house style; nothing else differs. */
+/* dailyMg -> daily_mg. The two sides name the same 28 row fields in their own
+   house style, because gen_core.py camelCases as it translates. */
 const snake = (s) => s.replace(/[A-Z0-9]+/g, (m) => "_" + m.toLowerCase());
+
+/* Pull the generated core and its adapter out of index.html and evaluate them.
+   The markers are the same ones gen_core.py splices between. */
+function loadCore() {
+  const html = fs.readFileSync(path.join(REPO, "index.html"), "utf8");
+  const between = (open, close) => {
+    const i = html.indexOf(open);
+    const j = html.indexOf(close, i);
+    if (i === -1 || j === -1) {
+      console.error(`index.html: could not find the block between\n  ${open}\n  ${close}`);
+      process.exit(1);
+    }
+    return html.slice(i + open.length, j);
+  };
+  const core = between(
+    "/* ===== GENERATED CORE — do not edit by hand ===== */",
+    "/* ===== END GENERATED CORE ===== */"
+  );
+  const adapter = between(
+    "/* ===== CORE ADAPTER — hand-written ===== */",
+    "/* ===== END CORE ADAPTER ===== */"
+  );
+  const factory = new Function(
+    '"use strict";\n' + core + "\n" + adapter +
+    "\nreturn { buildSchedule, compareClassic, baseFilmMg, keepRatio, filmLayout };"
+  );
+  return { api: factory(), lines: core.split("\n").length };
+}
+
+/* A stale block would make everything below pass against code that is not what
+   taper.py says any more. */
+function checkGenerated() {
+  try {
+    execFileSync("python3", ["gen_core.py", "--check"], { cwd: REPO, stdio: "pipe" });
+  } catch (e) {
+    process.stderr.write(e.stderr || "");
+    console.error("\nFAILED — index.html carries a stale copy of the maths.");
+    process.exit(1);
+  }
+}
 
 const FLAGS = {
   startMg: "--start-mg",
@@ -93,6 +149,12 @@ const CASES = [
   { startMg: 8, targetMg: 8, stopMode: "above" },
 ];
 
+const JS_DEFAULTS = {
+  startMg: 8, n: 6, filmMm: 22, film2Mm: 22, targetMg: 1, stripMg: 8,
+  switch2mg: true, holdDays: null, nBelow3: null, stopMode: "reach",
+  filmStrengthMg: null, cutMode: "geometric",
+};
+
 function pyRun(c) {
   const args = ["taper.py", "--json"];
   for (const [k, v] of Object.entries(c)) {
@@ -154,9 +216,9 @@ const SUMMARY = [
   ["switchNeverFired", "switch_never_fired"],
 ];
 
-/* The 30-day buckets. Written twice like everything else, and until now
-   compared nowhere: compareRows only walks rows and compareSummary only walks
-   scalars, so monthly_usage() could have drifted from monthlyUsage() silently. */
+/* The 30-day buckets, and the echoed inputs the display reads off the result —
+   film2Mm and nBelow3 are the two fields gen_core.py renames by hand, so a
+   broken override shows up right here rather than as a blank panel. */
 function compareMonths(label, js, py, fail) {
   if (js.months.length !== py.months.length) {
     fail(`${label}: month count ${js.months.length} (js) vs ${py.months.length} (py)`);
@@ -177,9 +239,23 @@ function compareMonths(label, js, py, fail) {
   }
 }
 
-/* The n = 6 / 8 / 10 table, likewise implemented twice and likewise unchecked.
-   It runs its own schedules in "above" stop mode, so it is not covered by the
-   row comparison above. */
+/* The renamed fields, checked by name. The mechanical snake_case -> camelCase
+   rule would call these film2mgMm and nBelow3mg; index.html reads them as
+   film2Mm and nBelow3, so gen_core.py overrides them and this is what proves
+   the override still lands where the display expects it. */
+function compareOverrides(label, js, py, fail) {
+  for (const [j, p] of [["film2Mm", "film_2mg_mm"], ["nBelow3", "n_below_3mg"]]) {
+    comparisons++;
+    if (!(j in js)) {
+      fail(`${label}: the schedule has no ${j} — a NAME_OVERRIDES entry has moved`);
+    } else if (js[j] !== py[p] && !(js[j] == null && py[p] == null)) {
+      fail(`${label}: ${j} = ${JSON.stringify(js[j])} (js) vs ${JSON.stringify(py[p])} (py)`);
+    }
+  }
+}
+
+/* The n = 6 / 8 / 10 table. It runs its own schedules in "above" stop mode, so
+   it is not covered by the row comparison above. */
 function compareCompare(label, js, py, fail) {
   if (js.length !== py.length) {
     fail(`${label}: compare row count ${js.length} (js) vs ${py.length} (py)`);
@@ -260,32 +336,21 @@ for c in json.load(sys.stdin):
 json.dump(out, sys.stdout)
 `;
 
-(async () => {
-  const browser = await launchOrSkip();
-  if (!browser) process.exit(0);
+(() => {
+  checkGenerated();
+  const { api, lines } = loadCore();
 
   const failures = [];
   const fail = (m) => failures.push(m);
-  const page = await browser.newPage();
-  const pageErrors = [];
-  page.on("pageerror", (e) => pageErrors.push(String(e)));
-  await page.goto(PAGE);
-  await page.waitForFunction(() => !!window.SASTaperInternals, null, { timeout: 10000 });
 
   for (const c of CASES) {
     const label = JSON.stringify(c) === "{}" ? "defaults" : JSON.stringify(c);
     const py = pyRun(c);
-    const js = await page.evaluate(
-      (o) => window.SASTaperInternals.buildSchedule(Object.assign({
-        startMg: 8, n: 6, filmMm: 22, film2Mm: 22, targetMg: 1, stripMg: 8,
-        switch2mg: true, holdDays: null, nBelow3: null, stopMode: "reach",
-        filmStrengthMg: null, cutMode: "geometric",
-      }, o)),
-      c
-    );
+    const js = api.buildSchedule(Object.assign({}, JS_DEFAULTS, c));
     compareRows(label, js, py, fail);
     compareSummary(label, js, py, fail);
     compareMonths(label, js, py, fail);
+    compareOverrides(label, js, py, fail);
   }
 
   /* compare_classic() builds its own schedules in "above" stop mode, so the
@@ -298,10 +363,7 @@ json.dump(out, sys.stdout)
   ]) {
     const label = `compare ${startMg}/${targetMg}/${stripMg} ${cutMode}`;
     const py = pyRun({ startMg, targetMg, stripMg, cutMode, compare: true }).compare;
-    const js = await page.evaluate(
-      ([s, t, m, cm]) => window.SASTaperInternals.compareClassic(s, t, m, cm),
-      [startMg, targetMg, stripMg, cutMode]
-    );
+    const js = api.compareClassic(startMg, targetMg, stripMg, cutMode);
     compareCompare(label, js, py, fail);
   }
 
@@ -309,21 +371,17 @@ json.dump(out, sys.stdout)
      8 mg above 12 where none does; a mismatch here silently changes every mm
      figure on the page. */
   for (const mg of [0.5, 2, 2.5, 4, 4.1, 8, 8.5, 12, 12.5, 16, 64]) {
-    const js = await page.evaluate((v) => window.SASTaperInternals.baseFilmMg(v), mg);
+    const js = api.baseFilmMg(mg);
     const py = pyRun({ startMg: mg, stripMg: mg }).base_film_mg;
+    comparisons++;
     if (js !== py) fail(`baseFilmMg(${mg}) = ${js} (js) vs ${py} (py)`);
   }
 
-  /* The matrix: same grid through both implementations, one process each. */
+  /* The matrix: same grid through both, one Python process for all of it. */
   const pyMatrix = JSON.parse(execFileSync("python3", ["-c", PY_MATRIX], {
     cwd: REPO, input: JSON.stringify(MATRIX), maxBuffer: 1 << 30,
   }));
-  const jsMatrix = await page.evaluate((cases) => cases.map((c) =>
-    window.SASTaperInternals.buildSchedule(Object.assign({
-      startMg: 8, n: 6, filmMm: 22, film2Mm: 22, targetMg: 1, stripMg: 8,
-      switch2mg: true, holdDays: null, nBelow3: null, stopMode: "reach",
-      filmStrengthMg: null, cutMode: "geometric",
-    }, c))), MATRIX);
+  const jsMatrix = MATRIX.map((c) => api.buildSchedule(Object.assign({}, JS_DEFAULTS, c)));
 
   let matrixRows = 0;
   let widestDay = 0;
@@ -351,9 +409,6 @@ json.dump(out, sys.stdout)
     if (v === 0) fail(`matrix produced no ${k} rows`);
   }
 
-  if (pageErrors.length) fail("page errors: " + pageErrors.join("; "));
-  await browser.close();
-
   const checks = CASES.length + 11 + 7 + MATRIX.length;
   if (failures.length) {
     console.error(`FAILED — ${failures.length} mismatch(es) across ${checks} checks:`);
@@ -361,14 +416,12 @@ json.dump(out, sys.stdout)
     process.exit(1);
   }
   console.log(
-    `OK — index.html matches taper.py across ${CASES.length + MATRIX.length} schedules `
+    `OK — the ${lines}-line generated core in index.html matches taper.py across `
+    + `${CASES.length + MATRIX.length} schedules `
     + `(${matrixRows} matrix cycles, widest day ${widestDay} films: `
     + `${shapes.multi} multi-film, ${shapes.spareFilm} whose sliver runs onto unopened film, `
     + `${shapes.noCut} with nothing to cut), 11 film sizes, `
     + `every month bucket and the n = 6/8/10 table — ${comparisons.toLocaleString("en-US")} `
     + `field comparisons in all`
   );
-})().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+})();

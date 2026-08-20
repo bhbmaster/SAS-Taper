@@ -15,6 +15,14 @@ from datetime import date, timedelta
 from dataclasses import asdict, dataclass, field
 from typing import Any, Optional
 
+SITE_URL = "https://bhbmaster.github.io/SAS-Taper/"
+
+# --- CORE BEGIN ---
+# Everything between the CORE markers is the shared ladder maths, and it is the
+# only copy of it. gen_core.py translates these regions into the JavaScript
+# block inside index.html, so the site and the CLI cannot disagree by
+# construction. Read gen_core.py before adding anything here: it accepts a
+# deliberately small subset of Python and refuses the rest rather than guessing.
 DEFAULT_START_MG = 8.0
 DEFAULT_N = 6
 DEFAULT_FILM_MM = 22.0
@@ -26,7 +34,6 @@ DEFAULT_MONTH_DAYS = 30
 MAX_CYCLES = 40
 CUT_MODES = ("geometric", "linear")
 CUT_WARN_MM = 1.0
-SITE_URL = "https://bhbmaster.github.io/SAS-Taper/"
 
 
 @dataclass(frozen=True)
@@ -45,18 +52,11 @@ class FilmSpec:
     keep_mm: float
     label: str
 
-    @property
-    def area_mm2(self) -> float:
-        """Footprint of one whole film in mm². cut_mm × keep_mm."""
-        return self.cut_mm * self.keep_mm
 
-    @property
-    def density(self) -> float:
-        """Buprenorphine per mm² of film. Constant within a strength family:
-        the 2 and 4 mg films share one value, the 8 and 12 mg another that is
-        four times higher.
-        """
-        return self.mg / self.area_mm2
+# The strengths in ascending order. base_film_mg() walks this rather than
+# sorting FILM_SPECS, so the order is written down rather than inferred from
+# dict keys — which is also what lets the JS translation stay a literal.
+FILM_STRENGTHS = (2.0, 4.0, 8.0, 12.0)
 
 
 # Official Suboxone film sizes. Cut along cut_mm; keep keep_mm as full width.
@@ -86,9 +86,25 @@ def spec_key_for_mg(film_mg: float) -> int:
     return 12
 
 
+# --- CORE END ---
+
+
 def film_spec_for_mg(film_mg: float) -> FilmSpec:
     """FilmSpec for a strength. Convenience wrapper over spec_key_for_mg."""
     return FILM_SPECS[spec_key_for_mg(film_mg)]
+
+
+def spec_area_mm2(spec: FilmSpec) -> float:
+    """Footprint of one whole film in mm². cut_mm × keep_mm."""
+    return spec.cut_mm * spec.keep_mm
+
+
+def spec_density(spec: FilmSpec) -> float:
+    """Buprenorphine per mm² of film. Constant within a strength family: the
+    2 and 4 mg films share one value, the 8 and 12 mg another that is four
+    times higher. Display only — the ladder never needs it.
+    """
+    return spec.mg / spec_area_mm2(spec)
 
 
 HOW_TO = f"""\
@@ -235,6 +251,7 @@ are grinding down is Suboxone.
 """
 
 
+# --- CORE BEGIN ---
 @dataclass
 class CycleRow:
     """One cycle of the ladder — n days at a fixed dose and a fixed cut.
@@ -320,8 +337,11 @@ class ScheduleResult:
     """A built ladder: the inputs it came from, the cycles, and the totals.
 
     Everything from base_film_mg down is derived. The summary fields default to
-    0/None so an empty ladder still answers every question asked of it —
-    index.html mirrors these exact defaults, and test_parity.js checks that.
+    0/None so an empty ladder still answers every question asked of it. These
+    defaults are the site's too: gen_core.py reads them off this class and
+    writes them into the object literal, so there is no second list of them to
+    fall out of step. An undefined end_day once turned Math.max(endDay, 1) into
+    NaN and broke a chart.
 
     cut_mode is "geometric" (cut 1/n off what is left, so the step shrinks and
     the dose never quite reaches zero) or "linear" (cut the same 1/n of the
@@ -390,8 +410,7 @@ def base_film_mg(start_mg: float) -> float:
         people are normally tapering from and the one the 2 mg switch assumes;
         --film-strength overrides this if you hold something else.
     """
-    strengths = sorted(FILM_SPECS)
-    for mg in strengths:
+    for mg in FILM_STRENGTHS:
         if start_mg <= mg + 1e-9:
             return float(mg)
     return 8.0
@@ -508,6 +527,7 @@ def lifetime_ceiling_mg(
     return days * (n - 1) * start_mg
 
 
+# gen: skip — test-only closed form; the site has no use for it.
 def ingested_closed_form(
     start_mg: float,
     n: int,
@@ -582,7 +602,7 @@ def build_schedule(
     if stop_mode not in ("reach", "above"):
         raise ValueError("stop_mode must be 'reach' or 'above'")
     if cut_mode not in CUT_MODES:
-        raise ValueError("cut_mode must be one of " + ", ".join(CUT_MODES))
+        raise ValueError("cut_mode must be 'geometric' or 'linear'")
 
     # Day 1 cuts the start dose out of one film, so the base film has to be the
     # smallest official strength that holds it: 8 mg by default, 12 mg for a
@@ -774,7 +794,11 @@ def build_schedule(
         truncated=truncated,
         # Only a real miss if the ladder ran past 2 mg still on the bigger film.
         switch_never_fired=bool(
-            not linear and switch_2mg and not switched and rows and rows[-1].daily_mg < 2.0
+            not linear
+            and switch_2mg
+            and not switched
+            and len(rows) > 0
+            and rows[-1].daily_mg < 2.0
         ),
         rows=rows,
     )
@@ -796,10 +820,10 @@ def _fill_summary(
         month_days: days per billing month, normally 30.
     Returns:
         None — result is mutated. On an empty ladder every summary field keeps
-        its dataclass default of 0/None, which is what index.html matches.
+        its dataclass default of 0/None.
     """
     rows = result.rows
-    if not rows:
+    if len(rows) == 0:
         return
     result.end_day = rows[-1].day_end
     result.end_daily_mg = rows[-1].daily_mg
@@ -850,7 +874,7 @@ def monthly_usage(
         rather than assigned whole, so a cycle spanning a boundary contributes
         to both.
     """
-    if not rows:
+    if len(rows) == 0:
         return []
     end_day = rows[-1].day_end
     n_months = (end_day + month_days - 1) // month_days
@@ -916,6 +940,9 @@ def compare_classic(
             }
         )
     return out
+
+
+# --- CORE END ---
 
 
 def share_cols(values: list[float], inner: int) -> list[int]:
@@ -1062,8 +1089,8 @@ def film_specs_payload() -> list[dict[str, Any]]:
                 "label": spec.label,
                 "cut_mm": spec.cut_mm,
                 "keep_mm": spec.keep_mm,
-                "area_mm2": spec.area_mm2,
-                "density_mg_per_mm2": spec.density,
+                "area_mm2": spec_area_mm2(spec),
+                "density_mg_per_mm2": spec_density(spec),
             }
         )
     return out
@@ -1084,8 +1111,8 @@ def print_film_table() -> None:
                 spec.label,
                 f"{spec.cut_mm:.1f}",
                 f"{spec.keep_mm:.1f}",
-                f"{spec.area_mm2:.1f}",
-                f"{spec.density:.5f}",
+                f"{spec_area_mm2(spec):.1f}",
+                f"{spec_density(spec):.5f}",
             ]
         )
     print_table(headers, rows)
@@ -1486,8 +1513,8 @@ def result_to_json(sched: ScheduleResult, compare: Optional[list[dict[str, Any]]
         compare: optional compare_classic() rows to include under "compare".
     Returns:
         asdict(sched), plus the optional compare key. This is the surface
-        test_parity.js diffs against index.html, so these field names are part
-        of the contract between the two implementations.
+        test_parity.js diffs the generated JavaScript against, so these field
+        names are part of the contract with the site.
     """
     payload: dict[str, Any] = asdict(sched)
     if compare is not None:
