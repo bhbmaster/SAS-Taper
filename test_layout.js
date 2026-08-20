@@ -906,11 +906,13 @@ const probe = () => {
         }, [OVERLAP_GROUPS, CLIP_SELECTORS, SPILL_PAIRS]);
 
         /* The whole-algorithm listing — and the smaller snippets — are too
-           wide for a phone as one long line. On small screens they must wrap
-           rather than sprout a sideways scroller of their own; overflow-x:auto
-           on the <pre> would hide that from the page-level overflow check.
-           Wider viewports keep the listing as a strip of code. */
-        const listing = await page.evaluate(() => {
+           wide for a phone as one long line. On small screens they wrap by
+           default rather than sprouting a sideways scroller of their own;
+           overflow-x:auto on the <pre> would hide that from the page-level
+           overflow check. Wider viewports keep the listing as a strip of
+           code. Wrap and Scroll are a pair of buttons, so a reader can pick
+           the other one, and that choice has to actually flip the listing. */
+        const readListing = () => page.evaluate(() => {
           const blocks = [...document.querySelectorAll("pre")].map((p) => {
             const cs = getComputedStyle(p);
             return {
@@ -919,22 +921,68 @@ const probe = () => {
               overflowX: p.scrollWidth - p.clientWidth,
             };
           });
-          return { blocks, whole: blocks.find((b) => b.whole) || null };
+          const on = document.getElementById("codeWrapOn");
+          const off = document.getElementById("codeWrapOff");
+          return {
+            blocks,
+            whole: blocks.find((b) => b.whole) || null,
+            wrapAttr: document.documentElement.getAttribute("data-code-wrap"),
+            wrapPressed: on && on.getAttribute("aria-pressed"),
+            scrollPressed: off && off.getAttribute("aria-pressed"),
+            hasPair: !!(on && off),
+          };
         });
+        const listing = await readListing();
         checks++;
+        if (!listing.hasPair) {
+          failures.push("fold.html has no Wrap/Scroll controls on the listing");
+        }
         if (!listing.whole) {
           failures.push("fold.html has no whole-algorithm code block");
-        } else if (width <= PRE_WRAP_MAX) {
-          if (!/wrap/.test(listing.whole.whiteSpace)) {
-            failures.push(`fold.html code listing does not wrap at ${width}px (white-space: ${listing.whole.whiteSpace})`);
+        } else {
+          const wantWrap = width <= PRE_WRAP_MAX;
+          if (listing.wrapPressed !== String(wantWrap) || listing.scrollPressed !== String(!wantWrap)) {
+            failures.push(`fold.html listing default at ${width}px is wrap=${listing.wrapPressed} `
+              + `scroll=${listing.scrollPressed}, expected wrap=${wantWrap}`);
           }
-          const sideways = listing.blocks.filter((b) => b.overflowX > 1);
-          if (sideways.length) {
-            failures.push(`fold.html <pre> still scrolls sideways at ${width}px `
-              + `(${sideways.map((b) => (b.whole ? "whole " : "") + b.overflowX + "px").join(", ")})`);
+          if (wantWrap) {
+            if (!/wrap/.test(listing.whole.whiteSpace)) {
+              failures.push(`fold.html code listing does not wrap at ${width}px (white-space: ${listing.whole.whiteSpace})`);
+            }
+            const sideways = listing.blocks.filter((b) => b.overflowX > 1);
+            if (sideways.length) {
+              failures.push(`fold.html <pre> still scrolls sideways at ${width}px `
+                + `(${sideways.map((b) => (b.whole ? "whole " : "") + b.overflowX + "px").join(", ")})`);
+            }
+          } else if (/wrap/.test(listing.whole.whiteSpace)) {
+            failures.push(`fold.html code listing wraps at ${width}px; wrapping is for small screens`);
           }
-        } else if (/wrap/.test(listing.whole.whiteSpace)) {
-          failures.push(`fold.html code listing wraps at ${width}px; wrapping is for small screens`);
+
+          await page.click(wantWrap ? "#codeWrapOff" : "#codeWrapOn");
+          const flipped = await readListing();
+          checks++;
+          if (wantWrap) {
+            if (/wrap/.test(flipped.whole.whiteSpace) || flipped.scrollPressed !== "true") {
+              failures.push(`fold.html Scroll at ${width}px did not turn wrapping off `
+                + `(white-space: ${flipped.whole.whiteSpace}, pressed=${flipped.scrollPressed})`);
+            }
+            if (flipped.whole.overflowX <= 1) {
+              failures.push(`fold.html Scroll at ${width}px left no sideways scroller on the listing`);
+            }
+          } else if (!/wrap/.test(flipped.whole.whiteSpace) || flipped.wrapPressed !== "true") {
+            failures.push(`fold.html Wrap at ${width}px did not turn wrapping on `
+              + `(white-space: ${flipped.whole.whiteSpace}, pressed=${flipped.wrapPressed})`);
+          }
+          /* Choosing Scroll on a phone must keep the scroller inside the
+             listing. Without min-width:0 on the panel the <pre> expands the
+             page, which is the failure wrapping was added to prevent. */
+          const after = await page.evaluate(probe);
+          checks++;
+          if (after.scrollX > 0) {
+            failures.push(`fold.html page scrolls horizontally by ${after.scrollX}px `
+              + `after choosing ${wantWrap ? "Scroll" : "Wrap"} at ${width}px`);
+          }
+          await page.click(wantWrap ? "#codeWrapOn" : "#codeWrapOff");
         }
 
         /* Every preset, so each stage is measured against a real cycle rather
@@ -979,6 +1027,37 @@ const probe = () => {
         record(`fold.html ${theme} @${width}px`, await page.evaluate(probe), errs);
         await ctx.close();
       }
+    }
+
+    /* Only the non-default value is stored, and a stored choice has to survive
+       a reload — the same rule the calculator uses for folding vs measuring.
+       A fresh phone visit must still land on Wrap. */
+    {
+      const ctx = await browser.newContext({ viewport: { width: 320, height: 900 } });
+      const page = await ctx.newPage();
+      await page.goto(FOLD_PAGE);
+      await page.waitForTimeout(250);
+      const fresh = await page.evaluate(() => ({
+        pressed: document.getElementById("codeWrapOn").getAttribute("aria-pressed"),
+        wrap: getComputedStyle(document.querySelector("pre.whole")).whiteSpace,
+      }));
+      checks++;
+      if (fresh.pressed !== "true" || !/wrap/.test(fresh.wrap)) {
+        failures.push(`a fresh phone visit did not default to Wrap (${JSON.stringify(fresh)})`);
+      }
+      await page.click("#codeWrapOff");
+      await page.reload();
+      await page.waitForTimeout(250);
+      const kept = await page.evaluate(() => ({
+        pressed: document.getElementById("codeWrapOff").getAttribute("aria-pressed"),
+        wrap: getComputedStyle(document.querySelector("pre.whole")).whiteSpace,
+        attr: document.documentElement.getAttribute("data-code-wrap"),
+      }));
+      checks++;
+      if (kept.pressed !== "true" || /wrap/.test(kept.wrap) || kept.attr !== "off") {
+        failures.push(`Scroll did not survive a reload (${JSON.stringify(kept)})`);
+      }
+      await ctx.close();
     }
   }
 

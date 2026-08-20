@@ -6,6 +6,19 @@
 <title>Choosing the fold — SAS-Taper</title>
 <meta name="description" content="How SAS-Taper turns a millimetre measurement into a folding instruction: the search over folded grids, the shape rule, the difficulty score, and the drawing.">
 <meta name="color-scheme" content="dark light">
+<script>
+  /* Applied before first paint so a phone does not flash an 80-column strip
+     and then wrap. An explicit Wrap/Scroll choice, if there is one, wins. */
+  (function () {
+    try {
+      var v = localStorage.getItem("sas-taper-fold-wrap");
+      if (v !== "on" && v !== "off") {
+        v = window.matchMedia("(max-width: 620px)").matches ? "on" : "off";
+      }
+      document.documentElement.setAttribute("data-code-wrap", v);
+    } catch (e) {}
+  })();
+</script>
 <style>
   /* Light is the base set. The two blocks after it redefine only tokens, so no
      colour is ever defined in one theme and missing from another. The film
@@ -154,21 +167,55 @@
   pre.whole { font-size: 0.74rem; line-height: 1.7; padding: 1.1rem 1.2rem; }
   pre {
     margin: 0; background: var(--sunk); border: 1px solid var(--line);
-    border-radius: 8px; padding: 0.8rem 0.9rem; overflow-x: auto;
+    border-radius: 8px; padding: 0.8rem 0.9rem; overflow-x: auto; min-width: 0;
     font: 400 0.78rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink);
   }
+  /* Phones cannot show an 80-column listing. Wrap by default below 620px,
+     unless the reader asked for a sideways scroller. min-width:0 on the
+     panel keeps that scroller inside the listing — without it the <pre>
+     as a grid item expands the page. */
   @media (max-width: 620px) {
     pre.whole { font-size: 0.68rem; }
-    /* Phones cannot show an 80-column listing. Wrap rather than a nested
-       horizontal scroller — overflow-x:auto on the <pre> would hide the
-       problem from the page-level overflow check. */
-    pre {
+    html:not([data-code-wrap]) pre {
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }
   }
+  html[data-code-wrap="on"] pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
   pre .c { color: var(--faint); }
   pre .k { color: var(--accent); }
+
+  .code-panel { min-width: 0; background: var(--sunk); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .code-panel pre { border: 0; border-radius: 0; background: transparent; }
+  .code-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 0.55rem 0.8rem; flex-wrap: wrap;
+    padding: 0.4rem 0.45rem 0.4rem 0.9rem;
+    border-bottom: 1px solid var(--line); background: var(--card);
+  }
+  .code-bar .k {
+    font: 600 0.68rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint);
+  }
+  /* A pair of pressed-state buttons rather than a single toggle, because wrap
+     and scroll are alternatives of equal standing and both names should be
+     visible before choosing. */
+  .code-modes { display: inline-flex; gap: 0.2rem; background: var(--sunk);
+                border: 1px solid var(--line); border-radius: 8px; padding: 0.15rem; }
+  .code-modes button {
+    font: 500 0.78rem/1 ui-sans-serif, system-ui, sans-serif;
+    padding: 0.4rem 0.7rem; border-radius: 6px; cursor: pointer;
+    border: 1px solid transparent; background: transparent; color: var(--muted);
+  }
+  .code-modes button:hover { color: var(--accent); }
+  .code-modes button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .code-modes button[aria-pressed="true"] {
+    background: var(--card); color: var(--ink); border-color: var(--line);
+    box-shadow: var(--shadow);
+  }
 
   .facts { display: flex; flex-wrap: wrap; gap: 0.2rem 1.2rem;
            font: 400 0.78rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -306,6 +353,14 @@
       rather see the pictures first, skip past it — nothing below depends on
       having read it.</p>
   </div>
+  <div class="code-panel">
+    <div class="code-bar">
+      <span class="k">fraction_cut</span>
+      <div class="code-modes" role="group" aria-label="How to show the listing">
+        <button type="button" id="codeWrapOn">Wrap</button>
+        <button type="button" id="codeWrapOff">Scroll</button>
+      </div>
+    </div>
   <pre class="whole"><span class="c"># ── The grid ────────────────────────────────────────────────────────────────
 # A fold is only useful if a person can make it by eye, so the film may only be
 # divided these ways. Along its 22 mm length: into 1, 2, 3, 4 or 8 — eighths
@@ -473,6 +528,7 @@ paint(columns * column_width, 0, column_width, tab * row_height)  <span class="c
 <span class="k">if</span> columns:                 line_down(columns * column_width)
 <span class="k">if</span> columns + 1 &lt; long_div:  line_down((columns + 1) * column_width)
 <span class="k">if</span> tab:                     line_across(tab * row_height)</pre>
+  </div>
 </section>
 
 <!-- 1 ------------------------------------------------------------------ -->
@@ -773,6 +829,34 @@ paint(columns × col, 0, col, tab × row)
 
 <script>
 (() => {
+  const $ = (id) => document.getElementById(id);
+
+  const WRAP_KEY = "sas-taper-fold-wrap";
+  const wrapMq = window.matchMedia("(max-width: 620px)");
+  let wrapChosen = null;
+  try {
+    const v = localStorage.getItem(WRAP_KEY);
+    if (v === "on") wrapChosen = true;
+    else if (v === "off") wrapChosen = false;
+  } catch (e) { /* private mode */ }
+  function wrapOn() { return wrapChosen !== null ? wrapChosen : wrapMq.matches; }
+  function applyCodeWrap(on) {
+    document.documentElement.setAttribute("data-code-wrap", on ? "on" : "off");
+    $("codeWrapOn").setAttribute("aria-pressed", String(on));
+    $("codeWrapOff").setAttribute("aria-pressed", String(!on));
+  }
+  function setCodeWrap(on) {
+    wrapChosen = on;
+    try { localStorage.setItem(WRAP_KEY, on ? "on" : "off"); } catch (e) { /* private mode */ }
+    applyCodeWrap(on);
+  }
+  applyCodeWrap(wrapOn());
+  $("codeWrapOn").addEventListener("click", () => setCodeWrap(true));
+  $("codeWrapOff").addEventListener("click", () => setCodeWrap(false));
+  const onWrapMq = () => { if (wrapChosen === null) applyCodeWrap(wrapOn()); };
+  if (wrapMq.addEventListener) wrapMq.addEventListener("change", onWrapMq);
+  else if (wrapMq.addListener) wrapMq.addListener(onWrapMq);
+
   const LONG = [1, 2, 3, 4, 8], SHORT = [1, 2, 3, 4];
   const FILM_MG = 8, FULL = 22, WIDE = 12.8, TOL_MM = 0.5;
   const TOL = TOL_MM * FILM_MG / FULL;          // 0.182 mg
@@ -959,7 +1043,6 @@ paint(columns × col, 0, col, tab × row)
   ];
 
   /* ---- render ----------------------------------------------------------- */
-  const $ = (id) => document.getElementById(id);
   const f2 = (v) => v.toFixed(2);
 
   function render(want) {
