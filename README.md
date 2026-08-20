@@ -76,7 +76,7 @@ The life-size film panel offers a choice, and only that panel — everything els
 
 A fold can only land on the fractions it can make, so the panel always states the dose it gives, the dose the ladder asked for, and the difference between them. It buys simplicity only inside the cutting tolerance you set — if a plain half is within the slip you would make with a ruler anyway, it offers the plain half.
 
-**[How the fold is chosen](https://bhbmaster.github.io/SAS-Taper/fold.html)** is a page of its own — an interactive walkthrough of the search, with every diagram driven by a slider. It ships with the site (`fold.html`), so it works offline too.
+**[How the fold is chosen](https://bhbmaster.github.io/SAS-Taper/fold.html)** is a page of its own — an interactive walkthrough of the search, with every diagram driven by a slider. The algorithm listing wraps on a phone; Wrap / Scroll on the listing picks the other. It ships with the site (`fold.html`), so it works offline too.
 
 **In linear mode the folds come out exact.** A constant step lands on `5/6, 2/3, 1/2, 1/3, 1/6` and so on, every cycle, so a linear taper can be cut from the first day to the last without measuring anything.
 

@@ -8,7 +8,8 @@
 <meta name="color-scheme" content="dark light">
 <script>
   /* Applied before first paint so a phone does not flash an 80-column strip
-     and then wrap. An explicit Wrap/Scroll choice, if there is one, wins. */
+     and then wrap. An explicit Wrap/Scroll choice, if there is one, wins.
+     Key and breakpoint must match WRAP_KEY / wrapMq in the page script. */
   (function () {
     try {
       var v = localStorage.getItem("sas-taper-fold-wrap");
@@ -16,7 +17,7 @@
         v = window.matchMedia("(max-width: 620px)").matches ? "on" : "off";
       }
       document.documentElement.setAttribute("data-code-wrap", v);
-    } catch (e) {}
+    } catch (e) { /* private mode */ }
   })();
 </script>
 <style>
@@ -170,10 +171,13 @@
     border-radius: 8px; padding: 0.8rem 0.9rem; overflow-x: auto; min-width: 0;
     font: 400 0.78rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink);
   }
-  /* Phones cannot show an 80-column listing. Wrap by default below 620px,
-     unless the reader asked for a sideways scroller. min-width:0 on the
-     panel keeps that scroller inside the listing — without it the <pre>
-     as a grid item expands the page. */
+  /* 620px is the wrap breakpoint. The head script, the page script, and
+     test_layout.js all have to agree with this query. Phones wrap by default;
+     Wrap / Scroll on the listing overrides it. The setting applies to every
+     <pre>, not only the big listing, so a phone that asked for Scroll does
+     not wrap the stage snippets either. min-width:0 on the panel keeps a
+     scroller inside the listing — without it the <pre> as a grid item
+     expands the page. */
   @media (max-width: 620px) {
     pre.whole { font-size: 0.68rem; }
     html:not([data-code-wrap]) pre {
@@ -184,6 +188,10 @@
   html[data-code-wrap="on"] pre {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+  html[data-code-wrap="off"] pre {
+    white-space: pre;
+    overflow-wrap: normal;
   }
   pre .c { color: var(--faint); }
   pre .k { color: var(--accent); }
@@ -200,9 +208,10 @@
     font: 600 0.68rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint);
   }
-  /* A pair of pressed-state buttons rather than a single toggle, because wrap
-     and scroll are alternatives of equal standing and both names should be
-     visible before choosing. */
+  /* A pair of pressed-state buttons rather than a single toggle, because Wrap
+     and Scroll are alternatives of equal standing and both names should be
+     visible before choosing. "Wrap" here is the lines of the listing, not the
+     film — the kicker says so. */
   .code-modes { display: inline-flex; gap: 0.2rem; background: var(--sunk);
                 border: 1px solid var(--line); border-radius: 8px; padding: 0.15rem; }
   .code-modes button {
@@ -302,8 +311,9 @@
   <div class="vocab" id="v2"></div>
   <div class="txt" style="max-width:68ch">
     <h3>And the names in the code</h3>
-    <p>The code below uses short names because it is real code, lifted out of
-      the tool rather than written for a diagram. Here is every one of them.</p>
+    <p>The listing below spells names out — <code>parts_taken</code> rather than
+      <code>cells</code> — because it is there to be read. The calculator's own
+      two copies stay short. Here is every name the listing uses.</p>
   </div>
   <div class="tw"><table class="gloss">
     <thead><tr><th class="f">Name</th><th class="f">Means</th><th class="f">In the picture above</th></tr></thead>
@@ -314,18 +324,18 @@
       <tr><td class="f">wide_mm</td><td>The film's <em>short</em> side in millimetres.</td><td class="f">12.8</td></tr>
       <tr><td class="f">long_div</td><td>How many parts the <em>long</em> side is folded into. "div" is short for divisions.</td><td class="f">4</td></tr>
       <tr><td class="f">short_div</td><td>How many parts the <em>short</em> side is folded into.</td><td class="f">3</td></tr>
-      <tr><td class="f">cells</td><td>How many of the little rectangles you are taking. Not how many there are — how many you keep.</td><td class="f">5 of 12</td></tr>
+      <tr><td class="f">parts_taken</td><td>How many of the little rectangles you are taking. Not how many there are — how many you keep.</td><td class="f">5 of 12</td></tr>
       <tr><td class="f">columns</td><td>How many <em>full-height</em> strips of the film that adds up to.</td><td class="f">1</td></tr>
       <tr><td class="f">tab</td><td>The leftover cells that do not make a full column — the little bit hanging off the end.</td><td class="f">2</td></tr>
       <tr><td class="f">cuts</td><td>How many times you put a blade to the film.</td><td class="f">3</td></tr>
       <tr><td class="f">pieces</td><td>How many separate bits of film end up being your dose.</td><td class="f">2</td></tr>
-      <tr><td class="f">err</td><td>How far this fold's dose is from the one you wanted, in milligrams. Short for error. Never hidden from the reader.</td><td class="f">—</td></tr>
+      <tr><td class="f">error_mg</td><td>How far this fold's dose is from the one you wanted, in milligrams. Never hidden from the reader.</td><td class="f">—</td></tr>
       <tr><td class="f">difficulty</td><td>A made-up score for how hard this fold is to do by hand. Lower is easier. Only ever compared against other folds.</td><td class="f">—</td></tr>
-      <tr><td class="f">tol_mg</td><td>Your own cutting tolerance in milligrams — how far out you would be anyway, using a ruler. Short for tolerance.</td><td class="f">—</td></tr>
+      <tr><td class="f">tolerance_mg</td><td>Your own cutting tolerance in milligrams — how far out you would be anyway, using a ruler.</td><td class="f">—</td></tr>
       <tr><td class="f">candidates</td><td>The list of every fold the grid can make. 180 of them.</td><td class="f">—</td></tr>
-      <tr><td class="f">best</td><td>The smallest error any fold in that list manages.</td><td class="f">—</td></tr>
-      <tr><td class="f">cap</td><td>The most error we will accept. A fold has to be at least this close to stay in the running.</td><td class="f">—</td></tr>
-      <tr><td class="f">shortlist</td><td>The folds that are close enough — the ones still in the running once the cap is applied.</td><td class="f">—</td></tr>
+      <tr><td class="f">closest_possible</td><td>The smallest error any fold in that list manages.</td><td class="f">—</td></tr>
+      <tr><td class="f">worst_allowed</td><td>The most error we will accept. A fold has to be at least this close to stay in the running.</td><td class="f">—</td></tr>
+      <tr><td class="f">shortlist</td><td>The folds that are close enough — the ones still in the running once that ceiling is applied.</td><td class="f">—</td></tr>
       <tr><td class="f">chosen</td><td>The one fold that wins, and the one the tool draws.</td><td class="f">—</td></tr>
     </tbody>
   </table></div>
@@ -347,16 +357,16 @@
   <div class="txt" style="max-width:none">
     <span class="num">The whole algorithm</span>
     <h2>All of it, in one place</h2>
-    <p>This is the real function out of the tool, with the comments written for
-      someone meeting it for the first time. Everything after it on this page
-      is these same steps, one at a time, with a picture for each. If you would
-      rather see the pictures first, skip past it — nothing below depends on
-      having read it.</p>
+    <p>This is the search the tool runs, with the comments written for someone
+      meeting it for the first time. Everything after it on this page is these
+      same steps, one at a time, with a picture for each. If you would rather
+      see the pictures first, skip past it — nothing below depends on having
+      read it.</p>
   </div>
   <div class="code-panel">
     <div class="code-bar">
-      <span class="k">fraction_cut</span>
-      <div class="code-modes" role="group" aria-label="How to show the listing">
+      <span class="k">Lines</span>
+      <div class="code-modes" role="group" aria-label="Wrap or scroll the listing">
         <button type="button" id="codeWrapOn">Wrap</button>
         <button type="button" id="codeWrapOff">Scroll</button>
       </div>
@@ -831,8 +841,8 @@ paint(columns × col, 0, col, tab × row)
 (() => {
   const $ = (id) => document.getElementById(id);
 
-  const WRAP_KEY = "sas-taper-fold-wrap";
-  const wrapMq = window.matchMedia("(max-width: 620px)");
+  const WRAP_KEY = "sas-taper-fold-wrap"; /* must match the head script */
+  const wrapMq = window.matchMedia("(max-width: 620px)"); /* must match the CSS */
   let wrapChosen = null;
   try {
     const v = localStorage.getItem(WRAP_KEY);

@@ -879,11 +879,34 @@ const probe = () => {
       failures.push(`fold.html loads something off-site: ${offsite.join(", ")}`);
     }
 
+    /* The glossary is the names the listing uses. It had already drifted once
+       — cells / err / cap in the table, parts_taken / error_mg / worst_allowed
+       in the block — and a reader who learns the short names then meets the
+       long ones is being taught two languages for one function. */
+    checks++;
+    {
+      const glossBlock = SRC.match(/<table class="gloss">[\s\S]*?<\/table>/);
+      if (!glossBlock) {
+        failures.push("fold.html has no names glossary");
+      } else {
+        const names = [...glossBlock[0].matchAll(/<tr><td class="f">([a-z_]+)<\/td>/g)].map((m) => m[1]);
+        const from = SRC.indexOf("<pre class=\"whole\">");
+        const listing = from < 0 ? "" : SRC.slice(from, SRC.indexOf("</pre>", from));
+        const missing = names.filter((n) => !listing.includes(n));
+        if (missing.length) {
+          failures.push(`fold.html glossary names missing from the listing: ${missing.join(", ")}`);
+        }
+        if (!names.includes("parts_taken") || !names.includes("worst_allowed") || !names.includes("error_mg")) {
+          failures.push("fold.html glossary dropped the names the listing spells out");
+        }
+      }
+    }
+
     /* Matches the @media in fold.html. The widths below must sit on both
        sides of it, or a regression that only shows on a phone would never
        be measured. */
     const FOLD_WIDTHS = [320, 414, 768, 1280];
-    const PRE_WRAP_MAX = 620;
+    const PRE_WRAP_MAX = 620; /* must match fold.html's wrap @media */
     checks++;
     if (!FOLD_WIDTHS.some((w) => w <= PRE_WRAP_MAX) || !FOLD_WIDTHS.some((w) => w > PRE_WRAP_MAX)) {
       failures.push(`fold.html widths no longer straddle the ${PRE_WRAP_MAX}px code-wrap breakpoint`);
@@ -929,6 +952,8 @@ const probe = () => {
             wrapAttr: document.documentElement.getAttribute("data-code-wrap"),
             wrapPressed: on && on.getAttribute("aria-pressed"),
             scrollPressed: off && off.getAttribute("aria-pressed"),
+            wrapLabel: on && on.textContent.trim(),
+            scrollLabel: off && off.textContent.trim(),
             hasPair: !!(on && off),
           };
         });
@@ -936,14 +961,17 @@ const probe = () => {
         checks++;
         if (!listing.hasPair) {
           failures.push("fold.html has no Wrap/Scroll controls on the listing");
+        } else if (!/Wrap/.test(listing.wrapLabel) || listing.scrollLabel !== "Scroll") {
+          failures.push(`fold.html listing controls read "${listing.wrapLabel}" / "${listing.scrollLabel}", expected Wrap / Scroll`);
         }
         if (!listing.whole) {
           failures.push("fold.html has no whole-algorithm code block");
         } else {
           const wantWrap = width <= PRE_WRAP_MAX;
-          if (listing.wrapPressed !== String(wantWrap) || listing.scrollPressed !== String(!wantWrap)) {
+          if (listing.wrapPressed !== String(wantWrap) || listing.scrollPressed !== String(!wantWrap)
+              || listing.wrapAttr !== (wantWrap ? "on" : "off")) {
             failures.push(`fold.html listing default at ${width}px is wrap=${listing.wrapPressed} `
-              + `scroll=${listing.scrollPressed}, expected wrap=${wantWrap}`);
+              + `scroll=${listing.scrollPressed} attr=${listing.wrapAttr}, expected wrap=${wantWrap}`);
           }
           if (wantWrap) {
             if (!/wrap/.test(listing.whole.whiteSpace)) {
@@ -955,7 +983,7 @@ const probe = () => {
                 + `(${sideways.map((b) => (b.whole ? "whole " : "") + b.overflowX + "px").join(", ")})`);
             }
           } else if (/wrap/.test(listing.whole.whiteSpace)) {
-            failures.push(`fold.html code listing wraps at ${width}px; wrapping is for small screens`);
+            failures.push(`fold.html code listing wraps by default at ${width}px; the default wrap is for small screens`);
           }
 
           await page.click(wantWrap ? "#codeWrapOff" : "#codeWrapOn");
@@ -1029,9 +1057,10 @@ const probe = () => {
       }
     }
 
-    /* Only the non-default value is stored, and a stored choice has to survive
-       a reload — the same rule the calculator uses for folding vs measuring.
-       A fresh phone visit must still land on Wrap. */
+    /* An explicit Wrap/Scroll click is stored (both values — the default
+       depends on the viewport, so "only the non-default" would not work).
+       A stored Scroll has to survive a reload, and a fresh phone visit must
+       still land on Wrap. */
     {
       const ctx = await browser.newContext({ viewport: { width: 320, height: 900 } });
       const page = await ctx.newPage();
