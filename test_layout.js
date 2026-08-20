@@ -93,8 +93,17 @@ const probe = () => {
       const specMg = picked ? parseFloat(picked.getAttribute("data-spec")) : row.filmMg;
       const want = window.SASTaperInternals
         .filmLayout(row.cutFromMg, row.sliverMg, specMg, 22).filmsOut;
+      /* Folding mode draws one SVG plan view of the marked film instead of a
+         bar per film — the whole ones need no cut and it says so in words —
+         so the bar count only applies to measuring mode. */
+      const folding = !!document.querySelector("#stripViz svg");
       const life = document.querySelectorAll("#stripViz .strip-full").length;
-      if (life !== want) {
+      if (folding) {
+        if (life) out.bars.push(`folding mode drew ${life} measuring bars as well as the fold`);
+        if (document.querySelectorAll("#stripViz svg").length !== 1) {
+          out.bars.push(`folding mode drew ${document.querySelectorAll("#stripViz svg").length} films, expected 1`);
+        }
+      } else if (life !== want) {
         out.bars.push(`life-size panel drew ${life} bars for a ${want}-film day on ${specMg} mg film`);
       }
       const lifeMarked = document.querySelectorAll("#stripViz .strip-full.marked").length;
@@ -399,6 +408,89 @@ const probe = () => {
     errs.length = 0;
     record(`32 mg back to the cycle's film @${width}px`, await page.evaluate(probe), errs);
     await ctx.close();
+  }
+
+  /* 4b. The folding mode of the life-size panel. A different drawing entirely
+         — an SVG plan view rather than flex bars — so it needs its own sweep,
+         across the cycles where the chosen grid is coarsest and finest, both
+         themes, and the widths where the facts line has to wrap. */
+  for (const width of [320, 414, 768, 1440]) {
+    for (const theme of ["dark", "light"]) {
+      const { ctx, page, errs } = await openPage(width, theme);
+      await page.click("#vizModeFrac");
+      await page.waitForTimeout(150);
+      for (const cycle of [1, 2, 5, 7, 9]) {
+        await page.evaluate((c) => {
+          const tr = document.querySelector(`#schedTable tbody tr[data-cycle="${c}"]`);
+          if (tr) tr.click();
+        }, cycle);
+        await page.waitForTimeout(120);
+        errs.length = 0;
+        record(`fold mode c${cycle} ${theme} @${width}px`, await page.evaluate(probe), errs);
+      }
+
+      /* The drawing has to be the fraction the caption claims, and the caption
+         has to be the fraction the maths chose. One disagreeing with the other
+         is the whole failure mode of a second implementation of the picture. */
+      const fold = await page.evaluate(() => {
+        const svg = document.querySelector("#stripViz svg");
+        if (!svg) return null;
+        const text = document.getElementById("stripViz").innerText;
+        const m = text.match(/fold into (\d+) × (\d+)/);
+        const takes = [...svg.querySelectorAll('rect[fill^="url(#f"]')]
+          .filter((r) => /t\)$/.test(r.getAttribute("fill")));
+        const vb = svg.getAttribute("viewBox").split(" ").map(Number);
+        const area = takes.reduce(
+          (a, r) => a + Number(r.getAttribute("width")) * Number(r.getAttribute("height")), 0);
+        const whole = (vb[2] - 8) * (vb[3] - 8);
+        const cells = text.match(/take (\d+) of (\d+)/);
+        return {
+          grid: m ? [Number(m[1]), Number(m[2])] : null,
+          drawn: area / whole,
+          claimed: cells ? Number(cells[1]) / Number(cells[2]) : null,
+          blades: svg.querySelectorAll(".fold-blade").length,
+          cutsSaid: (text.match(/(\d+) straight cuts?/) || [])[1],
+          gridLines: svg.querySelectorAll(".fold-grid").length,
+          hasApprox: /This is an approximation/.test(text),
+        };
+      });
+      checks++;
+      if (!fold) {
+        failures.push(`${theme} ${width}px: folding mode drew no film`);
+      } else {
+        if (fold.claimed === null || Math.abs(fold.drawn - fold.claimed) > 1e-6) {
+          failures.push(`${theme} ${width}px fold: drawing is ${fold.drawn.toFixed(4)} `
+            + `of the film but the caption says ${fold.claimed}`);
+        }
+        /* One fold line per subdivision, minus the film's own two edges. */
+        const want = fold.grid ? (fold.grid[0] - 1) + (fold.grid[1] - 1) : -1;
+        if (fold.gridLines !== want) {
+          failures.push(`${theme} ${width}px fold: ${fold.gridLines} fold lines drawn for a `
+            + `${fold.grid && fold.grid.join("×")} grid, expected ${want}`);
+        }
+        if (String(fold.blades) !== String(fold.cutsSaid)) {
+          failures.push(`${theme} ${width}px fold: ${fold.blades} blade lines drawn but the `
+            + `caption says ${fold.cutsSaid} cuts`);
+        }
+        /* An approximation the reader cannot see the size of is worse than
+           none, so the disclaimer is not optional. */
+        if (!fold.hasApprox) {
+          failures.push(`${theme} ${width}px fold: no "this is an approximation" note`);
+        }
+      }
+
+      /* Exact mode has to survive the round trip untouched. */
+      await page.click("#vizModeExact");
+      await page.waitForTimeout(150);
+      const back = await page.evaluate(() =>
+        !!document.querySelector("#stripViz .strip-full")
+        && !document.querySelector("#stripViz svg"));
+      checks++;
+      if (!back) failures.push(`${theme} ${width}px: measuring mode did not come back`);
+      errs.length = 0;
+      record(`fold mode back to exact ${theme} @${width}px`, await page.evaluate(probe), errs);
+      await ctx.close();
+    }
   }
 
   /* 5a. The calendar on a linear run: a much shorter ladder, so fewer cells,

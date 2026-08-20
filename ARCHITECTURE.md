@@ -210,6 +210,33 @@ The one reported case where the delta is *not* the sliver is the **first cut of 
 
 `banked_mg` is a different accounting and stays that way: it is the *ladder's* count of the sliver, `days × sliver`, exactly one whole piece per full cycle. That is the method's milestone and the buffer it promises — deliberately **not** a tally of every offcut a reader physically ends up holding, which depends on whether a big offcut can serve as a whole dose and is outside what this tool models. `save_mm` is what leaves the film in front of you today. Both are true, and the glossary says which is which rather than letting one stand in for the other.
 
+#### Folding instead of measuring
+
+The life-size panel has a second mode. `fraction_cut()` / `fractionCut()` approximate the marked film's take as whole cells of a folded grid: the long axis into `FRAC_LONG_DIVS` (1, 2, 3, 4, 8 — three successive halvings stay reproducible over 22 mm), the short axis into `FRAC_SHORT_DIVS` (1, 2, 3, 4 — at 12.8 mm an eighth is 1.6 mm and nobody judges that by eye).
+
+The chosen piece is always `columns` whole columns plus `tab_cells` cells of the next one, so it is a rectangle or an L, never something scattered. That shape is what makes the cut count small:
+
+| Shape | Cuts | Pieces |
+|---|---|---|
+| the whole film | 0 | 1 |
+| whole columns only | 1 | 1 |
+| part of the first column | 2 | 1 |
+| columns + a tab in the last column | 2 | 2 |
+| columns + a tab mid-film | 3 | 2 |
+
+A tab that runs to the film's own edge needs no cut on that side, which is what makes 5/6 on a 3×2 grid two strokes rather than three.
+
+Two things about the search are load-bearing:
+
+- **A lengthwise cut costs more than a crosswise one.** Both are "one cut", but 12.8 mm guided by the film's own straight edge is not the same job as 22 mm freehand down the middle. Without that term a plain half comes out as `1×2` — the wrong instruction.
+- **`tol_mg` caps the error, it does not add to the best one.** Pass the reader's own cutting tolerance: a fold inside it is no worse than the slip they would make with a rule, so the simplest of those wins. Written as `best + tol` the two compound and the chosen cut can land further out than the tolerance allows — which it did, on the first pass.
+
+The result is deterministic — same arguments, same cut — so the drawing never moves under a reader who has changed nothing. `test_parity.js` sweeps 13,920 cases across six film sizes and four tolerances, because a search with a tie-break is exactly the kind of code that drifts between two implementations.
+
+Every surface states the error in milligrams. **An approximation whose size the reader cannot see is worse than no approximation**, and the panel refuses to imply otherwise.
+
+In **linear mode the folds are exact at every cycle** — a constant step lands on `5/6, 2/3, 1/2, 1/3, 1/6` — so a linear taper needs no ruler at all. `TestFractionCut` asserts that for n = 4, 6 and 8.
+
 ### Film layout — one day across several strips
 
 A 32 mg start on 8 mg strips is four films a day. The arithmetic above does not care, but the person holding a razor does. `film_layout()` answers the only two questions that matter: **how many strips do I open, and where is the one cut?**
@@ -321,6 +348,8 @@ Several things are placed from measured pixels rather than by normal flow, and *
 | `pinStripCutLabel()` | the "today's cut" caption over the cut line, widening its mat to fit |
 | `fitBandLabels()` | steps each band's label down — full → short → nothing — checking **both** width and height |
 | `calMeasure()` | one cycle's cut as the three numbers a day cell can show — `save`, `take`, `delta` — with the mode picking which |
+| `renderFoldViz()` | the life-size panel's folding mode: the chosen grid, the strokes, and the dose error in milligrams |
+| `foldSvg()` | one folded film as SVG — sized in CSS mm like the flex bars beside it, not in pixels |
 | `renderCalLegend()` | the worked day cell above the grid: one real day, its three lines named, and a swatch per cell state |
 | `fitCalCells()` | measures every calendar number and shrinks the ones that overflow their cell |
 
@@ -376,7 +405,7 @@ The two Node suites share `test_browser.js`, which looks for a browser in `CHROM
 
 That skip is right locally and wrong in CI, where it would be a green tick over a page nobody tested, so the workflow has an explicit gate: after installing the browser it calls `findBrowser()` and fails the job if the answer is null. Note the skip only covers a *missing binary* — a browser that exists but fails to launch throws, and both suites exit 1.
 
-### `test_taper.py` — 61 tests, ~482,000 assertions
+### `test_taper.py` — 71 tests, ~500,000 assertions
 
 Standard library, no I/O, runs in about a second.
 
@@ -405,6 +434,8 @@ Named classes cover the closed forms against the simulation, the per-cycle invar
 | Δ save is blank for exactly the three stated reasons | a fourth, unnamed reason would be a column the reader cannot trust — and a stated reason the grid never reaches would be a claim with nothing behind it |
 | the save grows on every cycle that reports a Δ | the thing the method is sold on |
 
+`TestFractionCut` covers the folded-grid cut over the whole 0–1 range and every exact grid point: the piece really is the fraction it claims, the cut count matches the shape the drawing builds from, a zero tolerance takes the closest fraction available, a non-zero one caps the error rather than adding to it, extra slack is only ever spent on fewer cuts, a plain half comes out crosswise, the result is deterministic, the brief's six example fractions are all reachable exactly, and every cycle of a linear run is exact at n = 4, 6 and 8.
+
 `TestTakeAndSave` covers the pair the reader acts on: take and save partition the film with nothing between them, the worked default by hand, linear mode saving the same extra every cycle while the total climbs by that step, and the three cases where `delta_save_mm` has to be `None` — a 2 mg restart, a cycle that drops a whole film, and a day that lands on a film boundary and saves nothing without moving the baseline for the next real cut.
 
 An eleventh test checks **the shape of the coverage itself** — that the matrix really does produce days of 1 through 16 films, days needing a second cut film, and days with nothing to cut. A grid that quietly stopped generating multi-film days would otherwise pass everything above while testing nothing.
@@ -418,13 +449,13 @@ Two phases:
 - **43 named cases** go through the CLI (`python3 taper.py --json`), so the argument plumbing is covered too. Start doses 0.1–64 mg, `n` 2–30, the switch both ways, stretched cycles, `n`-below-3, non-default lengths and strengths, clamp boundaries, empty ladders.
 - **1,280 matrix cases** go straight at `build_schedule()` in one Python process — 1 to 32 mg × all four strengths × `n` 2–30 × **both cut modes**, plus non-default film lengths. **13,567 cycles**, compared field by field.
 
-Every one of the 28 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes — **about 463,000 field comparisons**, which the suite counts as it goes and prints. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
+Every one of the 28 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes — **about 644,000 field comparisons**, which the suite counts as it goes and prints. `fractionCut()` gets its own sweep of 13,920 cases on top of the ladder. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
 
 The months and the comparison table were the last two things written twice and checked nowhere: `compareRows` only walks rows and `compareSummary` only walks scalars, so `monthly_usage()` and `compare_classic()` could have drifted from their JS twins in silence.
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js` — 537 viewport states, 571 checks
+### `test_layout.js` — 585 viewport states, 651 checks
 
 Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
 

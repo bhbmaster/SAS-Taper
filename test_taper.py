@@ -13,10 +13,13 @@ from collections import Counter
 
 from taper import (
     CUT_MODES,
+    FRAC_LONG_DIVS,
+    FRAC_SHORT_DIVS,
     base_film_mg,
     build_schedule,
     cut_context,
     film_layout,
+    fraction_cut,
     kit_line,
     compare_classic,
     ingested_closed_form,
@@ -841,6 +844,150 @@ class TestTakeAndSave(unittest.TestCase):
                 row.delta_save_mm, row.save_mm - prev.save_mm, places=9,
                 msg=f"cycle {row.cycle}",
             )
+
+
+class TestFractionCut(unittest.TestCase):
+    """The folded-grid cut: take whole cells instead of measuring millimetres.
+
+    This is an approximation by construction, so the tests are mostly about it
+    being an honest one — the piece it describes is really the fraction it
+    claims, the error is really the error, and it never quietly picks something
+    further out than it was allowed to.
+    """
+
+    FULL, WIDE = 22.0, 12.8
+
+    def each(self, tol_mg=0.0, film_mg=8.0):
+        """Walk the whole 0–1 range in fine steps, plus the exact grid points."""
+        seen = set()
+        for i in range(1, 1001):
+            seen.add(i / 1000)
+        for L in FRAC_LONG_DIVS:
+            for S in FRAC_SHORT_DIVS:
+                for k in range(1, L * S + 1):
+                    seen.add(k / (L * S))
+        for want in sorted(seen):
+            fc = fraction_cut(want, film_mg, self.FULL, self.WIDE, tol_mg=tol_mg)
+            yield want, fc
+
+    def test_the_piece_is_the_fraction_it_claims(self):
+        """columns + tab must add back up to cells, and cells to the fraction."""
+        for want, fc in self.each():
+            tag = f"want={want:.4f}"
+            self.assertIsNotNone(fc, tag)
+            self.assertEqual(fc.columns * fc.short_div + fc.tab_cells, fc.cells, tag)
+            self.assertLess(fc.tab_cells, fc.short_div, tag)
+            self.assertLessEqual(fc.cells, fc.long_div * fc.short_div, tag)
+            self.assertGreater(fc.cells, 0, tag)
+            self.assertAlmostEqual(
+                fc.fraction, fc.cells / (fc.long_div * fc.short_div), places=12, msg=tag)
+            self.assertAlmostEqual(fc.dose_mg, fc.fraction * 8.0, places=12, msg=tag)
+            self.assertAlmostEqual(
+                fc.error_mg, fc.dose_mg - fc.want_mg, places=12, msg=tag)
+            self.assertIn(fc.long_div, FRAC_LONG_DIVS, tag)
+            self.assertIn(fc.short_div, FRAC_SHORT_DIVS, tag)
+
+    def test_the_cut_count_matches_the_shape(self):
+        """One stroke per side of the tab's column that is not a film edge.
+
+        The drawing is built from the same numbers, so a wrong count here is a
+        caption that disagrees with the picture beside it.
+        """
+        for want, fc in self.each():
+            tag = f"want={want:.4f} {fc.label} {fc.long_div}x{fc.short_div}"
+            if fc.cells == fc.long_div * fc.short_div:
+                want_cuts, want_pieces = 0, 1
+            elif fc.tab_cells == 0:
+                want_cuts, want_pieces = 1, 1
+            else:
+                want_cuts = ((1 if fc.columns else 0)
+                             + (1 if fc.columns + 1 < fc.long_div else 0) + 1)
+                want_pieces = 2 if fc.columns else 1
+            self.assertEqual(fc.cuts, want_cuts, tag)
+            self.assertEqual(fc.pieces, want_pieces, tag)
+            self.assertLessEqual(fc.cuts, 3, tag)
+
+    def test_with_no_tolerance_it_takes_the_closest_there_is(self):
+        best = {}
+        for L in FRAC_LONG_DIVS:
+            for S in FRAC_SHORT_DIVS:
+                for k in range(1, L * S + 1):
+                    best.setdefault("all", []).append(k / (L * S))
+        grid = sorted(set(best["all"]))
+        for want, fc in self.each(tol_mg=0.0):
+            closest = min(abs(g - want) for g in grid)
+            self.assertAlmostEqual(
+                abs(fc.fraction - want), closest, places=12,
+                msg=f"want={want:.4f} took {fc.label}, {closest:.6f} was available")
+
+    def test_a_tolerance_caps_the_error_it_does_not_add_to_it(self):
+        """The trap this walked into once: `best + tol` compounds, so the cut
+        chosen for convenience could sit further out than the tolerance the
+        reader stated. The cap is on the error itself."""
+        for want, fc in self.each(tol_mg=0.18):
+            closest = min(
+                abs(k / (L * S) - want)
+                for L in FRAC_LONG_DIVS for S in FRAC_SHORT_DIVS
+                for k in range(1, L * S + 1)) * 8.0
+            self.assertLessEqual(
+                abs(fc.error_mg), max(closest, 0.18) + 1e-9,
+                msg=f"want={want:.4f} took {fc.label} at {fc.error_mg:+.3f} mg")
+
+    def test_a_looser_tolerance_never_asks_for_more_cuts(self):
+        """Slack is only ever spent on making the cut simpler."""
+        for want, tight in self.each(tol_mg=0.0):
+            loose = fraction_cut(want, 8.0, self.FULL, self.WIDE, tol_mg=0.18)
+            self.assertLessEqual(
+                loose.cuts, tight.cuts,
+                msg=f"want={want:.4f}: {tight.label} in {tight.cuts} became "
+                    f"{loose.label} in {loose.cuts}")
+
+    def test_a_plain_half_is_a_crosswise_cut(self):
+        """Both 2x1 and 1x2 are "one cut" and both are exactly half. One is a
+        12.8 mm stroke along the film's own edge and the other is 22 mm
+        freehand down the middle, so they are not the same instruction."""
+        for tol in (0.0, 0.18):
+            for film, full in ((8.0, 22.0), (2.0, 22.0)):
+                fc = fraction_cut(0.5, film, full, self.WIDE, tol_mg=tol)
+                self.assertEqual((fc.long_div, fc.short_div), (2, 1),
+                                 msg=f"half came out {fc.long_div}x{fc.short_div}")
+
+    def test_it_is_deterministic(self):
+        for want, first in self.each(tol_mg=0.12):
+            again = fraction_cut(want, 8.0, self.FULL, self.WIDE, tol_mg=0.12)
+            self.assertEqual(first, again, msg=f"want={want:.4f} moved")
+
+    def test_the_brief_examples_are_all_reachable(self):
+        """1/2, 1/4, 1/8, 1/12, 1/24, 1/32 — the combinations the design is
+        specified around. Each must come back exact, and as one piece."""
+        for want, label in ((1 / 2, "1/2"), (1 / 4, "1/4"), (1 / 8, "1/8"),
+                            (1 / 12, "1/12"), (1 / 24, "1/24"), (1 / 32, "1/32")):
+            fc = fraction_cut(want, 8.0, self.FULL, self.WIDE)
+            self.assertEqual(fc.label, label)
+            self.assertTrue(fc.exact, f"{label} came back inexact")
+            self.assertEqual(fc.pieces, 1, f"{label} needed {fc.pieces} pieces")
+
+    def test_linear_mode_needs_no_ruler_at_all(self):
+        """The claim the mode is sold on: a constant step lands on a simple
+        fraction every single cycle, so a linear taper can be cut end to end
+        without measuring anything."""
+        for n in (4, 6, 8):
+            sched = build_schedule(8.0, n, cut_mode="linear", target_mg=0)
+            self.assertGreater(len(sched.rows), 2)
+            for row in sched.rows:
+                full = sched.film_2mg_mm if row.film_mg <= 2.01 else sched.film_mm
+                if row.cut_take_mm <= 1e-9:
+                    continue
+                fc = fraction_cut(row.cut_take_mm / full, row.film_mg, full, self.WIDE)
+                self.assertTrue(
+                    fc.exact,
+                    msg=f"n={n} cycle {row.cycle}: {fc.label} is {fc.error_mg:+.3f} mg out")
+
+    def test_a_film_with_no_size_has_no_fraction(self):
+        for bad in (dict(full_mm=0.0), dict(wide_mm=0.0), dict(film_mg=0.0)):
+            kw = dict(film_mg=8.0, full_mm=22.0, wide_mm=12.8)
+            kw.update(bad)
+            self.assertIsNone(fraction_cut(0.5, **kw), bad)
 
 
 class TestSummary(unittest.TestCase):

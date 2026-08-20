@@ -72,6 +72,9 @@ Most changes should leave a plain 8 mg run byte-identical. Diff the rendered tex
 - **Dates anchor to UTC noon.** `new Date("2026-03-01")` and local midnight both shift days across a DST boundary.
 - **"Save" is the film in front of you; "sliver" and "banked" are the ladder.** `save_mm` / `save_mg` are everything right of the take mark on a fresh film — the sliver *plus* what earlier cycles had already taken off — and `delta_save_mm` is how much more that is than last cycle. `sliver_mg` and `banked_mg` are the method's own accounting and are deliberately smaller. Do not "fix" one to match the other; they answer different questions and both are checked.
 - **`delta_save_mm` is `None` in three cases, not zero**: a 2 mg restart, a cycle that drops a whole film from the day, and a day with no cut. Each one makes "extra saved" a comparison against a different thing. Every surface renders those as a dash.
+- **The folding mode belongs to the life-size panel only.** The cut-mark bar above it always measures, because the schedule's millimetre columns refer to *that* drawing. `vizMode` is read in `renderStripViz` and nowhere else.
+- **`fraction_cut()` is written twice and is a search with a tie-break.** Two terms are load-bearing and neither is obvious: a lengthwise cut costs more than a crosswise one (without it a plain half comes out `1×2`), and `tol_mg` caps the error rather than adding to the best one (written as `best + tol` they compound and the cut lands outside the stated tolerance). Both have tests; both were wrong first.
+- **A fraction cut always states its error in milligrams.** An approximation whose size the reader cannot see is worse than no approximation. Do not add a surface that shows the fold without the number.
 - **Both drawings build from the same `dayFilms()` list.** Two panels deriving the day separately is how they end up showing different days.
 
 ---
