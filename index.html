@@ -825,6 +825,7 @@
        standing and the reader should see both names before choosing. */
     .viz-modes { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; margin: 0 0 0.7rem; }
     .viz-modes .k { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+    .viz-modes .viz-why { font-size: 0.8rem; color: var(--accent); margin-left: 0.2rem; }
     .viz-modes button[aria-pressed="true"] {
       background: var(--accent);
       color: var(--on-accent);
@@ -1008,7 +1009,7 @@
         <li>The cards, graphs, and schedule recalculate live. Click a cycle row (or a graph step) to see that day’s cut mark and a life-size film: <strong>TAKE on the left, SAVE on the right</strong>. The cut-mark bar is a full unused film; later cycles hash the rest that is already off.</li>
         <li>Standing at the counter you need four numbers, and the schedule’s tinted block is exactly those four plus one: <strong>Take</strong> in mg and mm, <strong>Save</strong> in mg and mm, and <strong>Δ save</strong>. Open a film, mark it at Take mm from its <strong>left</strong> end, cut once. Left of the mark is the dose; everything right of it — all of it, not just this cycle’s sliver — goes in the jar. Δ save is how much more the jar gets than last cycle, and it grows every cycle. No arithmetic at the strip.</li>
         <li>If your dose is bigger than one film — 16 mg on 8 mg strips, say — the day is simply several strips. The Film column shows <strong>×2</strong>, and only one of those strips is ever cut: take the whole ones as they are.</li>
-        <li>Under the life-size film you can switch how the cut is found. <strong>Measuring</strong> gives the exact mark in millimetres. <strong>Folding</strong> approximates the same dose as whole parts of a folded grid — halve it, halve it again, take five of six — which needs no ruler and no arithmetic. It always tells you how far off the ladder that lands, and in linear mode it lands exactly.</li>
+        <li>The life-size film shows <strong>Folding</strong> by default: the same dose as whole parts of a folded grid — halve it, halve it again, take five of six — which needs no ruler and no arithmetic, and is easier to repeat than measuring 15.28 mm at 6 am. It always tells you how far off the ladder that lands, and in linear mode it lands exactly. Switch to <strong>Measuring</strong> for the exact mark in millimetres; the cut-mark panel above always measures either way. If you want to know how the fold is picked, <a href="fold.html">there is a page on it</a>.</li>
         <li>Print / save as PDF and take it to your prescriber <em>before day 1</em> so they can match quantity and write 2 mg films for the back half.</li>
       </ol>
 
@@ -1171,8 +1172,9 @@
       </div>
       <div class="viz-modes no-print" role="group" aria-label="How to find the cut">
         <span class="k">Find the cut by</span>
-        <button type="button" class="ghost small" id="vizModeExact" aria-pressed="true">Measuring</button>
-        <button type="button" class="ghost small" id="vizModeFrac" aria-pressed="false">Folding</button>
+        <button type="button" class="ghost small" id="vizModeFrac" aria-pressed="true">Folding</button>
+        <button type="button" class="ghost small" id="vizModeExact" aria-pressed="false">Measuring</button>
+        <a class="viz-why" href="fold.html">How the fold is chosen &rarr;</a>
       </div>
       <div class="cal-wrap">
         <div class="cal-bar" id="calBar" title="20 mm at the current scale"></div>
@@ -2212,7 +2214,7 @@
       const m = localStorage.getItem(CAL_MODE_KEY);
       if (m && CAL_MODES[m]) calMode = m;
       calCompact = localStorage.getItem(CAL_DENSITY_KEY) === "compact";
-      if (localStorage.getItem(VIZ_MODE_KEY) === "fold") vizMode = "fold";
+      if (localStorage.getItem(VIZ_MODE_KEY) === "exact") vizMode = "exact";
     } catch (e) { /* ignore */ }
     applyCalChrome();
     $("vizModeExact").setAttribute("aria-pressed", String(vizMode === "exact"));
@@ -2750,8 +2752,14 @@
      screen — hence the calibration bar and the zoom slider. */
   /* Which way the life-size panel finds the cut. Only this panel — the ruler
      above it always measures, because it is the drawing the schedule's own
-     millimetre columns refer to. */
-  let vizMode = "exact";
+     millimetre columns refer to.
+
+     Folding is the default. Halving a film is more reproducible by hand than
+     measuring 15.28 mm of it, the panel states the dose error every time, and
+     the reader's own cutting tolerance keeps that error no worse than the slip
+     a ruler would cost. Measuring is one button away and the ruler above is
+     untouched, so nobody loses the exact mark. */
+  let vizMode = "fold";
 
   /* One folded film, drawn as a cutting guide: the fold grid faint, the strokes
      you actually make bold, the piece you swallow filled orange and the rest
@@ -2978,12 +2986,13 @@
       <p class="strip-side">
         Cycle ${row.cycle} on ${multi ? filmsWord(lay) : article(spec.mg)}
         <strong>${spec.label}</strong> film${multi ? "s" : ""}
-        · fold into <strong>${fc.longDiv} × ${fc.shortDiv}</strong>
-        · take ${fracHtml(fc.label)} of it
+        · fold it into <strong>${fc.longDiv} × ${fc.shortDiv}</strong>
+        · take ${fracHtml(fc.label)} of the film
       </p>
       ${multi ? `<p class="kit"><strong>${kitLine(Object.assign({}, row, lay, { filmMg: spec.mg }))}</strong>
         The whole ones need no cut. Only the film below is folded.</p>` : ""}
-      <div class="fold-wrap">${foldSvg(fc, fullMm, widthMm, k)}</div>
+      <div class="fold-wrap" data-fold="${fc.longDiv}x${fc.shortDiv}"
+           data-cells="${fc.cells}" data-cuts="${fc.cuts}">${foldSvg(fc, fullMm, widthMm, k)}</div>
       <p class="fold-facts">
         <span>Fold the ${fmt(fullMm, 1)} mm side into <b>${fc.longDiv}</b></span>
         ${fc.shortDiv > 1 ? `<span>and the ${fmt(widthMm, 1)} mm side into <b>${fc.shortDiv}</b></span>` : ""}
@@ -2998,15 +3007,21 @@
       </p>
       <p class="legend">${mismatch ? `The taper runs on ${article(row.filmMg)} ${fmtG(row.filmMg)} mg film; this asks what the same day looks like folded on the <strong>${spec.label}</strong> size you picked. ` : ""}${
         fc.columns && fc.tabCells
-          ? `Cut off <strong>${fc.columns}</strong> whole part${fc.columns === 1 ? "" : "s"} of the long side, then take <strong>${fc.tabCells}</strong> of the ${fc.shortDiv} across the next part. Both pieces are today's dose — put them under your tongue together.`
+          ? `Cut off <strong>${fc.columns}</strong> of the ${fc.longDiv} parts along the long side. Then from the next part along, take <strong>${fc.tabCells}</strong> of the ${fc.shortDiv} across its width. Those two pieces together are today's dose — put them both under your tongue.`
           : (fc.tabCells
-            ? `Take <strong>${fc.tabCells}</strong> of the ${fc.shortDiv} across the first part of the long side. One piece.`
+            ? `Fold the ${fmt(widthMm, 1)} mm side into ${fc.shortDiv} and take <strong>${fc.tabCells}</strong> of those ${fc.shortDiv}, off the first part of the long side. One piece.`
             : `Cut off <strong>${fc.columns}</strong> of the ${fc.longDiv} parts along the long side. One straight cut, one piece.`)}
         Everything you do not take goes in the jar, exactly as it does when you measure.</p>
-      <p class="legend"><strong>This is an approximation.</strong> A fold can only land on the fractions
-        it can make, so the dose is ${errTxt === "exact" ? "exactly right this cycle" : `${errTxt} off the ladder's`}${
-        errCls === "ok" && !fc.exact ? ` — inside the ±${fmt((lastOpts && lastOpts.cutTolMm) || 0, 2)} mm you said you can cut to, so no worse than measuring it` : ""}.
-        Switch to <strong>Measuring</strong> for the exact mark.</p>
+      <p class="legend"><strong>This is an approximation.</strong> A fold can only land on the
+        fractions it can make. ${fc.exact
+          ? `This one lands exactly on the <strong>${fmt(wantMg, 2)} mg</strong> the ladder asked for — nothing is lost to rounding this cycle.`
+          : `This one gives <strong>${fmt(fc.doseMg, 2)} mg</strong> where the ladder asked for
+             <strong>${fmt(wantMg, 2)} mg</strong> — <strong>${fmt(Math.abs(fc.errorMg), 2)} mg
+             ${fc.errorMg > 0 ? "high" : "low"}</strong>, ${errCls === "ok"
+              ? `which is inside the ±${fmt((lastOpts && lastOpts.cutTolMm) || 0, 2)} mm you said you can cut to (±${fmt(tolMg, 2)} mg on this film), so it is no worse than measuring it.`
+              : `which is more than the ±${fmt((lastOpts && lastOpts.cutTolMm) || 0, 2)} mm you said you can cut to (±${fmt(tolMg, 2)} mg on this film).`}`}
+        Switch to <strong>Measuring</strong> for the exact mark, or read
+        <a href="fold.html">how the fold is chosen</a>.</p>
     `;
   }
 

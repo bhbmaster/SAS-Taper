@@ -212,7 +212,9 @@ The one reported case where the delta is *not* the sliver is the **first cut of 
 
 #### Folding instead of measuring
 
-The life-size panel has a second mode. `fraction_cut()` / `fractionCut()` approximate the marked film's take as whole cells of a folded grid: the long axis into `FRAC_LONG_DIVS` (1, 2, 3, 4, 8 — three successive halvings stay reproducible over 22 mm), the short axis into `FRAC_SHORT_DIVS` (1, 2, 3, 4 — at 12.8 mm an eighth is 1.6 mm and nobody judges that by eye).
+The life-size panel has two modes and **folding is the default**, because halving a film is more reproducible by hand than measuring 15.28 mm of it. The choice is `vizMode`, persisted in `localStorage`. Load only acts on the *non-default* value, so flipping the default later moves everyone who never touched the buttons and leaves everyone who did where they put themselves.
+
+`fraction_cut()` / `fractionCut()` approximate the marked film's take as whole cells of a folded grid: the long axis into `FRAC_LONG_DIVS` (1, 2, 3, 4, 8 — three successive halvings stay reproducible over 22 mm), the short axis into `FRAC_SHORT_DIVS` (1, 2, 3, 4 — at 12.8 mm an eighth is 1.6 mm and nobody judges that by eye).
 
 The chosen piece is always `columns` whole columns plus `tab_cells` cells of the next one, so it is a rectangle or an L, never something scattered. That shape is what makes the cut count small:
 
@@ -231,7 +233,7 @@ Two things about the search are load-bearing:
 - **A lengthwise cut costs more than a crosswise one.** Both are "one cut", but 12.8 mm guided by the film's own straight edge is not the same job as 22 mm freehand down the middle. Without that term a plain half comes out as `1×2` — the wrong instruction.
 - **`tol_mg` caps the error, it does not add to the best one.** Pass the reader's own cutting tolerance: a fold inside it is no worse than the slip they would make with a rule, so the simplest of those wins. Written as `best + tol` the two compound and the chosen cut can land further out than the tolerance allows — which it did, on the first pass.
 
-The result is deterministic — same arguments, same cut — so the drawing never moves under a reader who has changed nothing. `test_parity.js` sweeps 13,920 cases across six film sizes and four tolerances, because a search with a tie-break is exactly the kind of code that drifts between two implementations.
+The result is deterministic — same arguments, same cut — so the drawing never moves under a reader who has changed nothing. **`fold.html`** is a second shipped page explaining all of the above: the whole algorithm in one annotated block, then the same thing as seven live stages driven by a slider. It reimplements the search a third time, in the page, deliberately — it is an explainer, not the tool, and nothing doses off it. It is self-contained like `index.html` and the layout sweep checks that, plus that its links home still resolve. `test_parity.js` sweeps 13,920 cases across six film sizes and four tolerances, because a search with a tie-break is exactly the kind of code that drifts between two implementations.
 
 Every surface states the error in milligrams. **An approximation whose size the reader cannot see is worse than no approximation**, and the panel refuses to imply otherwise.
 
@@ -349,6 +351,7 @@ Several things are placed from measured pixels rather than by normal flow, and *
 | `fitBandLabels()` | steps each band's label down — full → short → nothing — checking **both** width and height |
 | `calMeasure()` | one cycle's cut as the three numbers a day cell can show — `save`, `take`, `delta` — with the mode picking which |
 | `renderFoldViz()` | the life-size panel's folding mode: the chosen grid, the strokes, and the dose error in milligrams |
+| `fold.html` | the explainer page — its own file, its own stylesheet, linked from the mode switch |
 | `foldSvg()` | one folded film as SVG — sized in CSS mm like the flex bars beside it, not in pixels |
 | `renderCalLegend()` | the worked day cell above the grid: one real day, its three lines named, and a swatch per cell state |
 | `fitCalCells()` | measures every calendar number and shrinks the ones that overflow their cell |
@@ -455,7 +458,7 @@ The months and the comparison table were the last two things written twice and c
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js` — 585 viewport states, 651 checks
+### `test_layout.js` — 673 viewport states, 767 checks
 
 Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
 
