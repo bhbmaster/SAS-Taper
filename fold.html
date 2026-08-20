@@ -7,16 +7,15 @@
 <meta name="description" content="How SAS-Taper turns a millimetre measurement into a folding instruction: the search over folded grids, the shape rule, the difficulty score, and the drawing.">
 <meta name="color-scheme" content="dark light">
 <script>
-  /* Applied before first paint so a phone does not flash an 80-column strip
-     and then wrap. An explicit Wrap/Scroll choice, if there is one, wins.
-     Key and breakpoint must match WRAP_KEY / wrapMq in the page script. */
+  /* Applied before first paint so a reader who chose Wrap does not watch the
+     listing flash as a strip and then re-wrap. Scrolling is the default, so
+     there is nothing to restore unless "on" was stored. The key must match
+     WRAP_KEY in the page script. */
   (function () {
     try {
-      var v = localStorage.getItem("sas-taper-fold-wrap");
-      if (v !== "on" && v !== "off") {
-        v = window.matchMedia("(max-width: 620px)").matches ? "on" : "off";
+      if (localStorage.getItem("sas-taper-fold-wrap") === "on") {
+        document.documentElement.setAttribute("data-code-wrap", "on");
       }
-      document.documentElement.setAttribute("data-code-wrap", v);
     } catch (e) { /* private mode */ }
   })();
 </script>
@@ -171,31 +170,28 @@
     border-radius: 8px; padding: 0.8rem 0.9rem; overflow-x: auto; min-width: 0;
     font: 400 0.78rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink);
   }
-  /* 620px is the wrap breakpoint. The head script, the page script, and
-     test_layout.js all have to agree with this query. Phones wrap by default;
-     Wrap / Scroll on the listing overrides it. The setting applies to every
-     <pre>, not only the big listing, so a phone that asked for Scroll does
-     not wrap the stage snippets either. min-width:0 on the panel keeps a
-     scroller inside the listing — without it the <pre> as a grid item
-     expands the page. */
-  @media (max-width: 620px) {
-    pre.whole { font-size: 0.68rem; }
-    html:not([data-code-wrap]) pre {
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
-    }
-  }
+  @media (max-width: 620px) { pre.whole { font-size: 0.68rem; } }
+  /* The listing scrolls sideways by default at every width, and Wrap is the
+     opt-in. It is written as hard-wrapped 80-column text with the comments in
+     an aligned second column, so soft-wrapping it costs more than it saves:
+     on a 375px phone 108 of its 167 lines re-wrap, the ── rules break into
+     orphan stubs, and every continuation lands back at column 0 where it
+     reads as a new statement rather than the rest of the one above. Scrolling
+     keeps the shape the code was written in. The button is there because the
+     scroller is easy to miss and some readers want the whole line anyway.
+     Only the non-default value is stored, so the default can move later
+     without stale settings pinning old readers to it. */
   html[data-code-wrap="on"] pre {
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
-  html[data-code-wrap="off"] pre {
-    white-space: pre;
-    overflow-wrap: normal;
-  }
   pre .c { color: var(--faint); }
   pre .k { color: var(--accent); }
 
+  /* min-width:0 and overflow:hidden here, and minmax(0, 1fr) on the section, all
+   pull the same way: a <pre> wide enough to scroll must not widen the page
+   behind it. Any one of the three is enough on its own today, so none of them
+   is the guard — the layout sweep measures the outcome instead. */
   .code-panel { min-width: 0; background: var(--sunk); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .code-panel pre { border: 0; border-radius: 0; background: transparent; }
   .code-bar {
@@ -204,7 +200,7 @@
     padding: 0.4rem 0.45rem 0.4rem 0.9rem;
     border-bottom: 1px solid var(--line); background: var(--card);
   }
-  .code-bar .k {
+  .code-bar .code-kicker {
     font: 600 0.68rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint);
   }
@@ -324,10 +320,14 @@
       <tr><td class="f">wide_mm</td><td>The film's <em>short</em> side in millimetres.</td><td class="f">12.8</td></tr>
       <tr><td class="f">long_div</td><td>How many parts the <em>long</em> side is folded into. "div" is short for divisions.</td><td class="f">4</td></tr>
       <tr><td class="f">short_div</td><td>How many parts the <em>short</em> side is folded into.</td><td class="f">3</td></tr>
+      <tr><td class="f">parts_in_all</td><td>How many little rectangles the grid makes altogether — the two divisions multiplied. This is the bottom of the fraction.</td><td class="f">12</td></tr>
       <tr><td class="f">parts_taken</td><td>How many of the little rectangles you are taking. Not how many there are — how many you keep.</td><td class="f">5 of 12</td></tr>
       <tr><td class="f">columns</td><td>How many <em>full-height</em> strips of the film that adds up to.</td><td class="f">1</td></tr>
       <tr><td class="f">tab</td><td>The leftover cells that do not make a full column — the little bit hanging off the end.</td><td class="f">2</td></tr>
+      <tr><td class="f">tab_mm</td><td>The tab’s smaller side in millimetres — the actual size of the little bit your fingers have to hold. Under 2 mm and the fold is priced as awkward.</td><td class="f">5.5</td></tr>
       <tr><td class="f">cuts</td><td>How many times you put a blade to the film.</td><td class="f">3</td></tr>
+      <tr><td class="f">cut_along_the_length</td><td>1 if one of those strokes runs the long way down the film, 0 if not. That is the freehand one, and the expensive one.</td><td class="f">1</td></tr>
+      <tr><td class="f">cut_across_the_width</td><td>How many strokes run the short way across instead, guided by the film’s own straight edge. The cheap ones.</td><td class="f">2</td></tr>
       <tr><td class="f">pieces</td><td>How many separate bits of film end up being your dose.</td><td class="f">2</td></tr>
       <tr><td class="f">error_mg</td><td>How far this fold's dose is from the one you wanted, in milligrams. Never hidden from the reader.</td><td class="f">—</td></tr>
       <tr><td class="f">difficulty</td><td>A made-up score for how hard this fold is to do by hand. Lower is easier. Only ever compared against other folds.</td><td class="f">—</td></tr>
@@ -365,10 +365,10 @@
   </div>
   <div class="code-panel">
     <div class="code-bar">
-      <span class="k">Lines</span>
+      <span class="code-kicker">Lines</span>
       <div class="code-modes" role="group" aria-label="Wrap or scroll the listing">
-        <button type="button" id="codeWrapOn">Wrap</button>
-        <button type="button" id="codeWrapOff">Scroll</button>
+        <button type="button" id="codeWrapOn" aria-pressed="false">Wrap</button>
+        <button type="button" id="codeWrapOff" aria-pressed="true">Scroll</button>
       </div>
     </div>
   <pre class="whole"><span class="c"># ── The grid ────────────────────────────────────────────────────────────────
@@ -501,11 +501,11 @@ SHORT_DIVISIONS = [1, 2, 3, 4]
     closest_possible = min(error <span class="k">for</span> _, error, *_ <span class="k">in</span> candidates)
 
     <span class="c"># The most error we will put up with. Note it is a ceiling on the error
-    # ITSELF, not a margin added on top of the best one. Written the other way
-    # round — closest_possible + tolerance — the two stack up, and the fold you
-    # end up drawing can sit further out than the tolerance the reader gave
-    # you. That bug shipped once and put a real cycle 0.22 mg out while
-    # claiming to respect 0.18.</span>
+    # ITSELF, not a margin added on top of the closest possible one. Written
+    # the other way round — closest_possible + tolerance — the two stack up,
+    # and the fold you end up drawing can sit further out than the tolerance
+    # the reader gave you. That bug shipped once and put a real cycle 0.22 mg
+    # out while claiming to respect 0.18.</span>
     worst_allowed = max(closest_possible, tolerance_mg)
 
     shortlist = [c <span class="k">for</span> c <span class="k">in</span> candidates <span class="k">if</span> c[1] &lt;= worst_allowed]
@@ -842,30 +842,27 @@ paint(columns × col, 0, col, tab × row)
   const $ = (id) => document.getElementById(id);
 
   const WRAP_KEY = "sas-taper-fold-wrap"; /* must match the head script */
-  const wrapMq = window.matchMedia("(max-width: 620px)"); /* must match the CSS */
-  let wrapChosen = null;
-  try {
-    const v = localStorage.getItem(WRAP_KEY);
-    if (v === "on") wrapChosen = true;
-    else if (v === "off") wrapChosen = false;
-  } catch (e) { /* private mode */ }
-  function wrapOn() { return wrapChosen !== null ? wrapChosen : wrapMq.matches; }
+  let codeWrap = false;
+  try { codeWrap = localStorage.getItem(WRAP_KEY) === "on"; } catch (e) { /* private mode */ }
   function applyCodeWrap(on) {
-    document.documentElement.setAttribute("data-code-wrap", on ? "on" : "off");
+    /* Scrolling is the default, so it is the absence of the attribute rather
+       than a value of its own. Only the non-default value is ever stored. */
+    if (on) document.documentElement.setAttribute("data-code-wrap", "on");
+    else document.documentElement.removeAttribute("data-code-wrap");
     $("codeWrapOn").setAttribute("aria-pressed", String(on));
     $("codeWrapOff").setAttribute("aria-pressed", String(!on));
   }
   function setCodeWrap(on) {
-    wrapChosen = on;
-    try { localStorage.setItem(WRAP_KEY, on ? "on" : "off"); } catch (e) { /* private mode */ }
+    codeWrap = on;
+    try {
+      if (on) localStorage.setItem(WRAP_KEY, "on");
+      else localStorage.removeItem(WRAP_KEY);
+    } catch (e) { /* private mode */ }
     applyCodeWrap(on);
   }
-  applyCodeWrap(wrapOn());
+  applyCodeWrap(codeWrap);
   $("codeWrapOn").addEventListener("click", () => setCodeWrap(true));
   $("codeWrapOff").addEventListener("click", () => setCodeWrap(false));
-  const onWrapMq = () => { if (wrapChosen === null) applyCodeWrap(wrapOn()); };
-  if (wrapMq.addEventListener) wrapMq.addEventListener("change", onWrapMq);
-  else if (wrapMq.addListener) wrapMq.addListener(onWrapMq);
 
   const LONG = [1, 2, 3, 4, 8], SHORT = [1, 2, 3, 4];
   const FILM_MG = 8, FULL = 22, WIDE = 12.8, TOL_MM = 0.5;

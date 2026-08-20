@@ -879,38 +879,72 @@ const probe = () => {
       failures.push(`fold.html loads something off-site: ${offsite.join(", ")}`);
     }
 
-    /* The glossary is the names the listing uses. It had already drifted once
-       — cells / err / cap in the table, parts_taken / error_mg / worst_allowed
-       in the block — and a reader who learns the short names then meets the
-       long ones is being taught two languages for one function. */
+    /* The glossary is the names the listing uses, and it has to agree with the
+       listing in BOTH directions. It drifted one way once already — cells /
+       err / cap in the table against parts_taken / error_mg / worst_allowed in
+       the block — and a reader who learns one set then meets the other is
+       being taught two languages for one function. Checking only glossary →
+       listing leaves the other way open: a name the search introduces and
+       nobody documents (parts_in_all was exactly that) is just as confusing.
+       Names are matched on word boundaries, so a row for `err` cannot be
+       satisfied by the `error_mg` that replaced it. */
     checks++;
     {
       const glossBlock = SRC.match(/<table class="gloss">[\s\S]*?<\/table>/);
+      const from = SRC.indexOf("<pre class=\"whole\">");
+      const listingHtml = from < 0 ? "" : SRC.slice(from, SRC.indexOf("</pre>", from));
+      /* Strip the syntax-highlight spans and unescape, so the checks below see
+         the code a reader sees rather than the markup around it. */
+      const listing = listingHtml.replace(/<[^>]+>/g, "")
+        .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+      /* The drawing section is a sketch of the render, not part of the search,
+         and its screen-space names (column_width, film_height) are deliberately
+         outside the glossary. Everything above it has to be named. */
+      const search = listing.split("# \u2500\u2500 Draw it")[0];
+      const word = (n) => new RegExp(`\\b${n}\\b`);
+
       if (!glossBlock) {
         failures.push("fold.html has no names glossary");
+      } else if (!listing) {
+        failures.push("fold.html has no whole-algorithm listing to check the glossary against");
       } else {
         const names = [...glossBlock[0].matchAll(/<tr><td class="f">([a-z_]+)<\/td>/g)].map((m) => m[1]);
-        const from = SRC.indexOf("<pre class=\"whole\">");
-        const listing = from < 0 ? "" : SRC.slice(from, SRC.indexOf("</pre>", from));
-        const missing = names.filter((n) => !listing.includes(n));
+        const missing = names.filter((n) => !word(n).test(listing));
         if (missing.length) {
           failures.push(`fold.html glossary names missing from the listing: ${missing.join(", ")}`);
         }
-        if (!names.includes("parts_taken") || !names.includes("worst_allowed") || !names.includes("error_mg")) {
-          failures.push("fold.html glossary dropped the names the listing spells out");
+        /* The other direction: every name the search binds — parameters, loop
+           variables, assignments, divmod targets — must have a glossary row. */
+        const bound = new Set();
+        const add = (t) => t.split(",").forEach((n) => {
+          const m = n.trim().match(/^([a-z][a-z0-9_]*)$/);
+          if (m) bound.add(m[1]);
+        });
+        const def = search.match(/def fraction_cut\(([^)]*)\)/);
+        if (!def) failures.push("fold.html listing no longer defines fraction_cut");
+        else add(def[1]);
+        for (const line of search.split("\n")) {
+          let m = line.match(/^\s*for\s+([a-z0-9_,\s]+?)\s+in\s/);
+          if (m) add(m[1]);
+          m = line.match(/^\s*([a-z][a-z0-9_,\s]*?)\s*(?:\+)?=[^=]/);
+          if (m) add(m[1]);
+        }
+        const undocumented = [...bound].filter((n) => !names.includes(n));
+        if (undocumented.length) {
+          failures.push(`fold.html listing uses names the glossary never defines: ${undocumented.sort().join(", ")}`);
+        }
+        checks++;
+        if (!bound.has("parts_in_all") || !bound.has("parts_taken")) {
+          failures.push("fold.html glossary sweep stopped seeing the names it was written for "
+            + `(found ${[...bound].sort().join(", ")})`);
         }
       }
     }
 
-    /* Matches the @media in fold.html. The widths below must sit on both
-       sides of it, or a regression that only shows on a phone would never
-       be measured. */
+    /* Phone through desktop. The listing scrolls at all of them — the default
+       does not depend on the viewport any more, so every width is the same
+       assertion, and a width-dependent default reappearing would break it. */
     const FOLD_WIDTHS = [320, 414, 768, 1280];
-    const PRE_WRAP_MAX = 620; /* must match fold.html's wrap @media */
-    checks++;
-    if (!FOLD_WIDTHS.some((w) => w <= PRE_WRAP_MAX) || !FOLD_WIDTHS.some((w) => w > PRE_WRAP_MAX)) {
-      failures.push(`fold.html widths no longer straddle the ${PRE_WRAP_MAX}px code-wrap breakpoint`);
-    }
 
     for (const width of FOLD_WIDTHS) {
       for (const theme of ["dark", "light"]) {
@@ -928,13 +962,14 @@ const probe = () => {
           window.__selectedRow = () => null;
         }, [OVERLAP_GROUPS, CLIP_SELECTORS, SPILL_PAIRS]);
 
-        /* The whole-algorithm listing — and the smaller snippets — are too
-           wide for a phone as one long line. On small screens they wrap by
-           default rather than sprouting a sideways scroller of their own;
-           overflow-x:auto on the <pre> would hide that from the page-level
-           overflow check. Wider viewports keep the listing as a strip of
-           code. Wrap and Scroll are a pair of buttons, so a reader can pick
-           the other one, and that choice has to actually flip the listing. */
+        /* The listing is hard-wrapped 80-column text with its comments in an
+           aligned second column, so it is read as a strip of code and scrolls
+           sideways inside its own <pre> at every width. Soft-wrapping it costs
+           more than it saves: on a phone two lines in three re-wrap and every
+           continuation lands back at column 0. Wrap is therefore the opt-in,
+           not the default, and both buttons have to actually flip the
+           listing. The scroller lives inside the <pre>; what must never
+           happen is the page itself widening behind it. */
         const readListing = () => page.evaluate(() => {
           const blocks = [...document.querySelectorAll("pre")].map((p) => {
             const cs = getComputedStyle(p);
@@ -967,50 +1002,59 @@ const probe = () => {
         if (!listing.whole) {
           failures.push("fold.html has no whole-algorithm code block");
         } else {
-          const wantWrap = width <= PRE_WRAP_MAX;
-          if (listing.wrapPressed !== String(wantWrap) || listing.scrollPressed !== String(!wantWrap)
-              || listing.wrapAttr !== (wantWrap ? "on" : "off")) {
+          checks++;
+          if (listing.wrapPressed !== "false" || listing.scrollPressed !== "true"
+              || listing.wrapAttr !== null) {
             failures.push(`fold.html listing default at ${width}px is wrap=${listing.wrapPressed} `
-              + `scroll=${listing.scrollPressed} attr=${listing.wrapAttr}, expected wrap=${wantWrap}`);
+              + `scroll=${listing.scrollPressed} attr=${listing.wrapAttr}, expected Scroll and no attribute`);
           }
-          if (wantWrap) {
-            if (!/wrap/.test(listing.whole.whiteSpace)) {
-              failures.push(`fold.html code listing does not wrap at ${width}px (white-space: ${listing.whole.whiteSpace})`);
-            }
-            const sideways = listing.blocks.filter((b) => b.overflowX > 1);
-            if (sideways.length) {
-              failures.push(`fold.html <pre> still scrolls sideways at ${width}px `
-                + `(${sideways.map((b) => (b.whole ? "whole " : "") + b.overflowX + "px").join(", ")})`);
-            }
-          } else if (/wrap/.test(listing.whole.whiteSpace)) {
-            failures.push(`fold.html code listing wraps by default at ${width}px; the default wrap is for small screens`);
+          checks++;
+          if (/wrap/.test(listing.whole.whiteSpace)) {
+            failures.push(`fold.html code listing wraps by default at ${width}px `
+              + `(white-space: ${listing.whole.whiteSpace}); wrapping is the opt-in`);
+          }
+          /* The scroller is the point of the default, so at a phone width the
+             listing has to actually have one — a listing that fits is a
+             listing something has re-wrapped. */
+          if (width <= 414 && listing.whole.overflowX <= 1) {
+            failures.push(`fold.html listing has no sideways scroller at ${width}px`);
           }
 
-          await page.click(wantWrap ? "#codeWrapOff" : "#codeWrapOn");
-          const flipped = await readListing();
+          await page.click("#codeWrapOn");
+          const wrapped = await readListing();
           checks++;
-          if (wantWrap) {
-            if (/wrap/.test(flipped.whole.whiteSpace) || flipped.scrollPressed !== "true") {
-              failures.push(`fold.html Scroll at ${width}px did not turn wrapping off `
-                + `(white-space: ${flipped.whole.whiteSpace}, pressed=${flipped.scrollPressed})`);
-            }
-            if (flipped.whole.overflowX <= 1) {
-              failures.push(`fold.html Scroll at ${width}px left no sideways scroller on the listing`);
-            }
-          } else if (!/wrap/.test(flipped.whole.whiteSpace) || flipped.wrapPressed !== "true") {
+          if (!/wrap/.test(wrapped.whole.whiteSpace) || wrapped.wrapPressed !== "true"
+              || wrapped.wrapAttr !== "on") {
             failures.push(`fold.html Wrap at ${width}px did not turn wrapping on `
-              + `(white-space: ${flipped.whole.whiteSpace}, pressed=${flipped.wrapPressed})`);
+              + `(white-space: ${wrapped.whole.whiteSpace}, pressed=${wrapped.wrapPressed})`);
           }
-          /* Choosing Scroll on a phone must keep the scroller inside the
-             listing. Without min-width:0 on the panel the <pre> expands the
-             page, which is the failure wrapping was added to prevent. */
+          const sideways = wrapped.blocks.filter((b) => b.overflowX > 1);
+          if (sideways.length) {
+            failures.push(`fold.html <pre> still scrolls sideways with Wrap on at ${width}px `
+              + `(${sideways.map((b) => (b.whole ? "whole " : "") + b.overflowX + "px").join(", ")})`);
+          }
+
+          await page.click("#codeWrapOff");
+          const unwrapped = await readListing();
+          checks++;
+          if (/wrap/.test(unwrapped.whole.whiteSpace) || unwrapped.scrollPressed !== "true"
+              || unwrapped.wrapAttr !== null) {
+            failures.push(`fold.html Scroll at ${width}px did not turn wrapping off `
+              + `(white-space: ${unwrapped.whole.whiteSpace}, pressed=${unwrapped.scrollPressed})`);
+          }
+          if (unwrapped.whole.overflowX <= 1 && width <= 414) {
+            failures.push(`fold.html Scroll at ${width}px left no sideways scroller on the listing`);
+          }
+          /* The scroller has to stay inside the listing. If the <pre> widens
+             the page instead, the reader drags the whole article sideways —
+             and the page-level overflow check above cannot see it, because it
+             runs before either button is touched. */
           const after = await page.evaluate(probe);
           checks++;
           if (after.scrollX > 0) {
             failures.push(`fold.html page scrolls horizontally by ${after.scrollX}px `
-              + `after choosing ${wantWrap ? "Scroll" : "Wrap"} at ${width}px`);
+              + `with the listing scrolling at ${width}px`);
           }
-          await page.click(wantWrap ? "#codeWrapOn" : "#codeWrapOff");
         }
 
         /* Every preset, so each stage is measured against a real cycle rather
@@ -1057,36 +1101,70 @@ const probe = () => {
       }
     }
 
-    /* An explicit Wrap/Scroll click is stored (both values — the default
-       depends on the viewport, so "only the non-default" would not work).
-       A stored Scroll has to survive a reload, and a fresh phone visit must
-       still land on Wrap. */
+    /* Only the non-default value is stored, the same way index.html stores the
+       film panel's mode. A chosen Wrap has to survive a reload, and choosing
+       Scroll again has to clear the key rather than store "off", so that
+       moving the default later does not leave old readers pinned to today's
+       one. Whether the restore happens before first paint is checked
+       statically below — by the time Playwright can evaluate anything, both
+       scripts have run and the two are indistinguishable. */
     {
       const ctx = await browser.newContext({ viewport: { width: 320, height: 900 } });
       const page = await ctx.newPage();
       await page.goto(FOLD_PAGE);
       await page.waitForTimeout(250);
       const fresh = await page.evaluate(() => ({
-        pressed: document.getElementById("codeWrapOn").getAttribute("aria-pressed"),
+        pressed: document.getElementById("codeWrapOff").getAttribute("aria-pressed"),
         wrap: getComputedStyle(document.querySelector("pre.whole")).whiteSpace,
+        stored: localStorage.getItem("sas-taper-fold-wrap"),
       }));
       checks++;
-      if (fresh.pressed !== "true" || !/wrap/.test(fresh.wrap)) {
-        failures.push(`a fresh phone visit did not default to Wrap (${JSON.stringify(fresh)})`);
+      if (fresh.pressed !== "true" || /wrap/.test(fresh.wrap) || fresh.stored !== null) {
+        failures.push(`a fresh phone visit did not default to Scroll with nothing stored (${JSON.stringify(fresh)})`);
       }
-      await page.click("#codeWrapOff");
+      await page.click("#codeWrapOn");
       await page.reload();
       await page.waitForTimeout(250);
       const kept = await page.evaluate(() => ({
-        pressed: document.getElementById("codeWrapOff").getAttribute("aria-pressed"),
+        pressed: document.getElementById("codeWrapOn").getAttribute("aria-pressed"),
         wrap: getComputedStyle(document.querySelector("pre.whole")).whiteSpace,
         attr: document.documentElement.getAttribute("data-code-wrap"),
+        stored: localStorage.getItem("sas-taper-fold-wrap"),
       }));
       checks++;
-      if (kept.pressed !== "true" || /wrap/.test(kept.wrap) || kept.attr !== "off") {
-        failures.push(`Scroll did not survive a reload (${JSON.stringify(kept)})`);
+      if (kept.pressed !== "true" || !/wrap/.test(kept.wrap) || kept.attr !== "on" || kept.stored !== "on") {
+        failures.push(`Wrap did not survive a reload (${JSON.stringify(kept)})`);
+      }
+      await page.click("#codeWrapOff");
+      const cleared = await page.evaluate(() => localStorage.getItem("sas-taper-fold-wrap"));
+      checks++;
+      if (cleared !== null) {
+        failures.push(`choosing Scroll stored "${cleared}" instead of clearing the key`);
       }
       await ctx.close();
+    }
+
+    /* The restore has to run in the <head>, during parse. Put it at the foot
+       of the body with the rest of the script and a reader who chose Wrap
+       watches the listing render as a strip and then re-flow — which no
+       measurement taken after load can tell apart from the correct order, so
+       this one is read off the file. The key is written twice, once in each
+       script, and the two have to be the same string. */
+    checks++;
+    {
+      const head = SRC.slice(0, SRC.indexOf("</head>"));
+      const keys = [...SRC.matchAll(/"(sas-taper-fold-wrap)"/g)].length;
+      if (!/data-code-wrap/.test(head)) {
+        failures.push("fold.html no longer restores the code-wrap choice in the <head>; "
+          + "a stored Wrap would be applied after first paint");
+      }
+      if (!head.includes("sas-taper-fold-wrap")) {
+        failures.push("fold.html's head script no longer reads the code-wrap key");
+      }
+      if (keys < 2) {
+        failures.push(`fold.html writes the code-wrap key ${keys} time(s); `
+          + "the head script and the page script each need it, spelled the same");
+      }
     }
   }
 
