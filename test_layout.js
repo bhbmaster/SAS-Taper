@@ -24,7 +24,7 @@
 
 "use strict";
 
-const { launchOrSkip, PAGE } = require("./test_browser");
+const { launchOrSkip, PAGE, FOLD_PAGE } = require("./test_browser");
 
 /* Phone through desktop, with the known breakpoints (360, 420, 640, 820) and
    both sides of each. 280 is a Galaxy Fold cover screen — the narrowest thing
@@ -91,20 +91,28 @@ const probe = () => {
 
       const picked = document.querySelector("#dimTable tbody tr.selected");
       const specMg = picked ? parseFloat(picked.getAttribute("data-spec")) : row.filmMg;
-      const want = window.SASTaperInternals
-        .filmLayout(row.cutFromMg, row.sliverMg, specMg, 22).filmsOut;
-      /* Folding mode draws one SVG plan view of the marked film instead of a
-         bar per film — the whole ones need no cut and it says so in words —
-         so the bar count only applies to measuring mode. */
-      const folding = !!document.querySelector("#stripViz svg");
+      const lay = window.SASTaperInternals
+        .filmLayout(row.cutFromMg, row.sliverMg, specMg, 22);
+      const want = lay.filmsOut;
+      /* Which drawing to expect comes from the control, not from what turned
+         up: folding mode on a day that needs no cut draws neither an SVG nor
+         bars — it says in words that every film is taken whole — and reading
+         the mode off the output mistook that for measuring mode failing. */
+      const btn = document.getElementById("vizModeFrac");
+      const folding = !!btn && btn.getAttribute("aria-pressed") === "true";
       const life = document.querySelectorAll("#stripViz .strip-full").length;
+      const svgs = document.querySelectorAll("#stripViz svg").length;
       if (folding) {
         if (life) out.bars.push(`folding mode drew ${life} measuring bars as well as the fold`);
-        if (document.querySelectorAll("#stripViz svg").length !== 1) {
-          out.bars.push(`folding mode drew ${document.querySelectorAll("#stripViz svg").length} films, expected 1`);
+        const wantSvg = lay.cutTakeMm > 1e-9 ? 1 : 0;
+        if (svgs !== wantSvg) {
+          out.bars.push(`folding mode drew ${svgs} folded films on ${specMg} mg film, expected ${wantSvg}`);
         }
-      } else if (life !== want) {
-        out.bars.push(`life-size panel drew ${life} bars for a ${want}-film day on ${specMg} mg film`);
+      } else {
+        if (svgs) out.bars.push(`measuring mode drew ${svgs} folded films`);
+        if (life !== want) {
+          out.bars.push(`life-size panel drew ${life} bars for a ${want}-film day on ${specMg} mg film`);
+        }
       }
       const lifeMarked = document.querySelectorAll("#stripViz .strip-full.marked").length;
       if (lifeMarked > 1) out.bars.push(`life-size panel drew ${lifeMarked} marked bars`);
@@ -417,7 +425,11 @@ const probe = () => {
   for (const width of [320, 414, 768, 1440]) {
     for (const theme of ["dark", "light"]) {
       const { ctx, page, errs } = await openPage(width, theme);
-      await page.click("#vizModeFrac");
+      /* Folding is the default, so the sweep above already covers it — but
+         that means measuring is now the mode nothing else exercises. Both are
+         driven here so neither drawing can rot behind the other. */
+      for (const mode of ["fold", "exact"]) {
+      await page.click(mode === "fold" ? "#vizModeFrac" : "#vizModeExact");
       await page.waitForTimeout(150);
       for (const cycle of [1, 2, 5, 7, 9]) {
         await page.evaluate((c) => {
@@ -426,32 +438,47 @@ const probe = () => {
         }, cycle);
         await page.waitForTimeout(120);
         errs.length = 0;
-        record(`fold mode c${cycle} ${theme} @${width}px`, await page.evaluate(probe), errs);
+        record(`${mode} mode c${cycle} ${theme} @${width}px`, await page.evaluate(probe), errs);
+      }
+      if (mode === "exact") {
+        /* Measuring must still draw flex bars and no SVG. */
+        const ok = await page.evaluate(() =>
+          !!document.querySelector("#stripViz .strip-full")
+          && !document.querySelector("#stripViz svg"));
+        checks++;
+        if (!ok) failures.push(`${theme} ${width}px: measuring mode drew the wrong thing`);
+        continue;
       }
 
       /* The drawing has to be the fraction the caption claims, and the caption
          has to be the fraction the maths chose. One disagreeing with the other
          is the whole failure mode of a second implementation of the picture. */
+      /* Read the claim off data attributes rather than the prose. Parsing the
+         caption meant a wording change silently disarmed the check — which is
+         exactly what happened the first time the copy was edited. The prose is
+         still checked, but only for agreeing with the attributes. */
       const fold = await page.evaluate(() => {
-        const svg = document.querySelector("#stripViz svg");
+        const wrap = document.querySelector("#stripViz .fold-wrap");
+        const svg = wrap && wrap.querySelector("svg");
         if (!svg) return null;
         const text = document.getElementById("stripViz").innerText;
-        const m = text.match(/fold into (\d+) × (\d+)/);
+        const [L, S] = wrap.dataset.fold.split("x").map(Number);
+        const cells = Number(wrap.dataset.cells);
         const takes = [...svg.querySelectorAll('rect[fill^="url(#f"]')]
           .filter((r) => /t\)$/.test(r.getAttribute("fill")));
         const vb = svg.getAttribute("viewBox").split(" ").map(Number);
         const area = takes.reduce(
           (a, r) => a + Number(r.getAttribute("width")) * Number(r.getAttribute("height")), 0);
-        const whole = (vb[2] - 8) * (vb[3] - 8);
-        const cells = text.match(/take (\d+) of (\d+)/);
         return {
-          grid: m ? [Number(m[1]), Number(m[2])] : null,
-          drawn: area / whole,
-          claimed: cells ? Number(cells[1]) / Number(cells[2]) : null,
+          grid: [L, S],
+          drawn: area / ((vb[2] - 8) * (vb[3] - 8)),
+          claimed: cells / (L * S),
           blades: svg.querySelectorAll(".fold-blade").length,
-          cutsSaid: (text.match(/(\d+) straight cuts?/) || [])[1],
+          cutsSaid: Number(wrap.dataset.cuts),
           gridLines: svg.querySelectorAll(".fold-grid").length,
           hasApprox: /This is an approximation/.test(text),
+          /* The words have to carry the same numbers the attributes do. */
+          textAgrees: text.includes(`${L} × ${S}`) && text.includes(`take ${cells} of ${L * S}`),
         };
       });
       checks++;
@@ -468,6 +495,10 @@ const probe = () => {
           failures.push(`${theme} ${width}px fold: ${fold.gridLines} fold lines drawn for a `
             + `${fold.grid && fold.grid.join("×")} grid, expected ${want}`);
         }
+        if (!fold.textAgrees) {
+          failures.push(`${theme} ${width}px fold: the caption does not state the `
+            + `${fold.grid.join("×")} grid the drawing used`);
+        }
         if (String(fold.blades) !== String(fold.cutsSaid)) {
           failures.push(`${theme} ${width}px fold: ${fold.blades} blade lines drawn but the `
             + `caption says ${fold.cutsSaid} cuts`);
@@ -479,18 +510,45 @@ const probe = () => {
         }
       }
 
-      /* Exact mode has to survive the round trip untouched. */
-      await page.click("#vizModeExact");
-      await page.waitForTimeout(150);
-      const back = await page.evaluate(() =>
-        !!document.querySelector("#stripViz .strip-full")
-        && !document.querySelector("#stripViz svg"));
-      checks++;
-      if (!back) failures.push(`${theme} ${width}px: measuring mode did not come back`);
-      errs.length = 0;
-      record(`fold mode back to exact ${theme} @${width}px`, await page.evaluate(probe), errs);
+      }
       await ctx.close();
     }
+  }
+
+  /* The default mode itself: a reader who has never touched the buttons must
+     land on folding, and a reader who chose measuring must stay there across a
+     reload. Only the non-default value is acted on at load, which is what lets
+     the default move without dragging people who made a choice. */
+  {
+    const { ctx, page, errs } = await openPage(1024, "dark");
+    const fresh = await page.evaluate(() => ({
+      pressed: document.getElementById("vizModeFrac").getAttribute("aria-pressed"),
+      drewFold: !!document.querySelector("#stripViz svg"),
+    }));
+    checks++;
+    if (fresh.pressed !== "true" || !fresh.drewFold) {
+      failures.push(`a fresh visit did not default to folding (${JSON.stringify(fresh)})`);
+    }
+    await page.click("#vizModeExact");
+    await page.waitForTimeout(120);
+    await page.reload();
+    await page.waitForFunction(() => !!window.SASTaperInternals, null, { timeout: 10000 });
+    await page.waitForTimeout(200);
+    const kept = await page.evaluate(() => ({
+      pressed: document.getElementById("vizModeExact").getAttribute("aria-pressed"),
+      drewBars: !!document.querySelector("#stripViz .strip-full"),
+      drewFold: !!document.querySelector("#stripViz svg"),
+    }));
+    checks++;
+    if (kept.pressed !== "true" || !kept.drewBars || kept.drewFold) {
+      failures.push(`measuring did not survive a reload (${JSON.stringify(kept)})`);
+    }
+    /* No probe() here: a reload drops the globals openPage injects, and this
+       block is asserting persistence rather than geometry — the sweeps above
+       already measured both modes at eight width/theme combinations. */
+    checks++;
+    if (errs.length) failures.push(`mode persistence: ${errs.join("; ")}`);
+    await ctx.close();
   }
 
   /* 5a. The calendar on a linear run: a much shorter ladder, so fewer cells,
@@ -803,6 +861,83 @@ const probe = () => {
     checks++;
     if (defs !== 12) failures.push(`touch glossary has ${defs} entries, expected 12`);
     await ctx.close();
+  }
+
+  /* 9. fold.html — the algorithm explainer. A second shipped page with its own
+        stylesheet, so the same failure modes apply. It is also live: every
+        diagram redraws from a slider, so the sweep drives that too, and it has
+        to stay self-contained like index.html does. */
+  {
+    const SRC = require("fs").readFileSync(require("path").join(__dirname, "fold.html"), "utf8");
+    checks++;
+    /* People open this from disk, offline. A CDN link would break that
+       silently — it just renders in the wrong font on a machine with no
+       network, and nobody notices until someone is holding a razor. */
+    const remote = SRC.match(/(?:src|href)\s*=\s*["']https?:\/\/[^"']+/gi) || [];
+    const offsite = remote.filter((m) => !/github\.com/.test(m));
+    if (offsite.length) {
+      failures.push(`fold.html loads something off-site: ${offsite.join(", ")}`);
+    }
+
+    for (const width of [320, 414, 768, 1280]) {
+      for (const theme of ["dark", "light"]) {
+        const ctx = await browser.newContext({
+          viewport: { width, height: 900 }, colorScheme: theme,
+        });
+        const page = await ctx.newPage();
+        const errs = [];
+        page.on("pageerror", (e) => errs.push("page error: " + e));
+        page.on("console", (m) => { if (m.type() === "error") errs.push("console error: " + m.text()); });
+        await page.goto(FOLD_PAGE);
+        await page.waitForTimeout(250);
+        await page.evaluate(([g, c, s2]) => {
+          window.__groups = g; window.__clip = c; window.__spill = s2;
+          window.__selectedRow = () => null;
+        }, [OVERLAP_GROUPS, CLIP_SELECTORS, SPILL_PAIRS]);
+
+        /* Every preset, so each stage is measured against a real cycle rather
+           than only the one it loads with. */
+        const presets = await page.evaluate(() =>
+          document.querySelectorAll("#presets button").length);
+        checks++;
+        if (presets < 4) failures.push(`fold.html has ${presets} preset cycles, expected 6`);
+        for (let i = 0; i < presets; i++) {
+          await page.evaluate((n) => document.querySelectorAll("#presets button")[n].click(), i);
+          await page.waitForTimeout(60);
+          errs.length = 0;
+          record(`fold.html preset ${i} ${theme} @${width}px`, await page.evaluate(probe), errs);
+        }
+
+        /* The diagrams must actually be there and actually move. */
+        const live = await page.evaluate(() => {
+          const before = document.getElementById("f7").innerHTML;
+          const slider = document.getElementById("drv");
+          slider.value = String(Math.min(1, parseFloat(slider.value) + 0.2));
+          slider.dispatchEvent(new Event("input", { bubbles: true }));
+          return {
+            svgs: document.querySelectorAll(".fig svg").length,
+            rows: document.querySelectorAll("#f5 tr").length,
+            changed: document.getElementById("f7").innerHTML !== before,
+          };
+        });
+        checks++;
+        if (live.svgs < 6) failures.push(`fold.html drew ${live.svgs} diagrams, expected at least 6`);
+        if (!live.rows) failures.push("fold.html ranked no candidates");
+        if (!live.changed) failures.push("fold.html did not redraw when the slider moved");
+
+        /* And the way back. A page that cannot return to the calculator is a
+           dead end for anyone who arrives from a search result. */
+        const links = await page.evaluate(() =>
+          [...document.querySelectorAll("nav a")].map((a) => a.getAttribute("href")));
+        checks++;
+        if (!links.includes("index.html")) failures.push("fold.html has no link back to the calculator");
+        if (!links.some((h) => /github\.com/.test(h))) failures.push("fold.html has no link to the source");
+
+        errs.length = 0;
+        record(`fold.html ${theme} @${width}px`, await page.evaluate(probe), errs);
+        await ctx.close();
+      }
+    }
   }
 
   await browser.close();

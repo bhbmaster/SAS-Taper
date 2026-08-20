@@ -71,10 +71,12 @@ Either way: measure your film **length only**, put that in the inputs, and the s
 
 The life-size film panel offers a choice, and only that panel — everything else on the page measures.
 
-- **Measuring** (the default) is the exact mark: one straight cut at a millimetre figure the schedule gives you. Accurate to whatever your ruler and blade manage.
-- **Folding** approximates the same dose as whole parts of a folded grid — halve the film, halve it again, take five of the six parts. No ruler and no arithmetic, which for most people is *more* reproducible at 6 am than measuring 15.28 mm. The long side folds into 2, 3, 4 or 8; the short side into 2, 3 or 4.
+- **Folding** (the default) approximates the dose as whole parts of a folded grid — halve the film, halve it again, take five of the six parts. No ruler and no arithmetic, which for most people is *more* reproducible at 6 am than measuring 15.28 mm. The long side folds into 2, 3, 4 or 8; the short side into 2, 3 or 4.
+- **Measuring** is the exact mark: one straight cut at a millimetre figure the schedule gives you, accurate to whatever your ruler and blade manage. One button away, and the cut-mark panel above always measures whichever is selected.
 
 A fold can only land on the fractions it can make, so the panel always states the dose it gives, the dose the ladder asked for, and the difference between them. It buys simplicity only inside the cutting tolerance you set — if a plain half is within the slip you would make with a ruler anyway, it offers the plain half.
+
+**[How the fold is chosen](https://bhbmaster.github.io/SAS-Taper/fold.html)** is a page of its own — an interactive walkthrough of the search, with every diagram driven by a slider. It ships with the site (`fold.html`), so it works offline too.
 
 **In linear mode the folds come out exact.** A constant step lands on `5/6, 2/3, 1/2, 1/3, 1/6` and so on, every cycle, so a linear taper can be cut from the first day to the last without measuring anything.
 
@@ -129,9 +131,9 @@ test method can make tens of thousands of assertions:
 |---|---|---|
 | `test_taper.py` | **71 tests, ~500,000 assertions** | 1,440 ladders / 15,422 cycles in the matrix alone |
 | `test_parity.js` | **1,323 schedules + 13,920 folded cuts, ~644,000 field comparisons** | 13,567 matrix cycles × 28 row fields, plus summaries, months, the compare table and the fraction search |
-| `test_layout.js` | **585 viewport states, 651 checks** | each state is a whole rendered page measured for five failure modes |
+| `test_layout.js` | **673 viewport states, 767 checks** | each state is a whole rendered page — `index.html` or `fold.html` — measured for five failure modes |
 
-Around **1,146,000 individual checks** in total, in about four minutes.
+Around **1,144,000 individual checks** in total, in about five minutes.
 
 ### `test_taper.py`
 
@@ -183,7 +185,7 @@ The script also finds a browser on its own in the usual places — the Playwrigh
 
 Several parts of the page are positioned from measured pixels rather than by normal flow: the ruler tick captions, the life-size cut label, the calendar grid. Those have broken four separate times — captions stacked on each other, a percentage painted over a button, "SAVE" sliced in half, the page scrolling sideways on a narrow phone. Each was found by sweeping viewports by hand, then lost again, because nothing re-ran the sweep.
 
-This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode — **585 viewport states** — and checks five things at each:
+This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode — **673 viewport states**, `fold.html` included — and checks five things at each:
 
 | Failure | Detected by |
 |---|---|

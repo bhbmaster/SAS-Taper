@@ -74,4 +74,12 @@ async function launchOrSkip() {
   return chromium.launch({ executablePath, args: ["--no-sandbox"] });
 }
 
-module.exports = { findBrowser, launchOrSkip, PAGE: "file://" + path.join(__dirname, "index.html") };
+const fileUrl = (name) => "file://" + path.join(__dirname, name);
+
+module.exports = {
+  findBrowser,
+  launchOrSkip,
+  PAGE: fileUrl("index.html"),
+  /* The algorithm explainer. A second shipped page, so it gets swept too. */
+  FOLD_PAGE: fileUrl("fold.html"),
+};

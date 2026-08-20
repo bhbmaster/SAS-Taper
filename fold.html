@@ -1,0 +1,770 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Choosing the fold — SAS-Taper</title>
+<meta name="description" content="How SAS-Taper turns a millimetre measurement into a folding instruction: the search over folded grids, the shape rule, the difficulty score, and the drawing.">
+<meta name="color-scheme" content="dark light">
+<style>
+  /* Light is the base set. The two blocks after it redefine only tokens, so no
+     colour is ever defined in one theme and missing from another. The film
+     oranges sit outside that system on purpose: a real Suboxone film is orange
+     in any light, and recolouring it would misrepresent the product. */
+  :root {
+    --paper: #fbfaf8; --card: #ffffff; --sunk: #f4f1ec;
+    --ink: #1c1917; --muted: #57534e; --faint: #8a837c;
+    --line: #e7e3dd; --rule: #d6d1c9;
+    --accent: #0f6b5c; --accent-soft: #e4f2ee;
+    --bad: #b91c1c; --bad-soft: #fef2f2;
+    --shadow: 0 1px 2px rgb(28 25 23 / .05), 0 10px 30px -20px rgb(28 25 23 / .35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #14120f; --card: #1d1a17; --sunk: #211d1a;
+      --ink: #f4efe7; --muted: #a8a29e; --faint: #8a837c;
+      --line: #302b27; --rule: #3d3733;
+      --accent: #3ad0b4; --accent-soft: #14352f;
+      --bad: #f87171; --bad-soft: #2b1614;
+      --shadow: 0 1px 2px rgb(0 0 0 / .5), 0 10px 30px -20px rgb(0 0 0 / .9);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #14120f; --card: #1d1a17; --sunk: #211d1a;
+    --ink: #f4efe7; --muted: #a8a29e; --faint: #8a837c;
+    --line: #302b27; --rule: #3d3733;
+    --accent: #3ad0b4; --accent-soft: #14352f;
+    --bad: #f87171; --bad-soft: #2b1614;
+    --shadow: 0 1px 2px rgb(0 0 0 / .5), 0 10px 30px -20px rgb(0 0 0 / .9);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 400 16px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 3.5rem 1.5rem 6rem; }
+  h1, h2, h3 { margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
+  h1 { font-size: clamp(2rem, 1.2rem + 2.6vw, 3rem); font-weight: 600; line-height: 1.08; }
+  h2 { font-size: 1.3rem; font-weight: 600; }
+  h3 { font-size: 0.95rem; font-weight: 600; }
+  p { margin: 0; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  code { font-size: 0.86em; background: var(--sunk); padding: 0.12em 0.38em; border-radius: 4px; }
+  .eyebrow {
+    font: 600 0.72rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent);
+  }
+  .lede { font-size: 1.08rem; color: var(--muted); max-width: 62ch; }
+  header { display: flex; flex-direction: column; gap: 0.9rem; }
+  nav {
+    display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+    margin: 0 0 1.6rem;
+  }
+  nav a {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    font: 500 0.82rem/1 ui-sans-serif, system-ui, sans-serif;
+    text-decoration: none; color: var(--muted);
+    border: 1px solid var(--line); background: var(--card);
+    padding: 0.5rem 0.75rem; border-radius: 8px;
+  }
+  nav a:hover { border-color: var(--accent); color: var(--accent); }
+  nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  nav a.home { border-color: var(--accent); color: var(--accent); }
+
+  /* The control that drives every diagram on the page at once. */
+  .driver {
+    position: sticky; top: 0; z-index: 20; margin: 2.5rem 0 0;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 0.9rem 1.1rem; box-shadow: var(--shadow);
+    display: grid; grid-template-columns: 1fr auto; gap: 0.5rem 1.4rem; align-items: center;
+  }
+  .driver .lab { font: 600 0.72rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                 letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); }
+  .driver .row { display: flex; align-items: center; gap: 0.8rem; }
+  .driver input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+  .driver .read { font: 600 1.5rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                  font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .driver .read small { font-size: 0.62em; font-weight: 500; color: var(--faint); margin-left: 0.15em; }
+  .presets { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+  .presets button {
+    font: 500 0.76rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    padding: 0.4rem 0.55rem; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--sunk); color: var(--muted);
+  }
+  .presets button:hover { border-color: var(--accent); color: var(--accent); }
+  .presets button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  @media (max-width: 700px) { .driver { grid-template-columns: 1fr; } }
+
+  /* Stages. Numbered because this really is a pipeline: each one consumes what
+     the one before it produced. */
+  .stage {
+    margin-top: 2.5rem; display: grid; gap: 1.1rem 2rem;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); align-items: start;
+  }
+  @media (max-width: 860px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+  /* min-width:0 or the <pre> blocks inside set the track's min-content width
+     and the whole page scrolls sideways on a phone. */
+  .stage > .txt { display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; }
+  .stage > .txt p { color: var(--muted); }
+  .stage > .txt strong { color: var(--ink); font-weight: 600; }
+  .num {
+    display: inline-flex; align-items: baseline; gap: 0.55rem;
+    font: 600 0.72rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent);
+  }
+  .num b { font-size: 1.5rem; letter-spacing: -0.02em; opacity: 0.35; }
+  .fig {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 1rem; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 0.7rem; min-width: 0;
+  }
+  .fig .cap { font-size: 0.76rem; color: var(--faint); }
+  .fig svg { display: block; width: 100%; height: auto; color: var(--faint); }
+
+  /* Film parts, fixed orange in both themes. */
+  .grid-line { stroke: #9a3412; stroke-width: 0.7; stroke-dasharray: 2 3; opacity: 0.45; }
+  .blade-u { stroke: #7f1d1d; stroke-width: 3.4; stroke-linecap: round; }
+  .blade { stroke: #f87171; stroke-width: 1.6; stroke-linecap: round; }
+  .edge { fill: none; stroke: #9a3412; stroke-width: 2; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+  th, td { padding: 0.34rem 0.5rem; text-align: right; white-space: nowrap; }
+  th { font: 600 0.66rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+       letter-spacing: 0.05em; text-transform: uppercase; color: var(--faint);
+       border-bottom: 1px solid var(--rule); }
+  td { font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: 0; }
+  td.f, th.f { text-align: left; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  tr.win td { background: var(--accent-soft); font-weight: 600; color: var(--ink); }
+  tr.win td.f { color: var(--accent); }
+  .tw { overflow-x: auto; }
+
+  .note {
+    border-left: 3px solid var(--accent); background: var(--sunk);
+    border-radius: 0 8px 8px 0; padding: 0.75rem 0.95rem;
+    display: flex; flex-direction: column; gap: 0.35rem;
+  }
+  .note.bug { border-left-color: var(--bad); background: var(--bad-soft); }
+  .note h3 { font-size: 0.9rem; }
+  .note p { font-size: 0.87rem; color: var(--muted); }
+  .note code { background: rgb(128 128 128 / .16); }
+
+  pre.whole { font-size: 0.74rem; line-height: 1.7; padding: 1.1rem 1.2rem; }
+  @media (max-width: 620px) { pre.whole { font-size: 0.68rem; } }
+  pre {
+    margin: 0; background: var(--sunk); border: 1px solid var(--line);
+    border-radius: 8px; padding: 0.8rem 0.9rem; overflow-x: auto;
+    font: 400 0.78rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink);
+  }
+  pre .c { color: var(--faint); }
+  pre .k { color: var(--accent); }
+
+  .facts { display: flex; flex-wrap: wrap; gap: 0.2rem 1.2rem;
+           font: 400 0.78rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+           color: var(--muted); font-variant-numeric: tabular-nums; }
+  .facts b { color: var(--ink); font-weight: 600; }
+  .facts .ok { color: var(--accent); font-weight: 600; }
+  .facts .no { color: var(--bad); font-weight: 600; }
+
+  hr { border: 0; border-top: 1px solid var(--line); margin: 3rem 0 0; }
+  footer { margin-top: 2rem; font-size: 0.82rem; color: var(--faint); max-width: 62ch; }
+  a { color: var(--accent); }
+  .shape-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr)); gap: 0.7rem; }
+  .shape { display: flex; flex-direction: column; gap: 0.3rem; }
+  .shape .t { font: 500 0.7rem/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); }
+  .shape .t b { color: var(--ink); }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <a class="home" href="index.html">&larr; Back to the calculator</a>
+  <a href="https://github.com/bhbmaster/SAS-Taper">Source on GitHub</a>
+</nav>
+<header>
+  <span class="eyebrow">SAS-Taper · how it works</span>
+  <h1>Choosing the fold</h1>
+  <p class="lede">The taper says cut 15.28&nbsp;mm off a 22&nbsp;mm film. Nobody has a
+    ruler that good at 6&nbsp;am. So the tool works out how to fold the film into
+    a simple grid and take whole parts of it instead — and this is how it decides
+    which grid, which parts, and where the blade goes.</p>
+  <p class="lede">Every diagram below is live. Move the slider and the whole
+    pipeline re-runs.</p>
+</header>
+
+<div class="driver">
+  <div>
+    <div class="lab">Dose wanted, off one 8 mg film</div>
+    <div class="row">
+      <input type="range" id="drv" min="0.04" max="1" step="0.001" value="0.694"
+             aria-label="Dose wanted as a fraction of one film">
+      <span class="read" id="drvRead">5.56<small>mg</small></span>
+    </div>
+  </div>
+  <div>
+    <div class="lab">Real cycles</div>
+    <div class="presets" id="presets"></div>
+  </div>
+</div>
+
+<!-- 0 — the whole thing, before the walkthrough --------------------------- -->
+<section class="stage" style="grid-template-columns: minmax(0, 1fr);">
+  <div class="txt" style="max-width:none">
+    <span class="num">The whole algorithm</span>
+    <h2>All of it, in one place</h2>
+    <p>About eighty lines with the comments, and the rest of this page is those
+      lines slowed down. If you would rather have the walkthrough first, it
+      starts below.</p>
+  </div>
+  <pre class="whole"><span class="c"># The film folds into a grid: the long (22 mm) side into 1, 2, 3, 4 or 8, the
+# short (12.8 mm) side into 1, 2, 3 or 4. Eighths along the length are three
+# successive halvings, so they stay reproducible. The width stops at quarters,
+# because an eighth of 12.8 mm is 1.6 mm and nobody judges that by eye.</span>
+LONG  = [1, 2, 3, 4, 8]
+SHORT = [1, 2, 3, 4]
+
+
+<span class="k">def</span> fraction_cut(want, film_mg, full_mm, wide_mm, tol_mg):
+    <span class="c"># want    the dose as a fraction of one whole film, 0 to 1. The film is
+    #         an evenly made sheet, so area fraction IS dose fraction.
+    # tol_mg  how far out a fold may be and still count as good enough. Pass
+    #         the reader's own cutting tolerance: a fold inside it is no worse
+    #         than the slip they would make with a ruler.</span>
+    pool = []
+    <span class="k">for</span> L <span class="k">in</span> LONG:
+        <span class="k">for</span> S <span class="k">in</span> SHORT:
+            <span class="k">for</span> cells <span class="k">in</span> range(1, L * S + 1):
+
+                <span class="c"># THE SHAPE RULE. `cells` could mean any scattered set of
+                # squares, which is useless as an instruction. Splitting it
+                # once forces the piece to be whole columns plus a tab off the
+                # very next one — a rectangle, or an L, always contiguous.</span>
+                columns, tab = divmod(cells, S)
+
+                <span class="c"># CUTS FALL OUT OF THE SHAPE — nothing is searched for here.
+                # The middle term is the good one: a tab that runs to the
+                # film's own edge needs no cut on that side, because the
+                # manufacturer already made it. That is why 5/6 on a 3x2 grid
+                # is two strokes and not three.</span>
+                <span class="k">if</span> cells == L * S:
+                    cuts, pieces = 0, 1
+                <span class="k">elif</span> tab == 0:
+                    cuts, pieces = 1, 1
+                <span class="k">else</span>:
+                    cuts = ((1 <span class="k">if</span> columns <span class="k">else</span> 0)
+                            + (1 <span class="k">if</span> columns + 1 &lt; L <span class="k">else</span> 0)
+                            + 1)
+                    pieces = 2 <span class="k">if</span> columns <span class="k">else</span> 1
+
+                <span class="c"># HOW HARD IT IS BY HAND. A stroke across the short axis is
+                # 12.8 mm guided by the film's own straight edge; one along
+                # the long axis is 22 mm freehand down the middle. Pricing
+                # them the same makes a plain half come out as 1x2, which is
+                # the wrong instruction — so lengthwise costs more.</span>
+                lengthwise = 1 <span class="k">if</span> tab <span class="k">else</span> 0
+                d  = (cuts - lengthwise) * 10 + lengthwise * 14
+                d += (pieces - 1) * 4
+                d += {1:0, 2:0, 3:2, 4:3, 8:6}[L]   <span class="c"># finer = harder</span>
+                d += {1:0, 2:2, 3:5, 4:7}[S]        <span class="c"># worse across</span>
+                <span class="k">if</span> tab <span class="k">and</span> min(full_mm / L, wide_mm * tab / S) &lt; 2:
+                    d += 20                         <span class="c"># too small to hold</span>
+
+                err = abs(cells / (L * S) - want) * film_mg
+                pool.append((d, err, L, S, cells, columns, tab, cuts, pieces))
+
+    <span class="c"># THE PICK. Buy simplicity, but only with error you were going to spend
+    # anyway. The cap is on the error ITSELF, not a margin added to the best
+    # one — added, the two compound, and the chosen fold can land further out
+    # than the tolerance the reader actually stated.</span>
+    best = min(err <span class="k">for</span> _, err, *_ <span class="k">in</span> pool)
+    cap  = max(best, tol_mg)
+
+    <span class="c"># Lowest difficulty wins. The keys after it never decide anything on
+    # their own; they are there so ties break the same way every time, which
+    # is what holds the drawing still for a reader who changed nothing.</span>
+    <span class="k">return</span> min((c <span class="k">for</span> c <span class="k">in</span> pool <span class="k">if</span> c[1] &lt;= cap),
+               key=<span class="k">lambda</span> c: (c[0], c[1], c[3], -c[2], c[4]))
+
+
+<span class="c"># DRAWING IT. There is no second implementation of the geometry: the picture
+# reads `columns` and `tab` straight off the result, and the blade lines are
+# the same three conditions that produced the cut count above.</span>
+cw, rh = W / L, H / S
+fill(0, 0, columns * cw, H)              <span class="c"># the whole columns</span>
+fill(columns * cw, 0, cw, tab * rh)      <span class="c"># the tab</span>
+<span class="k">if</span> columns:         vline(columns * cw)
+<span class="k">if</span> columns + 1 &lt; L: vline((columns + 1) * cw)
+<span class="k">if</span> tab:             hline(tab * rh, across that column)</pre>
+</section>
+
+<!-- 1 ------------------------------------------------------------------ -->
+<section class="stage">
+  <div class="txt">
+    <span class="num"><b>01</b> The target</span>
+    <h2>One number, as a fraction of the film</h2>
+    <p>The ladder hands over a dose in milligrams. Because the film is one evenly
+      made sheet, <strong>area fraction is dose fraction</strong> — so the dose
+      becomes a single number between 0 and 1, and the film's actual size stops
+      mattering until it is time to draw.</p>
+    <p>That is the whole input. Everything after this is a search for the closest
+      fraction a person can fold.</p>
+  </div>
+  <div class="fig">
+    <div id="f1"></div>
+    <p class="facts" id="d1"></p>
+    <p class="cap">The exact cut. One straight line, at a number you would need a
+      steel rule to hit.</p>
+  </div>
+</section>
+
+<!-- 2 ------------------------------------------------------------------ -->
+<section class="stage">
+  <div class="txt">
+    <span class="num"><b>02</b> The search space</span>
+    <h2>Fold the long side into 1, 2, 3, 4 or 8 — the short side into 1, 2, 3 or 4</h2>
+    <p>Eighths along the 22&nbsp;mm length are three successive halvings, which stay
+      reproducible. The 12.8&nbsp;mm width stops at quarters, because an eighth of
+      it is 1.6&nbsp;mm and nobody judges that by eye.</p>
+    <p>That gives 20 grids, and inside each you can take any whole number of cells.
+      <strong>180 candidates, landing on 54 distinct fractions.</strong></p>
+    <p>The widest gap anywhere in that ladder is between <code>1/8</code> and
+      <code>5/32</code>, a hair over 3%. So for any target above <code>1/32</code>
+      the grid is never more than <strong>0.125&nbsp;mg</strong> away on an 8&nbsp;mg
+      film — already better than the ±0.18&nbsp;mg a ruler slip costs you.</p>
+  </div>
+  <div class="fig">
+    <div id="f2"></div>
+    <p class="facts" id="d2"></p>
+    <p class="cap">All 54 reachable fractions. Taller ticks are the ones a coarse
+      grid can hit. The marker is your target.</p>
+  </div>
+</section>
+
+<!-- 3 ------------------------------------------------------------------ -->
+<section class="stage">
+  <div class="txt">
+    <span class="num"><b>03</b> The shape rule</span>
+    <h2>Whole columns, plus a tab off the next one</h2>
+    <p>This is the constraint that makes the whole thing work. Taking <em>k</em>
+      cells out of a grid could mean any scattered set of them — useless as an
+      instruction. So <em>k</em> is split once:</p>
+    <pre><span class="k">columns</span>, <span class="k">tab</span> = divmod(cells, short_div)</pre>
+    <p>and the piece is always <strong>that many whole columns, plus that many
+      cells of the very next column</strong>. A rectangle, or an L. Never
+      scattered, never two separate corners.</p>
+    <p>One line of arithmetic, and it buys three things at once: the piece is
+      always contiguous, the cut count falls out of it, and the drawing has
+      something simple to draw.</p>
+  </div>
+  <div class="fig">
+    <div id="f3"></div>
+    <p class="facts" id="d3"></p>
+    <p class="cap">Left: what <code>divmod</code> produces. Right: a set of cells
+      adding to the same fraction that the rule refuses to consider.</p>
+  </div>
+</section>
+
+<!-- 4 ------------------------------------------------------------------ -->
+<section class="stage">
+  <div class="txt">
+    <span class="num"><b>04</b> Counting the cuts</span>
+    <h2>The cut count is not searched for — it falls out of the shape</h2>
+    <p>Given <code>columns</code> and <code>tab</code>, how many strokes the piece
+      needs is fixed. There are only four cases:</p>
+    <pre><span class="c"># the whole film</span>
+cuts = 0
+<span class="c"># whole columns only — one stroke across</span>
+cuts = 1
+<span class="c"># anything with a tab</span>
+cuts = (<span class="k">1 if columns else 0</span>)          <span class="c"># left of the tab</span>
+     + (<span class="k">1 if columns + 1 &lt; long_div else 0</span>)  <span class="c"># right of it</span>
+     + 1                        <span class="c"># the tab itself</span></pre>
+    <p>The middle term is the one worth noticing. <strong>A tab that runs to the
+      film's own edge needs no cut on that side</strong> — the manufacturer
+      already made it. That single condition is why <code>5/6</code> on a 3×2 grid
+      is two strokes and not three, and it is why the most common fold in a real
+      taper is also one of the cheapest.</p>
+  </div>
+  <div class="fig">
+    <div class="shape-grid" id="f4"></div>
+    <p class="cap">The four shapes, with the strokes you actually make picked out
+      in red. Fold lines are dashed; they cost nothing.</p>
+  </div>
+</section>
+
+<!-- 5 ------------------------------------------------------------------ -->
+<section class="stage">
+  <div class="txt">
+    <span class="num"><b>05</b> Scoring by hand-difficulty</span>
+    <h2>Not every cut is the same cut</h2>
+    <p>Two candidates can both be "one cut" and be completely different jobs. A
+      stroke across the short axis is 12.8&nbsp;mm guided by the film's own straight
+      edge. A stroke along the long axis is 22&nbsp;mm freehand down the middle.</p>
+    <pre>d  = crosswise × <span class="k">10</span>
+   + lengthwise × <span class="k">14</span>
+   + (pieces − 1) × <span class="k">4</span>
+
+<span class="c"># a finer fold is a harder judgement</span>
+d += {1:0, 2:0, 3:2, 4:3, 8:6}[long_div]
+<span class="c"># and worse still across the narrow side</span>
+d += {1:0, 2:2, 3:5, 4:7}[short_div]
+<span class="c"># a tab under 2 mm is not a thing fingers do</span>
+d += <span class="k">20</span> <span class="k">if</span> tab_mm &lt; 2</pre>
+    <p>Thirds score worse than halves because halves come from folding and thirds
+      come from judgement. The short axis scores worse than the long one because
+      it has less room to be wrong in. And a tab under 2&nbsp;mm is not something
+      fingers do, whatever the arithmetic says.</p>
+  </div>
+  <div class="fig">
+    <div class="tw"><table>
+      <thead><tr><th class="f">Fraction</th><th class="f">Grid</th><th>Cols+tab</th>
+        <th>Cuts</th><th>Pcs</th><th>Score</th><th>Error</th></tr></thead>
+      <tbody id="f5"></tbody>
+    </table></div>
+    <p class="facts" id="d5"></p>
+    <p class="cap">Every candidate that survives the tolerance, ranked. Lowest
+      score wins — which is not always the smallest error.</p>
+  </div>
+</section>
+
+<!-- 6 ------------------------------------------------------------------ -->
+<section class="stage">
+  <div class="txt">
+    <span class="num"><b>06</b> Picking one</span>
+    <h2>Buy simplicity, but only with error you were going to spend anyway</h2>
+    <p>The tool already asks how accurately you can cut. Half a millimetre is
+      realistic, and on 8&nbsp;mg film that is ±0.18&nbsp;mg of dose — a slip you
+      make whether you fold or measure.</p>
+    <p>So any fold inside that band is <em>no worse than measuring</em>, and among
+      those the simplest one is the better instruction:</p>
+    <pre>cap  = <span class="k">max</span>(best_error, tolerance)
+pool = [c <span class="k">for</span> c <span class="k">in</span> candidates
+        <span class="k">if</span> c.error &lt;= cap]
+pick = <span class="k">min</span>(pool, key=(difficulty, error,
+                            short_div, −long_div, cells))</pre>
+    <p>The last three keys never decide anything on their own — they are there so
+      that ties break the same way every time. <strong>The same target always
+      gives the same fold</strong>, so the drawing never moves under a reader who
+      has changed nothing.</p>
+  </div>
+  <div class="fig">
+    <div id="f6"></div>
+    <p class="facts" id="d6"></p>
+    <p class="cap">The tolerance band, every candidate inside it, and the one
+      that wins. Filled is the pick; hollow are the folds it beat.</p>
+  </div>
+</section>
+
+<!-- 7 ------------------------------------------------------------------ -->
+<section class="stage">
+  <div class="txt">
+    <span class="num"><b>07</b> Drawing it</span>
+    <h2>The picture is built from the same two numbers</h2>
+    <p>There is no second implementation of the geometry. The drawing reads
+      <code>columns</code> and <code>tab</code> straight off the result:</p>
+    <pre><span class="c"># the piece you swallow</span>
+rect(0, 0, columns × cw, H)          <span class="c"># the whole columns</span>
+rect(columns × cw, 0, cw, tab × rh)  <span class="c"># the tab</span>
+
+<span class="c"># the strokes — the same three conditions
+# that produced the cut count</span>
+<span class="k">if</span> columns:
+    vline(columns × cw)
+<span class="k">if</span> columns + 1 &lt; long_div:
+    vline((columns + 1) × cw)
+<span class="k">if</span> tab:
+    hline(tab × rh, across that column)</pre>
+    <p>Because the count and the picture come from one place, they cannot
+      disagree — and the test suite checks that anyway: the filled area must be
+      the fraction the caption claims, and the number of red lines must be the
+      number of cuts the words promise.</p>
+  </div>
+  <div class="fig">
+    <div id="f7"></div>
+    <p class="facts" id="d7"></p>
+    <p class="cap">The finished cutting guide, at true scale for an 8 mg film.</p>
+  </div>
+</section>
+
+<hr>
+
+<section class="stage" style="grid-template-columns: minmax(0, 1fr);">
+  <div class="txt" style="max-width: 68ch;">
+    <span class="num">Two things it got wrong first</span>
+    <h2>Both were found by drawing it before shipping it</h2>
+  </div>
+  <div style="display:grid; gap:0.9rem; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));">
+    <div class="note bug">
+      <h3>A plain half came out lengthwise</h3>
+      <p>Both <code>2×1</code> and <code>1×2</code> are exactly half and both are
+        "one cut", so the tie-break decided — and it picked a 22&nbsp;mm freehand
+        stroke down the middle of the film over a 12.8&nbsp;mm one against its own
+        edge. Fixed by pricing the two kinds of stroke differently, which is why
+        the <code>×14</code> term exists.</p>
+    </div>
+    <div class="note bug">
+      <h3>The tolerance compounded</h3>
+      <p>Written as <code>best + tolerance</code> the band floats upward: a
+        candidate can be inside it while sitting further out than the tolerance
+        the reader actually stated. On cycle 2 of the default run that chose a
+        fold 0.22&nbsp;mg off while claiming to respect ±0.18. The cap has to be on
+        the error itself — <code>max(best, tolerance)</code>.</p>
+    </div>
+  </div>
+  <div class="note">
+    <h3>And one thing that fell out for free</h3>
+    <p>In the tool's <strong>linear</strong> cut mode the dose drops by the same
+      amount every cycle, so the sequence of targets is <code>5/6, 2/3, 1/2, 1/3,
+      1/6</code> — every one of them a fraction this grid hits exactly. A linear
+      taper can be cut from the first day to the last without measuring anything.
+      Nobody designed that; it is just what happens when a constant step meets a
+      grid of simple fractions.</p>
+  </div>
+</section>
+
+<nav style="margin:2.5rem 0 0">
+  <a class="home" href="index.html">&larr; Back to the calculator</a>
+  <a href="https://github.com/bhbmaster/SAS-Taper">Source on GitHub</a>
+  <a href="https://github.com/bhbmaster/SAS-Taper/blob/main/taper.py">taper.py</a>
+</nav>
+<footer>
+  The algorithm is <code>fraction_cut()</code> in <code>taper.py</code> and
+  <code>fractionCut()</code> in <code>index.html</code>, written twice and diffed
+  against each other across 13,920 cases on every run. Not medical advice.
+</footer>
+</div>
+
+<script>
+(() => {
+  const LONG = [1, 2, 3, 4, 8], SHORT = [1, 2, 3, 4];
+  const FILM_MG = 8, FULL = 22, WIDE = 12.8, TOL_MM = 0.5;
+  const TOL = TOL_MM * FILM_MG / FULL;          // 0.182 mg
+  const LPEN = {1:0, 2:0, 3:2, 4:3, 8:6}, SPEN = {1:0, 2:2, 3:5, 4:7};
+
+  const gcd = (a, b) => { while (b) { [a, b] = [b, a % b]; } return a; };
+  const frac = (n, d) => { const g = gcd(n, d); return `${n / g}/${d / g}`; };
+
+  function shape(L, S, cells) {
+    const columns = Math.floor(cells / S), tab = cells - columns * S;
+    let cuts, pieces;
+    if (cells === L * S) { cuts = 0; pieces = 1; }
+    else if (tab === 0) { cuts = 1; pieces = 1; }
+    else {
+      cuts = (columns ? 1 : 0) + (columns + 1 < L ? 1 : 0) + 1;
+      pieces = columns ? 2 : 1;
+    }
+    return { L, S, cells, columns, tab, cuts, pieces, f: cells / (L * S) };
+  }
+
+  function difficulty(c) {
+    const lengthwise = c.tab ? 1 : 0;
+    let d = (c.cuts - lengthwise) * 10 + lengthwise * 14 + (c.pieces - 1) * 4;
+    d += LPEN[c.L] + SPEN[c.S];
+    if (c.tab && Math.min(FULL / c.L, WIDE * c.tab / c.S) < 2) d += 20;
+    return d;
+  }
+
+  const ALL = [];
+  for (const L of LONG) for (const S of SHORT) {
+    for (let k = 1; k <= L * S; k++) { const c = shape(L, S, k); c.d = difficulty(c); ALL.push(c); }
+  }
+  const FRACTIONS = [...new Set(ALL.map((c) => c.f))].sort((a, b) => a - b);
+
+  function choose(want) {
+    const scored = ALL.map((c) => Object.assign({ err: Math.abs(c.f - want) * FILM_MG }, c));
+    const best = Math.min(...scored.map((c) => c.err));
+    const cap = Math.max(best, TOL);
+    const pool = scored.filter((c) => c.err <= cap + 1e-12);
+    pool.sort((a, b) => a.d - b.d || a.err - b.err || a.S - b.S || b.L - a.L || a.cells - b.cells);
+    return { pick: pool[0], pool, best, cap,
+             closest: scored.reduce((m, c) => (c.err < m.err ? c : m)) };
+  }
+
+  /* ---- drawing ---------------------------------------------------------- */
+  const U = 10, W = FULL * U, H = WIDE * U;
+
+  function filmSvg(c, opts) {
+    const o = opts || {};
+    const cw = W / c.L, rh = H / c.S, p = c.columns, q = c.tab;
+    const id = `g${c.L}_${c.S}_${c.cells}_${o.tag || ""}`;
+    const pad = o.pad === undefined ? 6 : o.pad;
+    const s = [`<svg viewBox="${-pad} ${-pad} ${W + pad * 2} ${H + pad * 2}" role="img"`
+      + ` aria-label="Film folded ${c.L} by ${c.S}, taking ${c.cells} of ${c.L * c.S}"`
+      + (o.width ? ` style="width:${o.width}"` : "") + ">"];
+    s.push(`<defs><pattern id="${id}s" width="8" height="8" patternTransform="rotate(-45)"`
+      + ` patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="#ffedd5"/>`
+      + `<rect width="4" height="8" fill="#fdba74"/></pattern>`
+      + `<linearGradient id="${id}t" x1="0" y1="0" x2="0" y2="1">`
+      + `<stop offset="0" stop-color="#f3c38a"/><stop offset="1" stop-color="#e3943c"/>`
+      + `</linearGradient></defs>`);
+    s.push(`<rect width="${W}" height="${H}" fill="url(#${id}s)"/>`);
+    if (o.split !== undefined) {
+      s.push(`<rect width="${o.split * W}" height="${H}" fill="url(#${id}t)"/>`);
+    } else if (o.cells) {
+      for (const [ci, ri] of o.cells) {
+        s.push(`<rect x="${ci * cw}" y="${ri * rh}" width="${cw}" height="${rh}" fill="url(#${id}t)"/>`);
+      }
+    } else {
+      if (p) s.push(`<rect width="${p * cw}" height="${H}" fill="url(#${id}t)"/>`);
+      if (q) s.push(`<rect x="${p * cw}" width="${cw}" height="${q * rh}" fill="url(#${id}t)"/>`);
+    }
+    for (let i = 1; i < c.L; i++) s.push(`<line class="grid-line" x1="${i * cw}" y1="0" x2="${i * cw}" y2="${H}"/>`);
+    for (let j = 1; j < c.S; j++) s.push(`<line class="grid-line" x1="0" y1="${j * rh}" x2="${W}" y2="${j * rh}"/>`);
+    if (!o.noBlades) {
+      const b = [];
+      if (q === 0) { if (p > 0 && p < c.L) b.push(["v", p * cw]); }
+      else {
+        if (p + 1 < c.L) b.push(["v", (p + 1) * cw]);
+        if (p > 0) b.push(["v", p * cw]);
+        b.push(["h", q * rh, p * cw, (p + 1) * cw]);
+      }
+      for (const x of b) {
+        const g = x[0] === "v" ? `x1="${x[1]}" y1="-3" x2="${x[1]}" y2="${H + 3}"`
+                               : `x1="${x[2] - 3}" y1="${x[1]}" x2="${x[3] + 3}" y2="${x[1]}"`;
+        s.push(`<line class="blade-u" ${g}/><line class="blade" ${g}/>`);
+      }
+    }
+    if (o.mark !== undefined) {
+      const x = o.mark * W;
+      s.push(`<line class="blade-u" x1="${x}" y1="-3" x2="${x}" y2="${H + 3}"/>`
+        + `<line class="blade" x1="${x}" y1="-3" x2="${x}" y2="${H + 3}"/>`);
+    }
+    s.push(`<rect class="edge" width="${W}" height="${H}" rx="3"/>`);
+    s.push("</svg>");
+    return s.join("");
+  }
+
+  /* ---- render ----------------------------------------------------------- */
+  const $ = (id) => document.getElementById(id);
+  const f2 = (v) => v.toFixed(2);
+
+  function render(want) {
+    const r = choose(want), c = r.pick;
+    const wantMg = want * FILM_MG;
+    $("drvRead").innerHTML = `${f2(wantMg)}<small>mg</small>`;
+
+    /* 1 — the exact mark */
+    $("f1").innerHTML = filmSvg({ L: 1, S: 1, cells: 1, columns: 1, tab: 0 },
+      { noBlades: true, mark: want, split: want, tag: "a" });
+    $("d1").innerHTML = `<span>want <b>${f2(wantMg)}</b> mg</span>`
+      + `<span>= <b>${(want * 100).toFixed(1)}%</b> of the film</span>`
+      + `<span>mark at <b>${f2(want * FULL)}</b> mm of 22.0</span>`;
+
+    /* 2 — the ladder of reachable fractions */
+    const LW = 640, LH = 54;
+    let t = `<svg viewBox="0 0 ${LW} ${LH}" role="img" aria-label="All reachable fractions">`;
+    t += `<line x1="0" y1="34" x2="${LW}" y2="34" stroke="currentColor" stroke-width="1" opacity=".4"/>`;
+    for (const f of FRACTIONS) {
+      const best = ALL.filter((a) => a.f === f).reduce((m, a) => (a.d < m.d ? a : m));
+      const h = 8 + Math.max(0, 22 - best.d * 0.35);
+      t += `<line x1="${f * LW}" y1="${34 - h}" x2="${f * LW}" y2="34" stroke="#e3943c"`
+        + ` stroke-width="1.6" opacity=".85"/>`;
+    }
+    t += `<line x1="${want * LW}" y1="4" x2="${want * LW}" y2="44" stroke="#f87171" stroke-width="2.4"/>`;
+    t += `<circle cx="${r.pick.f * LW}" cy="34" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/>`;
+    t += `<text x="0" y="52" font-size="10" fill="currentColor" opacity=".7"
+      font-family="ui-monospace,monospace">0</text>`;
+    t += `<text x="${LW}" y="52" text-anchor="end" font-size="10" fill="currentColor" opacity=".7"
+      font-family="ui-monospace,monospace">1 film</text></svg>`;
+    $("f2").innerHTML = t;
+    $("d2").innerHTML = `<span><b>180</b> candidates</span><span><b>54</b> distinct fractions</span>`
+      + `<span>nearest is <b>${frac(r.closest.cells, r.closest.L * r.closest.S)}</b></span>`
+      + `<span>off by <b>${f2(r.closest.err)}</b> mg</span>`;
+
+    /* 3 — the shape rule, against a scattered set of the same size */
+    const scattered = [];
+    for (let i = 0, n = c.cells; n > 0; i++) {
+      const ci = (i * 2 + 1) % c.L, ri = i % c.S;
+      if (!scattered.some((s2) => s2[0] === ci && s2[1] === ri)) { scattered.push([ci, ri]); n--; }
+      if (i > 200) break;
+    }
+    $("f3").innerHTML =
+      `<div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem">`
+      + `<div class="shape"><div class="t">rule: <b>${c.columns} columns + ${c.tab}</b></div>`
+      + filmSvg(c, { tag: "b" }) + `</div>`
+      + `<div class="shape" style="opacity:.55"><div class="t">same ${c.cells} cells, refused</div>`
+      + filmSvg(c, { tag: "c", cells: scattered, noBlades: true }) + `</div></div>`;
+    $("d3").innerHTML = `<span>cells <b>${c.cells}</b></span>`
+      + `<span>÷ ${c.S} → <b>${c.columns}</b> columns rem <b>${c.tab}</b></span>`
+      + `<span>pieces <b>${c.pieces}</b></span>`;
+
+    /* 4 — the four cut cases */
+    const cases = [
+      [shape(3, 1, 3), "whole film"],
+      [shape(3, 1, 2), "columns only"],
+      [shape(3, 2, 1), "tab, no columns"],
+      [shape(3, 2, 5), "tab at the edge"],
+      [shape(4, 2, 3), "tab mid-film"],
+    ];
+    $("f4").innerHTML = cases.map(([s2, name]) =>
+      `<div class="shape"><div class="t"><b>${s2.cuts}</b> cut${s2.cuts === 1 ? "" : "s"} · ${name}</div>`
+      + filmSvg(s2, { tag: "d" + name.replace(/\W/g, "") }) + `</div>`).join("");
+
+    /* 5 — the ranked survivors */
+    $("f5").innerHTML = r.pool.slice(0, 8).map((x, i) =>
+      `<tr class="${i === 0 ? "win" : ""}"><td class="f">${frac(x.cells, x.L * x.S)}</td>`
+      + `<td class="f">${x.L}×${x.S}</td><td>${x.columns}+${x.tab}</td><td>${x.cuts}</td>`
+      + `<td>${x.pieces}</td><td>${x.d}</td><td>${x.err >= 0 ? "" : ""}${f2(x.err)} mg</td></tr>`).join("");
+    $("d5").innerHTML = `<span><b>${r.pool.length}</b> of 180 survive the cap</span>`
+      + `<span>winner scores <b>${c.d}</b></span>`
+      + (c.err > r.best + 1e-9
+        ? `<span class="ok">simpler than the closest, and paid for</span>`
+        : `<span class="ok">also the closest there is</span>`);
+
+    /* 6 — the tolerance band */
+    const BW = 640, BH = 66, mid = BH / 2, span = Math.max(TOL * 2.4, r.best * 2.4, 0.05);
+    const px = (e) => BW / 2 + (e / span) * (BW / 2);
+    let g = `<svg viewBox="0 0 ${BW} ${BH}" role="img" aria-label="Candidates against the tolerance band">`;
+    g += `<rect x="${px(-TOL)}" y="10" width="${px(TOL) - px(-TOL)}" height="${BH - 30}"`
+      + ` fill="var(--accent-soft)" stroke="var(--accent)" stroke-dasharray="3 3" stroke-width="1"/>`;
+    g += `<line x1="${BW / 2}" y1="6" x2="${BW / 2}" y2="${BH - 16}" stroke="currentColor" opacity=".5"/>`;
+    for (const x of r.pool) {
+      const e = x.f - want > 0 ? x.err : -x.err;
+      g += `<circle cx="${px(e)}" cy="${mid}" r="4" fill="none" stroke="currentColor" opacity=".65"/>`;
+    }
+    const pe = c.f - want > 0 ? c.err : -c.err;
+    g += `<circle cx="${px(pe)}" cy="${mid}" r="6.5" fill="var(--accent)"/>`;
+    g += `<text x="${px(-TOL)}" y="${BH - 3}" font-size="10" fill="currentColor" opacity=".7"
+      text-anchor="middle" font-family="ui-monospace,monospace">−${f2(TOL)}</text>`;
+    g += `<text x="${BW / 2}" y="${BH - 3}" font-size="10" fill="currentColor" opacity=".7"
+      text-anchor="middle" font-family="ui-monospace,monospace">exact</text>`;
+    g += `<text x="${px(TOL)}" y="${BH - 3}" font-size="10" fill="currentColor" opacity=".7"
+      text-anchor="middle" font-family="ui-monospace,monospace">+${f2(TOL)}</text></svg>`;
+    $("f6").innerHTML = g;
+    $("d6").innerHTML = `<span>tolerance <b>±${f2(TOL)}</b> mg</span>`
+      + `<span>closest possible <b>${f2(r.best)}</b> mg</span>`
+      + `<span>cap <b>${f2(r.cap)}</b> mg</span>`;
+
+    /* 7 — the finished guide */
+    $("f7").innerHTML = filmSvg(c, { tag: "e" });
+    const err = c.f * FILM_MG - wantMg;
+    $("d7").innerHTML = `<span>fold <b>${c.L} × ${c.S}</b></span>`
+      + `<span>take <b>${frac(c.cells, c.L * c.S)}</b></span>`
+      + `<span><b>${c.cuts}</b> cut${c.cuts === 1 ? "" : "s"}, <b>${c.pieces}</b> piece${c.pieces === 1 ? "" : "s"}</span>`
+      + `<span>gives <b>${f2(c.f * FILM_MG)}</b> mg</span>`
+      + `<span class="${Math.abs(err) <= TOL + 1e-9 ? "ok" : "no"}">`
+      + `${Math.abs(err) < 5e-3 ? "exact" : (err > 0 ? "+" : "") + f2(err) + " mg"}</span>`;
+  }
+
+  /* Real cycles from the default 8 mg run, so the presets are not invented. */
+  const PRESETS = [
+    ["c1", 18.3333 / 22], ["c2", 15.2778 / 22], ["c3", 12.7315 / 22],
+    ["c4", 10.6096 / 22], ["c6", 7.3678 / 22], ["c7", 6.1398 / 22],
+  ];
+  $("presets").innerHTML = PRESETS.map(([n, v]) =>
+    `<button type="button" data-v="${v}">${n}</button>`).join("");
+  $("presets").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    $("drv").value = b.dataset.v;
+    render(parseFloat(b.dataset.v));
+  });
+  $("drv").addEventListener("input", (e) => render(parseFloat(e.target.value)));
+  render(parseFloat($("drv").value));
+})();
+</script>
+</body>
+</html>
