@@ -63,7 +63,9 @@ Going slower is a plan, not a failure.
 
 The calculator lives at **[bhbmaster.github.io/SAS-Taper](https://bhbmaster.github.io/SAS-Taper/)**.
 
-There is no build step and no server. `index.html` is one self-contained file — all the CSS and JavaScript are inline, nothing is fetched over the network — so opening it straight from disk in any browser gives you the identical calculator, working offline. Clone the repo, or just save that one file and double-click it.
+There is nothing to build and no server. `index.html` is one self-contained file — all the CSS and JavaScript are inline, nothing is fetched over the network — so opening it straight from disk in any browser gives you the identical calculator, working offline. Clone the repo, or just save that one file and double-click it.
+
+The schedule maths inside it is not written twice. It lives once, in `taper.py`, and `gen_core.py` translates it into a block of JavaScript that is committed into `index.html` — which is how the page and the CLI can promise the same numbers. That happens before the commit, never in your browser.
 
 Either way: measure your film **length only**, put that in the inputs, and the schedule / cut marks / graphs update live. Click a cycle for that day’s ruler (TAKE left, SAVE right). Print it for your prescriber.
 
@@ -102,11 +104,12 @@ No extra packages. Python 3.11 is fine. Same math as the site. The table carries
 
 ## Tests
 
-Three suites. The first needs nothing but Python; the other two need Node and a browser.
+Three suites. The first needs nothing but Python, the second nothing but Python and Node, and only the third needs a browser.
 
 ```bash
-python3 test_taper.py       # schedule maths
-node test_parity.js         # index.html vs taper.py
+python3 gen_core.py --check # the site's copy of the maths is current
+python3 test_taper.py       # schedule maths, and the translator
+node test_parity.js         # the generated block vs taper.py
 node test_layout.js         # viewport sweep, 280px to 1920px
 ```
 
@@ -116,38 +119,42 @@ test method can make tens of thousands of assertions:
 
 | Suite | Test cases | What that means |
 |---|---|---|
-| `test_taper.py` | **61 tests, ~482,000 assertions** | 1,440 ladders / 15,422 cycles in the matrix alone |
-| `test_parity.js` | **1,323 schedules, ~463,000 field comparisons** | 13,567 matrix cycles × 28 row fields, plus summaries, months and the compare table |
-| `test_layout.js` | **537 viewport states, 571 checks** | each state is a whole rendered page measured for five failure modes |
+| `test_taper.py` | **79 tests, ~482,000 assertions** | 1,440 ladders / 15,422 cycles in the matrix alone, plus the generator's own tests |
+| `test_parity.js` | **1,323 schedules, 463,504 field comparisons** | 13,567 matrix cycles × 28 row fields, plus summaries, months and the compare table |
+| `test_layout.js` | **537 viewport states, 587 checks** | each state is a whole rendered page measured for five failure modes |
 
 Around **945,000 individual checks** in total, in about three minutes.
 
 ### `test_taper.py`
 
-61 test methods — and, because most of them walk a matrix, roughly 482,000 individual assertions — over the arithmetic the schedule is built on — the closed forms against the simulation, the per-cycle invariants (dose splits exactly, length fraction equals dose fraction, the bank is one whole piece per cycle), that the daily dose never rises across a film switch, and the published film geometry. A class of its own covers the linear mode: the cut never changes in either unit, the dose falls in equal steps, it lands on zero after exactly n − 1 of them, no cycle ever has a zero or negative dose, the closed form matches the simulation, the percentage step grows every cycle, and the two rescues the default mode needs are switched off. Standard library only.
+79 test methods — and, because most of them walk a matrix, roughly 482,000 individual assertions — over the arithmetic the schedule is built on — the closed forms against the simulation, the per-cycle invariants (dose splits exactly, length fraction equals dose fraction, the bank is one whole piece per cycle), that the daily dose never rises across a film switch, and the published film geometry. A class of its own covers the linear mode: the cut never changes in either unit, the dose falls in equal steps, it lands on zero after exactly n − 1 of them, no cycle ever has a zero or negative dose, the closed form matches the simulation, the percentage step grows every cycle, and the two rescues the default mode needs are switched off. Standard library only.
 
 The multi-film layout gets a matrix of its own: **1,440 ladders, 15,422 cycles** — start doses from 1 to 32 mg against all four official strengths, `n` from 2 to 30, three film lengths, the 2 mg switch both ways, **both cut modes** — checked cycle by cycle for the properties that make the instruction safe to follow. Nothing is lost between films; milligrams still track millimetres; no mark runs off the end of a film; exactly one film a day is ever cut; you open exactly the films the dose needs and never one more; the sliver is measured from the piece on the marked film rather than the film's own end; take and save partition the films you opened in both units; Δ save is the sliver wherever it is reported and never negative; it is blank for exactly the three stated reasons and each of those is actually reached; and the save grows on every cycle that reports one. A further check asserts the matrix reaches the hard shapes — days from 1 to 16 films, days whose sliver runs onto film you never open, days with nothing to cut at all — so it cannot quietly stop covering them.
 
+Eighteen more tests cover `gen_core.py`, the translator that turns the maths in `taper.py` into the JavaScript the site runs — what it accepts, what it refuses by file and line, and the four places Python and JavaScript disagree about the same code. One of those, `int()` versus `//`, is invisible to the parity suite, because the core only ever divides positive numbers.
+
 ### `test_parity.js` — what it tests and why
 
-The taper maths is written **twice**: `buildSchedule()` in `index.html` and `build_schedule()` in `taper.py`. The site tells people the two agree, and `test_taper.py` only covers the Python one. This test checks the claim, because the two had already drifted once.
+The taper maths is written **once**, between the `# --- CORE BEGIN ---` and `# --- CORE END ---` markers in `taper.py`. `gen_core.py` translates it into the generated block inside `index.html`, so the site and the CLI cannot disagree by construction — but a translator can still be wrong, and it is the only thing between the two.
 
-It loads `index.html` in a headless browser, runs both implementations over the same inputs, and diffs the results — comparing all 28 fields of every cycle row, 9 summary figures, every 30-day month bucket, and the n = 6/8/10 comparison table.
+This test is what checks it. It lifts the generated block and its adapter straight out of `index.html`, evaluates them in Node, and diffs the result against `taper.py` — all 28 fields of every cycle row, 13 summary figures, every 30-day month bucket, and the n = 6/8/10 comparison table. It runs `python3 gen_core.py --check` first, so a stale block fails here rather than shipping, and it evaluates the block in strict mode, where the scoping mistake a translator is most likely to make throws instead of computing something plausible.
+
+**No browser needed.** It used to drive headless Chromium to reach into the page; now the maths is a self-contained block of arithmetic it can simply run, so the whole suite finishes in about eight seconds on a bare checkout. Only `test_layout.js` still needs Chromium.
 
 **43 named schedules** go through the CLI, so the argument plumbing is covered too: start doses 0.1–64 mg, `n` from 2 to 30, the 2 mg switch on and off, stretched cycles, `n`-below-3, non-default film lengths and strengths, doses needing two to eight films a day, clamp boundaries, empty ladders.
 
 **1,280 more** go straight at `build_schedule()` — the whole grid in both cut modes — in one Python process — every start dose from 1 to 32 mg against every official film strength, `n` from 2 to 30, and two non-default film lengths. That is **13,567 cycles** compared field by field, up to a sixteen-strip day. It also checks the shape of its own coverage, so a grid that stopped producing multi-film days would fail rather than pass silently. Then `baseFilmMg` across 11 film sizes.
 
-It exits **0** on a match, **1** with a list of mismatches otherwise. If Node or a browser is missing it prints `skipped` and exits 0, so a plain checkout still passes.
+It exits **0** on a match and **1** with a list of mismatches otherwise.
 
-#### Setup — Linux and macOS
+### `test_layout.js` — setup, Linux and macOS
 
 `playwright-core` deliberately ships without a browser, so you need one. Easiest route, and what CI uses:
 
 ```bash
 npm install                          # installs playwright-core from package.json
 npx --yes playwright install chromium   # ~150 MB, downloads once
-node test_parity.js
+node test_layout.js
 ```
 
 On Linux, if Chromium refuses to start over missing system libraries:
@@ -160,13 +167,13 @@ npx --yes playwright install --with-deps chromium   # needs sudo
 
 ```bash
 # macOS
-CHROMIUM_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" node test_parity.js
+CHROMIUM_PATH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" node test_layout.js
 
 # Linux
-CHROMIUM_PATH=/usr/bin/google-chrome node test_parity.js
+CHROMIUM_PATH=/usr/bin/google-chrome node test_layout.js
 ```
 
-The script also finds a browser on its own in the usual places — the Playwright cache (`~/.cache/ms-playwright` on Linux, `~/Library/Caches/ms-playwright` on macOS) and installed Chrome or Chromium — so `CHROMIUM_PATH` is only needed for something in an unusual location.
+The script also finds a browser on its own in the usual places — the Playwright cache (`~/.cache/ms-playwright` on Linux, `~/Library/Caches/ms-playwright` on macOS) and installed Chrome or Chromium — so `CHROMIUM_PATH` is only needed for something in an unusual location. Without any browser it prints `skipped` and exits 0, so a plain checkout still passes.
 
 ### `test_layout.js` — what it tests and why
 
@@ -182,12 +189,14 @@ This is that sweep, committed. It loads the page at **14 widths from 280px to 19
 | **spill** — an absolute label escaping its container | bounding box against its parent's |
 | **bar count** — a drawing showing a different day than it describes | one bar per film in each panel, against the layout for that panel's strength |
 
-Any console or page error fails it too. Same setup as the parity test; same skip behaviour without a browser.
+Any console or page error fails it too.
 
 Via npm scripts:
 
 ```bash
-npm test           # parity + layout
+npm run gen        # regenerate the site's copy of the maths
+npm run test:gen   # ...or just check it is current
+npm test           # generated-core check + parity + layout
 npm run test:all   # all three suites
 ```
 
@@ -232,7 +241,7 @@ If a run stops at the 40-cycle cap before reaching the target, or the 2 mg switc
 
 [ARCHITECTURE.md](ARCHITECTURE.md) explains how the whole thing runs — entry points, every formula, the film-layout rule, and what each test suite is guarding. [CLAUDE.md](CLAUDE.md) is the checklist for making a change. [CONTRIBUTING.md](CONTRIBUTING.md) has the house rules.
 
-The short version: `index.html` stays one self-contained file, `taper.py` stays standard-library only, and if you touch the maths in one you touch it in both and run `node test_parity.js`.
+The short version: `index.html` stays one self-contained file, `taper.py` stays standard-library only, and the maths is written once — inside the CORE markers in `taper.py`. After changing it run `python3 gen_core.py` to update the generated block in `index.html`, then `node test_parity.js`. Never edit that block by hand.
 
 ## License
 

@@ -2,36 +2,50 @@
 
 Working notes for anyone — human or agent — changing this repo.
 
-Read [ARCHITECTURE.md](ARCHITECTURE.md) first if you do not already know how the two implementations fit together. [CONTRIBUTING.md](CONTRIBUTING.md) has the project's own house rules; this file is the checklist.
+Read [ARCHITECTURE.md](ARCHITECTURE.md) first if you do not already know how the two front ends fit together, and how the maths gets from one to the other. [CONTRIBUTING.md](CONTRIBUTING.md) has the project's own house rules; this file is the checklist.
 
 ---
 
 ## Before you finish any change
 
-**1. The maths lives in two files. Change one, change the other.**
+**1. The maths lives in one file. Change it there, then regenerate.**
 
-`buildSchedule()` in `index.html` and `build_schedule()` in `taper.py` must produce identical rows. The site says so in its footer. They have drifted before.
+Everything between `# --- CORE BEGIN ---` and `# --- CORE END ---` in `taper.py` is the only copy of the ladder. `gen_core.py` translates it into the block in `index.html` between `/* ===== GENERATED CORE ... */` markers:
 
-If you add a field to a `CycleRow`, add it on both sides — `test_parity.js` compares every field of the JS row against the snake_case equivalent in the Python one, so a field on one side only is a failure, not a silent pass. Same for `ScheduleResult` summary fields and their empty-ladder defaults.
+```bash
+python3 gen_core.py          # after any change inside the core markers
+python3 gen_core.py --check   # what CI runs — fails on a stale or hand-edited block
+```
 
-Display-only values (`cutTolMm`, `halfLifeH`, `startDate`) are read into `opts` but must **never** be passed to `buildSchedule`. That is what stops a chart control from moving the ladder.
+**Never hand-edit the generated block.** `--check` fails on it, `node test_parity.js` fails on it, and `test_taper.py` fails on it. Add a `CycleRow` field in Python and the site gets it for free; you no longer add it twice.
+
+`gen_core.py` accepts a deliberately small subset of Python and refuses the rest by file and line rather than guessing. If it stops you, either write it another way or teach it the construct **and add a case to `TestCoreGenerator`**. Four differences it exists to police, all of which have bitten:
+
+- **truthiness** — `[]` is falsy in Python and *truthy* in JavaScript. A bare value in a boolean position is rejected unless it is known to be a number or a bool, so write `len(rows) == 0`, not `not rows`.
+- **`int()` is `Math.trunc`, `//` is `Math.floor`.** They only agree on positive operands, and the core's `//` sites only ever see positives — so `test_parity.js` will *not* catch a mix-up here. `TestCoreGenerator` is what does.
+- **function scope vs block scope** — Python scopes a local to the whole function, `let` scopes it to its block. Every local is hoisted to the top of the function for that reason. `test_parity.js` evaluates the block in strict mode, where the mistake throws.
+- **naming** — snake_case becomes camelCase, including dict keys. Five names are overridden by hand in `NAME_OVERRIDES` because the display code already reads them; the table is validated against `taper.py` on every run.
+
+`cut_context()`/`kit_line()` in `taper.py` and `dayFilms()` in `index.html` are **not** in the core and are still written twice. They shape the same day for two different media. Nothing checks them against each other.
+
+Display-only values (`cutTolMm`, `halfLifeH`, `startDate`) are read into `opts` but must **never** reach the maths. The hand-written adapter under the generated block is the only place `opts` meets it — that is what stops a chart control from moving the ladder.
 
 **2. Run all three suites. All three, not the fast one.**
 
 ```bash
-python3 test_taper.py       # maths — stdlib, sub-second
-node test_parity.js         # index.html vs taper.py — ~10s
-node test_layout.js         # viewport sweep — ~2 min
+python3 test_taper.py       # maths + the translator — stdlib, sub-second
+node test_parity.js         # generated block vs taper.py — ~8s, no browser
+node test_layout.js         # viewport sweep — ~2 min, needs Chromium
 npm run test:all            # all three
 ```
 
 Each sees something the others cannot:
 
-- `test_taper.py` catches wrong arithmetic.
-- `test_parity.js` catches the two implementations disagreeing.
+- `test_taper.py` catches wrong arithmetic, and `TestCoreGenerator` in it catches the translator mistranslating.
+- `test_parity.js` catches the generated block not computing what `taper.py` computes. It needs no browser: it lifts the block out of `index.html` and runs it in Node.
 - `test_layout.js` catches text colliding, clipping or overflowing at a width nobody looked at. **This is the most frequent bug in this repo.** Run it after touching any CSS, any label, any measured-pixel positioning, or anything that changes how much text goes in a box.
 
-Without a browser the two Node suites print `skipped` and exit 0. That is deliberate for a bare checkout — but if you are changing the page, a `skipped` is not a pass. Get a browser.
+Without a browser `test_layout.js` prints `skipped` and exits 0. That is deliberate for a bare checkout — but if you are changing the page, a `skipped` is not a pass. Get a browser.
 
 **3. Add a test for what you changed, and prove it can fail.**
 
@@ -51,6 +65,7 @@ Docs in this repo carry live numbers, and stale numbers are worse than none:
 | `ARCHITECTURE.md` | structure, formulas, entry points, data model, or what a suite covers changes |
 | `CLAUDE.md` | the rules themselves change |
 | `CONTRIBUTING.md` | a constraint changes |
+| `gen_core.py` — its docstring | the accepted subset or one of the four language differences changes |
 | `index.html` — the "What each input does" list | you add, remove or re-scope an input |
 | `taper.py` — `HOW_TO` / `NOTES` | the same, or the daily ritual changes |
 
@@ -64,8 +79,8 @@ Most changes should leave a plain 8 mg run byte-identical. Diff the rendered tex
 
 ## Constraints that are easy to break by accident
 
-- **`index.html` stays one self-contained file.** All CSS and JS inline, no external requests, no build step. People open it from disk, offline. A CDN link or a bundler breaks that.
-- **`taper.py` stays standard-library only.** No pip installs, and `test_taper.py` likewise.
+- **`index.html` stays one self-contained file.** All CSS and JS inline, no external requests, nothing for the reader to build. People open it from disk, offline. A CDN link or a bundler breaks that. `gen_core.py` runs before the commit, never at page load — the file in the repo is the file that works.
+- **`taper.py` stays standard-library only.** No pip installs, and `gen_core.py` and `test_taper.py` likewise. `gen_core.py` uses `ast` and `tokenize`, both stdlib.
 - **Every colour token goes in all three theme blocks** — bare `:root` (dark, the default), `:root[data-theme="light"]`, and `@media print`. Miss one and it is undefined in that mode.
 - **Chart colours come from `readChartPalette()`**, never hardcoded. They are baked into the SVG at render time, so a CSS variable in an SVG attribute does not resolve.
 - **The film specimen keeps its fixed orange palette in both themes.** A real Suboxone film is orange. Everything around it themes normally.

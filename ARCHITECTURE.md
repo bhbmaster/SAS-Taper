@@ -12,20 +12,23 @@ Two programs compute the same taper, in two languages, and the site tells people
 
 ```
 index.html   the site — one self-contained file, no build, no network
-taper.py     the CLI  — standard library only
+taper.py     the CLI  — standard library only, and the source of the maths
+gen_core.py  the translator that puts a copy of it inside the site
 ```
 
-That duplication is deliberate. The site has to work offline from a double-clicked file, so it cannot import anything; the CLI has to run on a machine with nothing installed, so it cannot depend on Node. Neither can be generated from the other without a build step, and a build step would break the first constraint.
+The two front ends are independent at run time, and have to be. The site has to work offline from a double-clicked file, so it cannot import anything; the CLI has to run on a machine with nothing installed, so it cannot depend on Node. Neither can load the other's code, and no shared library can sit between them.
 
-The cost is that **the ladder maths exists twice and can drift** — it already did once. `test_parity.js` is the mechanism that keeps the promise honest: it runs both implementations over the same inputs and diffs every field. Everything else in this document is downstream of that one fact.
+**The maths itself is not duplicated.** It lives once, between the `# --- CORE BEGIN ---` and `# --- CORE END ---` markers in `taper.py`, and `gen_core.py` translates it into a generated block inside `index.html`. That translation runs before the commit, never at page load, so the reader still downloads one file that works on its own.
+
+It did exist twice, and it drifted, which is what `test_parity.js` was written for. That suite is still here and still runs the whole grid, but it now answers a different question: not "have the two hand-written copies drifted?" — they cannot — but "does the translator emit what the Python computes?" `gen_core.py` is trusted code sitting between the CLI's arithmetic and the site's, so it gets the same scrutiny the second implementation used to.
 
 ```
                     ┌───────────────────────────┐
-   the contract →   │  same inputs, same rows   │
+    one source  →   │  CORE regions of taper.py │
                     └─────────────┬─────────────┘
+                            gen_core.py
                     ┌─────────────┴─────────────┐
-            buildSchedule()              build_schedule()
-             (index.html)                    (taper.py)
+      generated block in index.html       build_schedule()
                     │                             │
              8 renderers                    print_schedule()
              8 SVG charts                   --json payload
@@ -38,17 +41,20 @@ The cost is that **the ladder maths exists twice and can drift** — it already 
 
 | File | What it is |
 |---|---|
-| `index.html` | The whole site: HTML, CSS and JS in one file. ~3060 lines. |
-| `taper.py` | The CLI and the reference implementation of the maths. ~1370 lines. |
-| `test_taper.py` | Maths checks, standard library only. No browser, no Node. |
-| `test_parity.js` | Runs both implementations and diffs them. Needs Node + Chromium. |
-| `test_layout.js` | Sweeps viewports for overflow, overlap, clipping, spill, bar-count. |
-| `test_browser.js` | Shared browser discovery for the two Node suites. |
+| `index.html` | The whole site: HTML, CSS and JS in one file. ~3810 lines, of which 612 are the generated core. |
+| `taper.py` | The CLI, and the only copy of the maths. ~1650 lines; the CORE regions are ~700 of them. |
+| `gen_core.py` | Translates the CORE regions into the generated block in `index.html`. Stdlib `ast` + `tokenize`. |
+| `test_taper.py` | Maths checks and the translator's unit tests. Standard library only. No browser, no Node. |
+| `test_parity.js` | Runs the generated block against `taper.py` and diffs every field. Node only — no browser. |
+| `test_layout.js` | Sweeps viewports for overflow, overlap, clipping, spill, bar-count. Needs Chromium. |
+| `test_browser.js` | Browser discovery for `test_layout.js`. |
 | `.github/workflows/tests.yml` | Runs all three on push, PR and manual dispatch. |
 | `package.json` | `playwright-core` only, plus the `npm test` scripts. |
 | `sitemap.xml`, `.python-version`, `.editorconfig` | Housekeeping. |
 
-There is no `src/`, no bundler, no lockfile-driven install for the site itself. `npm install` exists only to fetch the test browser driver.
+There is no `src/`, no bundler, no lockfile-driven install for the site itself. `npm install` exists only to fetch the browser driver for the layout sweep.
+
+`gen_core.py` is a code generator, not a build step in the usual sense: nothing runs it to serve the page, and the repo always holds the generated output. A contributor runs it after changing the maths, and `python3 gen_core.py --check` fails CI if they did not.
 
 ---
 
@@ -56,7 +62,9 @@ There is no `src/`, no bundler, no lockfile-driven install for the site itself. 
 
 ### The site
 
-`index.html` is a single `<script>` wrapped in an IIFE. The last five lines are the entry point:
+`index.html` is a single `<script>` wrapped in an IIFE. Its first section is the generated core — the translation of `taper.py`'s CORE regions — followed by a short hand-written adapter that maps the form's options object onto the generated `buildScheduleCore(...)`, which takes the same arguments in the same order as the Python. The adapter is the only place the form's field names meet the maths, and it is where the display-only inputs are dropped.
+
+The last five lines are the entry point:
 
 ```js
 applyTheme(currentTheme(), false);   // dark unless the reader chose otherwise
@@ -88,7 +96,30 @@ function render() {
 
 `saveInputs(opts)` takes the already-read opts rather than re-reading. Re-reading would run `clampOpts` a second time against values it had just corrected, find nothing to fix, and wipe the clamp notices before the banner could show them.
 
-The script is laid out in the order its header comment describes: constants and film specs, maths, input handling, renderers, chart infrastructure, wiring. The CSS carries matching `/* ---- … ---- */` section markers.
+The script is laid out in the order its header comment describes: storage keys, the generated core, the adapter, input handling, renderers, chart infrastructure, wiring. The CSS carries matching `/* ---- … ---- */` section markers.
+
+### The generator
+
+```
+gen_core.py
+ ├── core_regions()      # the CORE BEGIN/END line ranges in taper.py
+ ├── core_nodes()        # top-level nodes inside them, minus `# gen: skip`
+ ├── check_overrides()   # every NAME_OVERRIDES key still exists in taper.py
+ └── Translator          # ast walk -> JavaScript, refusing anything unfamiliar
+```
+
+It accepts a small subset of Python — plain functions, `@dataclass` records, `if`/`for`/`break`/`return`/`raise`, arithmetic, comparisons, ternaries, literals, and a whitelist of nine builtins — and raises `Unsupported` with a file and line for everything else. It never guesses. Comments and docstrings are picked back out of the token stream and carried across, so the generated block reads as something other than machine output.
+
+Four differences between the languages are the reason it exists rather than a hand copy, and each one has a test in `TestCoreGenerator`:
+
+| Difference | What it does |
+|---|---|
+| `[]` is falsy in Python, truthy in JavaScript | refuses a bare value in a boolean position unless it is known to be a number or a bool |
+| `int()` rounds toward zero, `//` toward −∞ | `Math.trunc` and `Math.floor` respectively — never the same one for both |
+| Python scopes locals to the function, `let` to the block | hoists every local to the top of the function |
+| naming conventions | snake_case → camelCase, dict keys included, with five hand-checked overrides |
+
+`@dataclass` definitions are not translated into anything executable: constructions of them become object literals, and the **defaults declared on the class are where the site's empty-ladder defaults come from** — there is no second list of them to fall out of step.
 
 ### The CLI
 
@@ -110,6 +141,8 @@ The two sets of limits are *not* identical, and that is worth knowing before you
 ---
 
 ## 4. The maths
+
+Everything in this section is implemented once, inside the CORE markers in `taper.py`. The site runs a translation of it, not a re-implementation of it — see §3 for how that works.
 
 ### The ladder
 
@@ -366,17 +399,17 @@ The calendar anchors every date to **UTC noon**. Parsing `yyyy-mm-dd` with `new 
 Three suites, three different things they can see. All three run in CI on every push and pull request.
 
 ```bash
-python3 test_taper.py       # schedule maths — stdlib only, no browser
-node test_parity.js         # index.html vs taper.py
-node test_layout.js         # viewport sweep, 280px to 1920px
+python3 test_taper.py       # schedule maths and the translator — stdlib only
+node test_parity.js         # the generated block vs taper.py — no browser
+node test_layout.js         # viewport sweep, 280px to 1920px — needs Chromium
 npm run test:all            # all three
 ```
 
-The two Node suites share `test_browser.js`, which looks for a browser in `CHROMIUM_PATH`, then the Playwright caches (Linux and macOS), then an installed Chrome or Chromium. **If it finds none, both print `skipped` and exit 0** — a plain checkout without a browser should not fail the suite.
+Only `test_layout.js` needs a browser now. It uses `test_browser.js`, which looks in `CHROMIUM_PATH`, then the Playwright caches (Linux and macOS), then an installed Chrome or Chromium. **If it finds none it prints `skipped` and exits 0** — a plain checkout without a browser should not fail the suite.
 
-That skip is right locally and wrong in CI, where it would be a green tick over a page nobody tested, so the workflow has an explicit gate: after installing the browser it calls `findBrowser()` and fails the job if the answer is null. Note the skip only covers a *missing binary* — a browser that exists but fails to launch throws, and both suites exit 1.
+That skip is right locally and wrong in CI, where it would be a green tick over a page nobody tested, so the workflow has an explicit gate: after installing the browser it calls `findBrowser()` and fails the job if the answer is null. Note the skip only covers a *missing binary* — a browser that exists but fails to launch throws, and the suite exits 1.
 
-### `test_taper.py` — 61 tests, ~482,000 assertions
+### `test_taper.py` — 79 tests, ~482,000 assertions
 
 Standard library, no I/O, runs in about a second.
 
@@ -405,26 +438,36 @@ Named classes cover the closed forms against the simulation, the per-cycle invar
 | Δ save is blank for exactly the three stated reasons | a fourth, unnamed reason would be a column the reader cannot trust — and a stated reason the grid never reaches would be a claim with nothing behind it |
 | the save grows on every cycle that reports a Δ | the thing the method is sold on |
 
+`TestCoreGenerator` covers `gen_core.py`, which became part of the maths the moment the site started running its output. Eighteen tests over three things: the four language differences above (a list in a boolean position is refused, `int()` truncates and `//` floors, negative indices are rewritten, locals are hoisted out of their blocks); what the translator will *not* guess at (comprehensions, `while`, `try`, un-whitelisted builtins, string methods, `%`, methods on a record — each refused with a file and line); and what the output has to carry (comments survive, dataclass defaults reach the object literal, keyword arguments become positional with the gaps filled, and the block checked into `index.html` is what `taper.py` produces right now).
+
+The `//` case is the one worth knowing about: **`test_parity.js` cannot catch a `Math.floor`/`Math.trunc` mix-up**, because the core's two `//` sites only ever see positive operands, where the two agree. Injecting that fault leaves parity green and turns `TestCoreGenerator` red. It is the clearest case in the repo of two suites covering genuinely different ground.
+
 `TestTakeAndSave` covers the pair the reader acts on: take and save partition the film with nothing between them, the worked default by hand, linear mode saving the same extra every cycle while the total climbs by that step, and the three cases where `delta_save_mm` has to be `None` — a 2 mg restart, a cycle that drops a whole film, and a day that lands on a film boundary and saves nothing without moving the baseline for the next real cut.
 
 An eleventh test checks **the shape of the coverage itself** — that the matrix really does produce days of 1 through 16 films, days needing a second cut film, and days with nothing to cut. A grid that quietly stopped generating multi-film days would otherwise pass everything above while testing nothing.
 
-### `test_parity.js` — 1,323 schedules
+### `test_parity.js` — 1,323 schedules, no browser
 
-The suite that keeps the site's promise true. It loads `index.html` in headless Chromium, reaches into `window.SASTaperInternals` (a frozen, read-only test surface exposed at the bottom of the IIFE — the page itself never uses it), and diffs against `taper.py`.
+The acceptance test for `gen_core.py`. It lifts the generated block and its hand-written adapter straight out of `index.html`, evaluates them in Node, and diffs the result against `taper.py`. No Chromium, no `page.evaluate`, about eight seconds — nearly all of it Python subprocess startup — and it runs in a bare checkout.
+
+Three things it does before comparing anything:
+
+- runs `python3 gen_core.py --check`, so a stale block fails here rather than shipping;
+- evaluates the block in **strict mode**, where assigning to a name that was never declared throws — which is exactly what a block-scope mistake produces;
+- calls through the adapter rather than the generated function directly, so what it tests is the entry point the page actually uses.
 
 Two phases:
 
 - **43 named cases** go through the CLI (`python3 taper.py --json`), so the argument plumbing is covered too. Start doses 0.1–64 mg, `n` 2–30, the switch both ways, stretched cycles, `n`-below-3, non-default lengths and strengths, clamp boundaries, empty ladders.
 - **1,280 matrix cases** go straight at `build_schedule()` in one Python process — 1 to 32 mg × all four strengths × `n` 2–30 × **both cut modes**, plus non-default film lengths. **13,567 cycles**, compared field by field.
 
-Every one of the 28 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes — **about 463,000 field comparisons**, which the suite counts as it goes and prints. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
+Every one of the 28 row fields is compared, plus 13 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes — **463,504 field comparisons**, which the suite counts as it goes and prints. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so a field that reaches only one side fails the test rather than being skipped.
 
-The months and the comparison table were the last two things written twice and checked nowhere: `compareRows` only walks rows and `compareSummary` only walks scalars, so `monthly_usage()` and `compare_classic()` could have drifted from their JS twins in silence.
+`compareOverrides` checks the two fields `gen_core.py` renames by hand — `film_2mg_mm` → `film2Mm` and `n_below_3mg` → `nBelow3`. The mechanical rule would call them something else, and the display reads them by the old names, so a lost override would otherwise show up as a blank panel rather than a failing test.
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js` — 537 viewport states, 571 checks
+### `test_layout.js` — 537 viewport states, 587 checks
 
 Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
 
@@ -452,6 +495,8 @@ Any console error or page error fails it too.
 
 `.github/workflows/tests.yml` runs all three on push to `main`, on every pull request, and on manual dispatch. Roughly three minutes end to end.
 
+The order is deliberate: the Python maths, then `gen_core.py --check`, then parity — all three of which need no browser and finish in seconds — and only then the 150 MB Chromium download and the layout sweep. A stale generated block or a translator regression is now reported before the slow half of the job starts.
+
 Two things in it are load-bearing and worth not undoing:
 
 - **No `--with-deps` on the Playwright install.** That flag runs `apt-get update` against the Azure Ubuntu mirrors on every run, and has hung for 10+ minutes when they are unhealthy. It buys nothing: the `ubuntu-latest` image already ships Chrome and Chromium, so the shared libraries Playwright's Chromium needs are installed. If that ever stops being true the browser fails to *launch*, which throws — it cannot become a silent pass.
@@ -477,6 +522,21 @@ Every guard above was checked by injecting the fault it is meant to catch:
 | `compareClassic` drifts by 2% on the target | 14 parity mismatches |
 | 0.1% error in `keepRatio` | 1985 mismatches |
 
+And the same for everything the generator brought with it:
+
+| Injected fault | Result |
+|---|---|
+| one number hand-edited in the generated block | `--check` prints the diff and exits 1; parity and `test_taper.py` both fail |
+| `taper.py` changed without regenerating | `--check` and parity both fail, naming the line |
+| `//` translated as `Math.trunc` instead of `Math.floor` | `TestCoreGenerator` fails — **parity stays green**, because the core's `//` sites only see positives |
+| locals no longer hoisted out of their blocks | parity throws a `ReferenceError` from strict mode on the first schedule |
+| `NAME_OVERRIDES` entry removed | 43 parity failures: "the schedule has no film2Mm" |
+| subtraction translated as addition | 64,163 parity mismatches |
+| adapter passes a display-only input into the maths | 13,015 parity mismatches |
+| a list comprehension added inside the CORE markers | `gen_core.py: taper.py:413: unsupported expression ListComp` |
+
+One of those is worth calling out as a *near miss*: translating `**` as `*` changes nothing, because the only `**` left in the core is inside `ingested_closed_form`, which carries `# gen: skip`. An injected fault that produces no failure is not proof the guard works — it is proof the fault was unreachable, and the two are easy to confuse.
+
 A guard that has never been seen to fail is not yet a guard.
 
 ---
@@ -486,16 +546,18 @@ A guard that has never been seen to fail is not yet a guard.
 Things that are true today and that a change must keep true. Most are enforced by a test; the ones that are not are marked.
 
 1. `index.html` is one file with no external requests. *(Not enforced — read the diff.)*
-2. `taper.py` imports only the standard library. *(Not enforced.)*
-3. `buildSchedule` and `build_schedule` produce identical rows. — `test_parity.js`
-4. Display-only inputs never reach either schedule builder. — `test_parity.js`, indirectly: they are not in its input set
-5. Every colour token exists in all three theme blocks. *(Not enforced — `test_layout.js` renders both screen themes, which catches most of it.)*
-6. Nothing is lost between the films of one day. — `test_taper.py`
-7. Exactly one film per day is ever cut. — `test_taper.py`
-8. You open exactly the films the dose needs, never one more. — `test_taper.py`
-9. Each drawing shows one bar per film it is describing. — `test_layout.js`
-10. No text overlaps, clips or overflows from 280 px to 1920 px. — `test_layout.js`
-11. Summary fields are 0/None on an empty ladder, never undefined. — `test_parity.js`
-12. A linear cut is the same size in every cycle, in mg and in mm. — `test_taper.py`, and `test_layout.js` reads it off the rendered table
-13. No cycle ever carries a zero or negative dose. — `test_taper.py`
+2. `taper.py`, `gen_core.py` and `test_taper.py` import only the standard library. *(Not enforced.)*
+3. The maths exists once. The block in `index.html` is what `gen_core.py` makes of `taper.py`'s CORE regions, byte for byte. — `gen_core.py --check`, `test_parity.js`, `test_taper.py`
+4. The generated block computes what `build_schedule()` computes. — `test_parity.js`
+5. `gen_core.py` refuses what it cannot translate exactly, rather than guessing. — `TestCoreGenerator`
+6. Display-only inputs never reach the schedule builder. — the adapter is the only caller, and `test_parity.js` fails if one gets in
+7. Every colour token exists in all three theme blocks. *(Not enforced — `test_layout.js` renders both screen themes, which catches most of it.)*
+8. Nothing is lost between the films of one day. — `test_taper.py`
+9. Exactly one film per day is ever cut. — `test_taper.py`
+10. You open exactly the films the dose needs, never one more. — `test_taper.py`
+11. Each drawing shows one bar per film it is describing. — `test_layout.js`
+12. No text overlaps, clips or overflows from 280 px to 1920 px. — `test_layout.js`
+13. Summary fields are 0/None on an empty ladder, never undefined — and they come from the dataclass defaults, so there is only one place to set them. — `test_parity.js`
+14. A linear cut is the same size in every cycle, in mg and in mm. — `test_taper.py`, and `test_layout.js` reads it off the rendered table
+15. No cycle ever carries a zero or negative dose. — `test_taper.py`
 14. The schedule's column tooltips never appear on a touch device. — `test_layout.js`

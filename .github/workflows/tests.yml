@@ -22,13 +22,28 @@ jobs:
         with:
           python-version-file: .python-version
 
-      # No third-party Python packages: taper.py and test_taper.py are stdlib only.
+      # No third-party Python packages: taper.py, gen_core.py and test_taper.py
+      # are stdlib only.
       - name: Schedule maths
         run: python3 test_taper.py
+
+      # The maths is written once, in taper.py, and translated into the block
+      # in index.html. This fails if that block is not what taper.py produces
+      # any more — before anything slower has run.
+      - name: Generated core is up to date
+        run: python3 gen_core.py --check
 
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+
+      # Runs the generated block against the Python it came from: 1,323
+      # schedules, every field. No browser — it lifts the block out of
+      # index.html and evaluates it in Node — so it goes before the 150 MB
+      # download, and a failure here is reported in seconds rather than
+      # minutes.
+      - name: JS/Python parity
+        run: node test_parity.js
 
       # ~150 MB, and identical from run to run. The key covers both places the
       # Playwright version is written down.
@@ -39,14 +54,14 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('package.json', '.github/workflows/tests.yml') }}
 
       # playwright-core ships no browser, so fetch one. This is the only network
-      # dependency in the whole suite.
+      # dependency in the whole suite, and now only test_layout.js needs it.
       #
       # Deliberately NOT --with-deps. That flag runs apt-get update against the
       # Azure Ubuntu mirrors on every run, which has hung for 10+ minutes when
       # they are unhealthy, and it buys nothing here: the ubuntu-latest image
       # already ships Chrome and Chromium, so the shared libraries Playwright's
       # Chromium needs are installed. If that ever stops being true the browser
-      # fails to launch and both Node suites exit 1 — launchOrSkip only skips
+      # fails to launch and test_layout.js exits 1 — launchOrSkip only skips
       # when no browser binary exists, never when one fails to start — so this
       # cannot turn into a silent pass.
       - name: Install browser
@@ -55,22 +70,17 @@ jobs:
           npm install --no-save playwright-core@^1.49.0 playwright@^1.49.0
           npx playwright install chromium
 
-      # Both Node suites print "skipped" and exit 0 without a browser, which is
+      # test_layout.js prints "skipped" and exits 0 without a browser, which is
       # right for a bare checkout and wrong for CI: it would be a green tick
-      # over a page nobody tested. Fail here instead, before they can.
+      # over a page nobody tested. Fail here instead, before it can.
       - name: Check a browser was found
         run: |
           node -e '
             const { findBrowser } = require("./test_browser");
             const p = findBrowser();
-            if (!p) { console.error("no browser found — the suites would skip and pass"); process.exit(1); }
+            if (!p) { console.error("no browser found — the layout sweep would skip and pass"); process.exit(1); }
             console.log("browser: " + p);
           '
-
-      # Guards the promise that index.html and taper.py compute the same
-      # ladder. Without this the JS half of the maths is untested.
-      - name: JS/Python parity
-        run: node test_parity.js
 
       # Sweeps viewports from 280px to 1920px looking for overflow, overlapping
       # text, clipped boxes, escaped labels and drawings that disagree with the
