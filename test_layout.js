@@ -879,7 +879,17 @@ const probe = () => {
       failures.push(`fold.html loads something off-site: ${offsite.join(", ")}`);
     }
 
-    for (const width of [320, 414, 768, 1280]) {
+    /* Matches the @media in fold.html. The widths below must sit on both
+       sides of it, or a regression that only shows on a phone would never
+       be measured. */
+    const FOLD_WIDTHS = [320, 414, 768, 1280];
+    const PRE_WRAP_MAX = 620;
+    checks++;
+    if (!FOLD_WIDTHS.some((w) => w <= PRE_WRAP_MAX) || !FOLD_WIDTHS.some((w) => w > PRE_WRAP_MAX)) {
+      failures.push(`fold.html widths no longer straddle the ${PRE_WRAP_MAX}px code-wrap breakpoint`);
+    }
+
+    for (const width of FOLD_WIDTHS) {
       for (const theme of ["dark", "light"]) {
         const ctx = await browser.newContext({
           viewport: { width, height: 900 }, colorScheme: theme,
@@ -894,6 +904,38 @@ const probe = () => {
           window.__groups = g; window.__clip = c; window.__spill = s2;
           window.__selectedRow = () => null;
         }, [OVERLAP_GROUPS, CLIP_SELECTORS, SPILL_PAIRS]);
+
+        /* The whole-algorithm listing — and the smaller snippets — are too
+           wide for a phone as one long line. On small screens they must wrap
+           rather than sprout a sideways scroller of their own; overflow-x:auto
+           on the <pre> would hide that from the page-level overflow check.
+           Wider viewports keep the listing as a strip of code. */
+        const listing = await page.evaluate(() => {
+          const blocks = [...document.querySelectorAll("pre")].map((p) => {
+            const cs = getComputedStyle(p);
+            return {
+              whole: p.classList.contains("whole"),
+              whiteSpace: cs.whiteSpace,
+              overflowX: p.scrollWidth - p.clientWidth,
+            };
+          });
+          return { blocks, whole: blocks.find((b) => b.whole) || null };
+        });
+        checks++;
+        if (!listing.whole) {
+          failures.push("fold.html has no whole-algorithm code block");
+        } else if (width <= PRE_WRAP_MAX) {
+          if (!/wrap/.test(listing.whole.whiteSpace)) {
+            failures.push(`fold.html code listing does not wrap at ${width}px (white-space: ${listing.whole.whiteSpace})`);
+          }
+          const sideways = listing.blocks.filter((b) => b.overflowX > 1);
+          if (sideways.length) {
+            failures.push(`fold.html <pre> still scrolls sideways at ${width}px `
+              + `(${sideways.map((b) => (b.whole ? "whole " : "") + b.overflowX + "px").join(", ")})`);
+          }
+        } else if (/wrap/.test(listing.whole.whiteSpace)) {
+          failures.push(`fold.html code listing wraps at ${width}px; wrapping is for small screens`);
+        }
 
         /* Every preset, so each stage is measured against a real cycle rather
            than only the one it loads with. */

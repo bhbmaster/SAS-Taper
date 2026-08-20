@@ -152,11 +152,20 @@
   .note code { background: rgb(128 128 128 / .16); }
 
   pre.whole { font-size: 0.74rem; line-height: 1.7; padding: 1.1rem 1.2rem; }
-  @media (max-width: 620px) { pre.whole { font-size: 0.68rem; } }
   pre {
     margin: 0; background: var(--sunk); border: 1px solid var(--line);
     border-radius: 8px; padding: 0.8rem 0.9rem; overflow-x: auto;
     font: 400 0.78rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink);
+  }
+  @media (max-width: 620px) {
+    pre.whole { font-size: 0.68rem; }
+    /* Phones cannot show an 80-column listing. Wrap rather than a nested
+       horizontal scroller — overflow-x:auto on the <pre> would hide the
+       problem from the page-level overflow check. */
+    pre {
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
   }
   pre .c { color: var(--faint); }
   pre .k { color: var(--accent); }
