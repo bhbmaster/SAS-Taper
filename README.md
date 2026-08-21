@@ -131,9 +131,9 @@ test method can make tens of thousands of assertions:
 |---|---|---|
 | `test_taper.py` | **74 tests, ~501,000 assertions** | 1,440 ladders / 15,422 cycles in the matrix alone |
 | `test_parity.js` | **1,323 schedules + 13,920 folded cuts, ~644,000 field comparisons** | 13,567 matrix cycles × 28 row fields, plus summaries, months, the compare table and the fraction search |
-| `test_layout.js` | **674 viewport states, 898 checks** | each state is a whole rendered page, `index.html` or `fold.html`, measured for five failure modes, plus a source scan for leftover dashes and ranges spelled "to" |
+| `test_layout.js` | **682 viewport states, 915 checks** | each state is a whole rendered page, `index.html` or `fold.html`, measured for five failure modes, plus a source scan for leftover dashes and ranges spelled "to" |
 
-Around **1,144,000 individual checks** in total, in about five minutes.
+Around **1,146,000 individual checks** in total, in about five minutes.
 
 ### `test_taper.py`
 
@@ -185,7 +185,7 @@ The script also finds a browser on its own in the usual places: the Playwright c
 
 Several parts of the page are positioned from measured pixels rather than by normal flow: the ruler tick captions, the life-size cut label, the calendar grid. Those have broken four separate times: captions stacked on each other, a percentage painted over a button, "SAVE" sliced in half, the page scrolling sideways on a narrow phone. Each was found by sweeping viewports by hand, then lost again, because nothing re-ran the sweep.
 
-This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode. That is **674 viewport states**, `fold.html` included, and it checks five things at each:
+This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode. That is **682 viewport states**, `fold.html` included, and it checks five things at each:
 
 | Failure | Detected by |
 |---|---|
