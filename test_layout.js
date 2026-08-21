@@ -438,6 +438,10 @@ const probe = () => {
     ["max cycles", { n: 30, targetMg: 0.1 }, [1]],
     ["stretched cycles", { holdDays: 30 }, [1]],
     ["no 2 mg switch", { targetMg: 0.4 }, [1]],
+    /* A 900 h half-life used to be clamped to 80, so the dashed lag curve
+       hugged the ladder. The caption is longer once it is allowed to stay
+       high, and that extra sentence has to wrap rather than overflow. */
+    ["long half-life curve", { halfLifeH: 900 }, [1]],
   ]) {
     for (const width of [320, 768, 1280]) {
       for (const theme of THEMES) {

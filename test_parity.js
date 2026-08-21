@@ -423,6 +423,148 @@ json.dump(out, sys.stdout)
     if (v === 0) fail(`matrix produced no ${k} rows`);
   }
 
+  /* The lag curve is display-only and lives only in index.html, so the ladder
+     diff cannot see it. A 900 h half-life used to be clamped to 80, which made
+     the dashed line hug the doses. These properties are the shape the graph
+     has to have: a drop stays above the new dose, a jump stays below, a long
+     half-life stays near the start, and the recurrence matches the closed
+     form of a single step. */
+  let lagChecked = 0;
+  {
+    const report = await page.evaluate(() => {
+      const I = window.SASTaperInternals;
+      const fails = [];
+      let n = 0;
+      const check = (ok, msg) => { n++; if (!ok) fails.push(msg); };
+      const decayOf = (hl) => Math.exp(-Math.LN2 * 24 / hl);
+      const closed = (d0, d, hl, day) => d + (d0 - d) * Math.pow(decayOf(hl), day);
+
+      check(typeof I.lagFromDoses === "function", "lagFromDoses is not exported");
+      check(typeof I.lagSeries === "function", "lagSeries is not exported");
+      check(I.HALF_LIFE_MAX_H === 2160, `HALF_LIFE_MAX_H is ${I.HALF_LIFE_MAX_H}, not 2160`);
+      check(I.lagFromDoses([8], 0, 8).length === 0, "half-life 0 should hide the curve");
+      check(I.lagSeries([], 32, 8).length === 0, "empty rows should yield no lag points");
+
+      const HLS = [24, 32, 36, 90, 456, 900, 1440, 2160];
+      const shapes = { drop: 0, jump: 0, wash: 0, longStay: 0 };
+      for (const hl of HLS) {
+        const down = I.lagFromDoses(Array(40).fill(4), hl, 8);
+        const up = I.lagFromDoses(Array(40).fill(8), hl, 4);
+        const wash = I.lagFromDoses(Array(40).fill(0), hl, 8);
+        check(down.length === 41 && up.length === 41 && wash.length === 41,
+          `${hl}h series length ${down.length}/${up.length}/${wash.length}`);
+        for (let i = 0; i < down.length; i++) {
+          check(Math.abs(down[i].eff - closed(8, 4, hl, i)) < 1e-9,
+            `drop closed form ${hl}h day ${i}: ${down[i].eff} vs ${closed(8, 4, hl, i)}`);
+          check(Math.abs(up[i].eff - closed(4, 8, hl, i)) < 1e-9,
+            `jump closed form ${hl}h day ${i}: ${up[i].eff} vs ${closed(4, 8, hl, i)}`);
+          check(Math.abs(wash[i].eff - closed(8, 0, hl, i)) < 1e-9,
+            `washout closed form ${hl}h day ${i}: ${wash[i].eff} vs ${closed(8, 0, hl, i)}`);
+          if (i === 0) continue;
+          check(down[i].eff + 1e-9 >= 4,
+            `drop ${hl}h day ${i} fell below the new dose (${down[i].eff})`);
+          check(up[i].eff - 1e-9 <= 8,
+            `jump ${hl}h day ${i} rose above the new dose (${up[i].eff})`);
+          /* Until the closed form has numerically landed, the series must
+             still be on the lag side of the new dose: above after a drop,
+             below after a jump. Late days of a short half-life really have
+             landed, and 4 + 1e-12 would then fail as a false "already there". */
+          if (closed(8, 4, hl, i) - 4 > 1e-9) {
+            check(down[i].eff > 4, `drop ${hl}h day ${i} already landed`);
+          }
+          if (8 - closed(4, 8, hl, i) > 1e-9) {
+            check(up[i].eff < 8, `jump ${hl}h day ${i} already landed`);
+          }
+          shapes.drop++;
+          shapes.jump++;
+          shapes.wash++;
+        }
+      }
+
+      const sched = I.buildSchedule({
+        startMg: 8, n: 6, filmMm: 22, film2Mm: 22, targetMg: 1, stripMg: 8,
+        switch2mg: true, holdDays: null, nBelow3: null, stopMode: "reach",
+        filmStrengthMg: null, cutMode: "geometric",
+      });
+      const t36 = I.lagSeries(sched.rows, 36, sched.startMg);
+      const t90 = I.lagSeries(sched.rows, 90, sched.startMg);
+      const t900 = I.lagSeries(sched.rows, 900, sched.startMg);
+      check(t36.length === t90.length && t90.length === t900.length && t900.length > 60,
+        `taper lag lengths ${t36.length}/${t90.length}/${t900.length}`);
+      const last = t900.length - 1;
+      check(t900[last].eff > t90[last].eff && t90[last].eff > t36[last].eff,
+        `longer half-life should stay higher: 900=${t900[last].eff} 90=${t90[last].eff} 36=${t36[last].eff}`);
+      check(t900[last].eff - t900[last].dose > 2,
+        `900 h hugged the ladder at the end: gap ${t900[last].eff - t900[last].dose}`);
+      shapes.longStay++;
+      const d6_36 = t36.find((p) => p.day === 6);
+      check(d6_36 && d6_36.eff - d6_36.dose < 0.2,
+        `36 h should nearly land by day 6, gap ${d6_36 && d6_36.eff - d6_36.dose}`);
+      const d6_900 = t900.find((p) => p.day === 6);
+      const remain = d6_900 ? (d6_900.eff - d6_900.dose) / (8 - d6_900.dose) : 0;
+      check(remain > 0.8,
+        `900 h remaining fraction after cycle 1 is ${remain}, expected > 0.8`);
+
+      const flat = [];
+      for (const r of sched.rows) for (let i = 0; i < r.days; i++) flat.push(r.dailyMg);
+      const fromFlat = I.lagFromDoses(flat, 32, 8);
+      const fromRows = I.lagSeries(sched.rows, 32, 8);
+      check(fromFlat.length === fromRows.length, "lagSeries length mismatch vs flattened doses");
+      for (let i = 0; i < fromFlat.length; i++) {
+        check(Math.abs(fromFlat[i].eff - fromRows[i].eff) < 1e-12,
+          `lagSeries vs lagFromDoses at day ${i}`);
+      }
+
+      for (const [k, v] of Object.entries(shapes)) {
+        check(v > 0, `lag coverage never reached a ${k} case`);
+      }
+      check(HLS.indexOf(900) !== -1 && HLS.indexOf(36) !== -1,
+        "lag half-life sweep dropped 36 or 900");
+
+      return { fails, n, shapes };
+    });
+    lagChecked = report.n;
+    comparisons += report.n;
+    for (const f of report.fails) fail("lag: " + f);
+
+    const form = await page.evaluate(() => {
+      const I = window.SASTaperInternals;
+      const el = document.getElementById("halfLifeH");
+      const warn = () => (document.getElementById("warnings").innerText || "");
+      const cap = () => {
+        const p = document.querySelector("#charts .chart .cap");
+        return p ? p.innerText : "";
+      };
+      const maxAttr = el.getAttribute("max");
+      el.value = "900";
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      const at900 = { value: el.value, warn: warn(), cap: cap() };
+      el.value = String(I.HALF_LIFE_MAX_H + 1);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      const over = { value: el.value, warn: warn() };
+      el.value = "32";
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      return { maxAttr, maxH: I.HALF_LIFE_MAX_H, at900, over };
+    });
+    comparisons += 5;
+    lagChecked += 5;
+    if (form.maxAttr !== String(form.maxH)) {
+      fail(`lag: input max=${form.maxAttr} vs HALF_LIFE_MAX_H=${form.maxH}`);
+    }
+    if (form.at900.value !== "900") fail(`lag: typing 900 stored ${form.at900.value}`);
+    if (/Half-life/.test(form.at900.warn)) fail(`lag: typing 900 still clamped: ${form.at900.warn}`);
+    if (!form.at900.cap.includes("900 h")) fail(`lag: caption after 900 is ${form.at900.cap}`);
+    if (!form.at900.cap.includes("stays up while the ladder drops")) {
+      fail(`lag: 900 h caption does not mention the curve staying up: ${form.at900.cap}`);
+    }
+    if (form.over.value !== String(form.maxH)) {
+      fail(`lag: ${form.maxH + 1} clamped to ${form.over.value}, not ${form.maxH}`);
+    }
+    if (!/Half-life/.test(form.over.warn)) {
+      fail(`lag: over-max half-life produced no clamp warning`);
+    }
+  }
+
   if (pageErrors.length) fail("page errors: " + pageErrors.join("; "));
   await browser.close();
 
@@ -438,7 +580,8 @@ json.dump(out, sys.stdout)
     + `${shapes.multi} multi-film, ${shapes.spareFilm} whose sliver runs onto unopened film, `
     + `${shapes.noCut} with nothing to cut), 11 film sizes, `
     + `every month bucket and the n = 6/8/10 table, and `
-    + `${fracChecked.toLocaleString("en-US")} folded-grid cuts. `
+    + `${fracChecked.toLocaleString("en-US")} folded-grid cuts, and `
+    + `${lagChecked.toLocaleString("en-US")} lag-curve checks. `
     + `${comparisons.toLocaleString("en-US")} field comparisons in all.`
   );
 })().catch((e) => {

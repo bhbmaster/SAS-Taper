@@ -1027,7 +1027,7 @@
         <div><dt>Hold / stretch days <span class="def">[blank = same as n]</span><span class="sep"> · </span></dt><dd>Makes every cycle longer without changing the size of the cut. Set 9 with n = 6 and you still cut 1/6, but hold each dose for 9 days instead of 6. Same taper, more settling time between drops.</dd></div>
         <div><dt>n below 3 mg <span class="def">[blank = off]</span><span class="sep"> · </span></dt><dd>Switches to a different n once the strip you are cutting from drops under 3 mg, where the same percentage is a much smaller piece of film. Setting 10 here makes the back half drop 10% per cycle instead of 16.7%.</dd></div>
         <div><dt>Your cutting tolerance (mm) <span class="def">[0.5]</span><span class="sep"> · </span></dt><dd>How accurately you can cut. Half a millimetre is realistic with a razor and a steel ruler. It feeds the "cutting error vs the step" graph, and it sets how much simplicity the life-size film's <strong>Folding</strong> mode may buy: a fold no further out than your own slip is offered in place of a closer but fiddlier one. Among folds that take the same strokes, it still takes the closer dose. It never changes the schedule. Set it to 0 to hide that graph and to always take the closest fold.</dd></div>
-        <div><dt>Half-life for the lag curve (h) <span class="def">[32]</span><span class="sep"> · </span></dt><dd>Buprenorphine's half-life, usually quoted as 24-42 hours. Draws the dashed lag curve on the first graph and nothing else. Set it to 0 to hide the curve.</dd></div>
+        <div><dt>Half-life for the lag curve (h) <span class="def">[32]</span><span class="sep"> · </span></dt><dd>Buprenorphine's half-life, usually quoted as 24-42 hours for a film. Draws the dashed lag curve on the first graph and nothing else. In that film range the curve tracks the ladder with a few days' lag, which is the point of it. A long value (hundreds or thousands of hours, the depot picture) stays high and only slowly falls toward the new dose, because each day's intake is a small slice of what is already on board. Set it to 0 to hide the curve. 2160 h is 90 days, enough to sketch a 60-day injection tail.</dd></div>
         <div><dt>Day 1 date <span class="def">[blank = no calendar]</span><span class="sep"> · </span></dt><dd>The date you plan to start. Fills in the Calendar panel with real dates and marks today, so you can see which cycle you are on. Leave blank and the plan stays in day numbers.</dd></div>
         <div><dt>Switch to 2 mg films at or below 2.25 mg <span class="def">[on]</span><span class="sep"> · </span></dt><dd>When the strip you cut from reaches 2.25 mg, restart on a 2 mg film. A 2 mg film is a quarter the density, so the same dose is four times longer and the same cut is four times more forgiving. Turn it off to stay on one strength the whole way.</dd></div>
         <div><dt>Show n = 6 / 8 / 10 comparison <span class="def">[on]</span><span class="sep"> · </span></dt><dd>Adds the panel and graph comparing three taper speeds side by side, so you can see what slowing down costs in time and total medication.</dd></div>
@@ -1097,7 +1097,7 @@
           <input type="number" id="cutTolMm" min="0" max="5" step="0.1" value="0.5">
         </label>
         <label><span class="k">Half-life for the lag curve (h)</span>
-          <input type="number" id="halfLifeH" min="0" max="80" step="1" value="32" placeholder="0 = hide">
+          <input type="number" id="halfLifeH" min="0" max="2160" step="1" value="32" placeholder="0 = hide">
         </label>
         <label><span class="k">Day 1 date (optional)</span>
           <input type="date" id="startDate">
@@ -1317,6 +1317,11 @@
   const SWITCH_AT_MG = 2.25;
   const MONTH_DAYS = 30;
   const RX_STRIPS = 30;
+  /* Display-only. 2160 h is 90 days: enough to sketch a 60-day depot tail
+     without letting a stray zero turn the EMA into a divide-by-zero. The
+     previous 80 h cap silently replaced 90 and 900 with 80, so a long
+     half-life still hugged the ladder. */
+  const HALF_LIFE_MAX_H = 2160;
   /* Versioned so a future change of shape can ignore stale entries. */
   const STORAGE_KEY = "sas-taper-inputs-v1";
   const SCALE_KEY = "sas-taper-strip-scale";
@@ -1603,7 +1608,7 @@
     fix("targetMg", "Target", 0, 64);
     if (o.filmStrengthMg != null) fix("filmStrengthMg", "Film strength", 0.1, 12);
     fix("cutTolMm", "Cutting tolerance", 0, 5);
-    fix("halfLifeH", "Half-life", 0, 80);
+    fix("halfLifeH", "Half-life", 0, HALF_LIFE_MAX_H);
     /* target >= start is the trigger for the compare table printing the string
        "undefined": stop-mode "above" yields zero rows, fillSummary bails, and
        compareClassic reads an endDay that was never assigned. */
@@ -3311,26 +3316,42 @@
      (× 1 − e^(−k·24)), which puts it on the same mg axis as the ladder, so the
      curve can be read against the steps directly. Deliberately NOT plasma
      concentration: this is a shape, not a measurement, and absolute units would
-     invite reading it as one. Returns one point per day. */
-  function lagSeries(rows, halfLifeH, startMg) {
-    if (!(halfLifeH > 0) || !rows.length) return [];
-    const k = Math.LN2 / halfLifeH;
-    const decay = Math.exp(-k * 24);
+     invite reading it as one.
+
+     In dose-equivalent units the recurrence is an exponential moving average,
+     eff(n) = decay·eff(n−1) + (1−decay)·dose(n), with a closed form on a
+     single step from D0 to D: eff(n) = D + (D0 − D)·decay^n. A drop therefore
+     leaves the curve above the new dose, a jump leaves it below, and a long
+     half-life (decay close to 1) stays near D0 instead of hugging the ladder.
+     Returns one point per day, including day 0 at the pre-taper steady state. */
+  function lagFromDoses(doses, halfLifeH, startMg) {
+    if (!(halfLifeH > 0) || !doses.length || !(startMg >= 0)) return [];
+    const decay = Math.exp(-Math.LN2 * 24 / halfLifeH);
     const toDose = 1 - decay;
+    /* A half-life so long that a day eliminates nothing would divide by zero
+       here. The input cap keeps us off that edge; this is the last guard. */
+    if (!(toDose > 0) || !Number.isFinite(toDose)) return [];
     /* Day 0 is already steady on the pre-taper dose, someone starting a taper
        is not starting the drug. Seeding at zero drew a loading ramp through the
        first cycle that nobody in this situation experiences. */
     const out = [{ day: 0, eff: startMg, dose: startMg }];
     let level = startMg / toDose;
     let day = 0;
-    for (const r of rows) {
-      for (let i = 0; i < r.days; i++) {
-        level = level * decay + r.dailyMg;
-        day += 1;
-        out.push({ day, eff: level * toDose, dose: r.dailyMg });
-      }
+    for (const dose of doses) {
+      level = level * decay + dose;
+      day += 1;
+      out.push({ day, eff: level * toDose, dose });
     }
     return out;
+  }
+
+  function lagSeries(rows, halfLifeH, startMg) {
+    if (!(halfLifeH > 0) || !rows.length) return [];
+    const doses = [];
+    for (const r of rows) {
+      for (let i = 0; i < r.days; i++) doses.push(r.dailyMg);
+    }
+    return lagFromDoses(doses, halfLifeH, startMg);
   }
 
   /* Daily dose against day: the ladder as a step line, with threshold lines
@@ -3395,6 +3416,19 @@
         cap += ` On day ${first.day} you are still carrying ${fmt(first.eff - first.dose, 2)} mg`
           + ` more than the new dose; by day ${last.day} that is ${fmt(last.eff - last.dose, 2)} mg.`
           + ` That is why a drop is not felt on the day you make it.`;
+        /* A film-range half-life has almost landed by the end of cycle 1; a
+           depot-scale one has barely moved, and the caption has to say so or
+           the line sitting high looks like a drawing error. */
+        const c1 = s.rows[0];
+        const c1end = c1 ? lag.find((pt) => pt.day === c1.dayEnd) : null;
+        const seeded = lag[0];
+        if (c1end && seeded && c1end.dose < seeded.eff) {
+          const remain = (c1end.eff - c1end.dose) / (seeded.eff - c1end.dose);
+          if (remain > 0.5) {
+            cap += ` A half-life this long has barely moved by the end of cycle 1,`
+              + ` so the dashed line stays up while the ladder drops.`;
+          }
+        }
       }
       cap += ` Illustration of the lag only: a shape, not a prediction of anyone's blood levels,`
         + ` which vary widely. Set the half-life to 0 to hide it.`;
@@ -3865,10 +3899,13 @@
      footer promises the two agree, but everything in this file is sealed inside
      the IIFE, so nothing could check it. test_parity.js drives a headless
      browser, calls this, and diffs every row against `taper.py --json`.
+     lagSeries / lagFromDoses are JS-only (the dashed curve never enters the
+     ladder) and are here so the same suite can check a drop, a jump and a
+     900 h half-life without hugging the doses.
      Read-only and unused by the page itself. */
   window.SASTaperInternals = Object.freeze({
     buildSchedule, compareClassic, baseFilmMg, keepRatio, filmLayout, dayFilms,
-    fractionCut,
+    fractionCut, lagSeries, lagFromDoses, HALF_LIFE_MAX_H,
     /* The cycle row the two drawings are currently showing. test_layout.js
        asserts both panels drew exactly one bar per film of this row, the
        thing that used to change shape from one cycle to the next. */
