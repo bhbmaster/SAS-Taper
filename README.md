@@ -131,7 +131,7 @@ test method can make tens of thousands of assertions:
 |---|---|---|
 | `test_taper.py` | **71 tests, ~500,000 assertions** | 1,440 ladders / 15,422 cycles in the matrix alone |
 | `test_parity.js` | **1,323 schedules + 13,920 folded cuts, ~644,000 field comparisons** | 13,567 matrix cycles × 28 row fields, plus summaries, months, the compare table and the fraction search |
-| `test_layout.js` | **674 viewport states, 875 checks** | each state is a whole rendered page, `index.html` or `fold.html`, measured for five failure modes |
+| `test_layout.js` | **674 viewport states, 898 checks** | each state is a whole rendered page, `index.html` or `fold.html`, measured for five failure modes, plus a source scan for leftover dashes and ranges spelled "to" |
 
 Around **1,144,000 individual checks** in total, in about five minutes.
 

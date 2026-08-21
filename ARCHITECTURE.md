@@ -458,7 +458,7 @@ The months and the comparison table were the last two things written twice and c
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js`: 674 viewport states, 875 checks
+### `test_layout.js`: 674 viewport states, 898 checks
 
 Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
 
@@ -485,6 +485,8 @@ It also reads the claim the block is built on straight off the rendered table: *
 It also carries a short pass over **rendered figures no other suite can see**: the display maths layered on top of the schedule. The cutting-error chart must scale with the film-length input, the comparison heading must name the target actually used, and every chart must have an accessible name. Each of those three had been wrong.
 
 Any console error or page error fails it too.
+
+Before it looks for a browser it also scans the source for the punctuation tells the unslop pass removed: em dashes, en dashes, curly quotes and the ellipsis character. Compact numeric ranges have to stay hyphenated (`24-42 hours`); spelling the same range with the word "to" fails the scan.
 
 ### CI
 
