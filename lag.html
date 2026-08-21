@@ -109,6 +109,7 @@
   .presets button:focus-visible, .modes button:focus-visible {
     outline: 2px solid var(--accent); outline-offset: 2px;
   }
+  .presets button[aria-pressed="true"],
   .modes button[aria-pressed="true"] {
     background: var(--accent-soft); color: var(--ink); border-color: var(--accent);
   }
@@ -688,6 +689,9 @@ n     = 6                                 <span class="c"># days at that dose</s
   function render() {
     const hlShow = Math.round(halfLifeH);
     $("hlRead").innerHTML = `${hlShow}<small>h</small>`;
+    for (const x of $("hlPresets").querySelectorAll("button")) {
+      x.setAttribute("aria-pressed", String(Number(x.dataset.h) === hlShow));
+    }
     const dayN = Math.round(Number($("day").value));
     $("dayRead").textContent = String(dayN);
 

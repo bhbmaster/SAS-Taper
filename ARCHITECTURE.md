@@ -469,7 +469,7 @@ The lag curve is JS-only, so it is not in the field-by-field ladder diff. `test_
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js`: 689 viewport states, 948 checks
+### `test_layout.js`: 689 viewport states, 972 checks
 
 Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty-one reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
 
