@@ -1131,7 +1131,7 @@
           <tbody></tbody>
         </table>
       </div>
-      <p class="legend">Click a row to show its cut mark. Blue = restarted on a 2 mg film. Amber = sliver under 1 mm (stop shaving 8 mg films). ×N in the Film column = films needed per day. Cut only one of them. The tinted block is what you act on: <strong>Take</strong> is the dose and where to mark it. <strong>Save</strong> is what goes in the jar. <strong>&Delta; save</strong> is how much more the jar gets than last cycle. <strong>Sum strips</strong> is how many films the swallowed dose equals. That number is less than the films you opened, because the saved slivers were not swallowed.</p>
+      <p class="legend">Click a row to show its cut mark. Blue = restarted on a 2 mg film. Amber = sliver under 1 mm (stop shaving 8 mg films). ×N in the Film column = films needed per day. Cut only one of them. The tinted block is what you act on: <strong>Take</strong> is the dose and where to mark it. <strong>Save</strong> is what goes in the jar. <strong>&Delta; save</strong> is how much more the jar gets than last cycle. <strong>Sum strips</strong> is how many strips you consumed. That number is less than the strips you opened, because you saved some.</p>
       <details class="coldoc">
         <summary>What each column means</summary>
         <dl class="inputdoc" id="colDoc"></dl>
@@ -1233,24 +1233,32 @@
 
     <section class="panel" id="comparePanel">
       <h2 id="compareHead">Compare n = 6 / 8 / 10</h2>
-      <p class="legend" style="margin-top:-0.4rem;margin-bottom:0.7rem;">8 mg films all the way. Last cycle still above 1 mg. The save jar is not added to the daily dose. <strong>Strips</strong> is how many films the swallowed dose equals, not how many packets you opened. <strong>Stay</strong> is what you would swallow if you never tapered. <strong>Saved</strong> is the difference. Slower is not free: n = 10 uses about 3× the medication of n = 6 because you spend about 3× longer on the ladder.</p>
+      <p class="legend" style="margin-top:-0.4rem;margin-bottom:0.7rem;">8 mg films all the way. Last cycle still above 1 mg. The save jar is not added to the daily dose. Slower is not free: n = 10 uses about 3× the medication of n = 6 because you spend about 3× longer on the ladder.</p>
       <div class="scroll">
         <table id="compareTable">
           <thead></thead>
           <tbody></tbody>
         </table>
       </div>
+      <details class="coldoc">
+        <summary>What each column means</summary>
+        <dl class="inputdoc" id="compareDoc"></dl>
+      </details>
     </section>
 
     <section class="panel">
       <h2>Prescription quantity</h2>
-      <p class="legend" style="margin-top:-0.4rem;margin-bottom:0.7rem;"><strong>Used strips</strong> is the swallowed dose as films, not how many packets you opened. If the prescription stays at 30 strips a month, the surplus is a stockpile. That stockpile is a diversion risk and a household hazard. Ask the prescriber to decrease quantity with the dose. Return surplus through a pharmacy take-back.</p>
+      <p class="legend" style="margin-top:-0.4rem;margin-bottom:0.7rem;">If the prescription stays at 30 strips a month, the surplus is a stockpile. That stockpile is a diversion risk and a household hazard. Ask the prescriber to decrease quantity with the dose. Return surplus through a pharmacy take-back.</p>
       <div class="scroll">
         <table id="monthTable">
           <thead></thead>
           <tbody></tbody>
         </table>
       </div>
+      <details class="coldoc">
+        <summary>What each column means</summary>
+        <dl class="inputdoc" id="monthDoc"></dl>
+      </details>
     </section>
 
     <section class="panel notes">
@@ -1848,10 +1856,9 @@
   }
 
   /* Bucket the ladder into fixed 30-day months. Takes the cycle rows and the
-     strip strength; returns one entry per month with mg used, ingested-
-     equivalent strips, and the surplus a static 30-strip prescription would
-     leave over. Cycles straddling a boundary are split day by day rather than
-     assigned whole. */
+     strip strength. Returns one entry per month with mg consumed, strips
+     consumed, and the surplus a static 30-strip prescription would leave.
+     Cycles that cross a boundary are split day by day, not assigned whole. */
   function monthlyUsage(rows, stripMg) {
     if (!rows.length) return [];
     const endDay = rows[rows.length - 1].dayEnd;
@@ -2004,18 +2011,18 @@
      put. Takes the schedule, writes into #cards, then renders the warnings. */
   function renderCards(s) {
     const items = [
-      { lbl: "~2 mg", val: s.daysTo2mg != null ? "Day " + s.daysTo2mg : "-", sub: s.doseAt2mg != null ? fmt(s.doseAt2mg, 2) + " mg/day" : "not reached" },
-      { lbl: "~1 mg", val: s.daysTo1mg != null ? "Day " + s.daysTo1mg : "-", sub: s.doseAt1mg != null ? fmt(s.doseAt1mg, 2) + " mg/day" : "not reached" },
-      { lbl: "End of run", val: "Day " + s.endDay, sub: fmt(s.endDailyMg, 2) + " mg/day" },
+      { lbl: "~2 mg", val: s.daysTo2mg != null ? "Day " + s.daysTo2mg : "-", sub: s.doseAt2mg != null ? "first day the dose is about 2 mg (" + fmt(s.doseAt2mg, 2) + " mg/day)" : "not reached" },
+      { lbl: "~1 mg", val: s.daysTo1mg != null ? "Day " + s.daysTo1mg : "-", sub: s.doseAt1mg != null ? "first day the dose is about 1 mg (" + fmt(s.doseAt1mg, 2) + " mg/day)" : "not reached" },
+      { lbl: "End of run", val: "Day " + s.endDay, sub: "last day of this schedule, at " + fmt(s.endDailyMg, 2) + " mg/day" },
       ...(s.zeroDay != null
-        ? [{ lbl: "Off it", val: "Day " + s.zeroDay, sub: "the last cut takes the whole remaining piece" }]
+        ? [{ lbl: "Off it", val: "Day " + s.zeroDay, sub: "the last cut takes the whole remaining piece. Daily dose is then 0 mg" }]
         : []),
-      { lbl: "Ingested", val: fmt(s.totalMg, 1) + " mg", sub: fmt(s.totalStrips, 1) + " × " + fmtG(s.stripMg) + " mg films swallowed" },
-      { lbl: "Slivers banked", val: fmt(s.totalBankedMg, 1) + " mg", sub: fmt(s.totalBankedMg / s.stripMg, 1) + " strips · buffer, not extra dose" },
+      { lbl: "Consumed", val: fmt(s.totalMg, 1) + " mg", sub: fmt(s.totalStrips, 1) + " strips consumed · less than opened, because you saved some" },
+      { lbl: "Slivers banked", val: fmt(s.totalBankedMg, 1) + " mg", sub: fmt(s.totalBankedMg / s.stripMg, 1) + " strips in the jar · buffer, not extra dose" },
       s.cutMode === "linear"
-        ? { lbl: "Whole-run total", val: fmt(s.ceilingMg, 0) + " mg", sub: fmt(s.ceilingStrips, 1) + " strips swallowed if you go all the way to zero" }
-        : { lbl: "Lifetime ceiling", val: fmt(s.ceilingMg, 0) + " mg", sub: fmt(s.ceilingStrips, 1) + " strips swallowed if n and cycle length never change" },
-      { lbl: "Vs staying at " + fmtG(s.startMg) + " mg", val: fmt(s.savedVsStayStrips, 1) + " strips", sub: "films you do not swallow, vs staying at the start dose for " + s.endDay + " days" }
+        ? { lbl: "Whole-run total", val: fmt(s.ceilingMg, 0) + " mg", sub: fmt(s.ceilingStrips, 1) + " strips consumed if you go all the way to zero" }
+        : { lbl: "Lifetime ceiling", val: fmt(s.ceilingMg, 0) + " mg", sub: fmt(s.ceilingStrips, 1) + " strips consumed if n and cycle length never change" },
+      { lbl: "Vs staying at " + fmtG(s.startMg) + " mg", val: fmt(s.savedVsStayStrips, 1) + " strips", sub: "strips you do not consume, vs staying at the start dose for " + s.endDay + " days" }
     ];
     $("cards").innerHTML = items.map((c) =>
       `<article class="card"><div class="lbl">${c.lbl}</div><div class="val">${c.val}</div><div class="sub">${c.sub}</div></article>`
@@ -2106,14 +2113,14 @@
     ["Cycle", "", false, "Which step of the ladder you are on. Click the row to draw that day's cut mark."],
     ["Days", "", false, "The days this cycle covers. Every day in the cycle has the same dose and the same cut."],
     ["Film", "", false, "Strength of the film you cut. ×N means the day needs N films. Cut only one of them."],
-    ["Take", "mg", true, "The dose you swallow each day of this cycle."],
-    ["Take", "mm", true, "Where to mark a full film, measured from the left end. Cut there. Swallow the left piece. On a ×N day, swallow the whole films first. The mark is on the last film."],
-    ["Save", "mg", true, "Milligrams that go in the jar each day. Do not swallow this as extra dose."],
+    ["Take", "mg", true, "The dose you take each day of this cycle. This is what goes in your mouth."],
+    ["Take", "mm", true, "Where to mark a full film, measured from the left end. Cut there. The left piece is the dose. On a ×N day, take the whole films first. The mark is on the last film."],
+    ["Save", "mg", true, "Milligrams that go in the jar each day. Do not take this as extra dose."],
     ["Save", "mm", true, "Everything right of the mark on the film you opened. Put that in the jar. Take mm + Save mm is the film you opened. Zero on a day with no cut."],
     ["Δ save", "mm", true, "How much more goes in the jar than last cycle. That extra length is this cycle's sliver. A dash means there is nothing to compare: a new 2 mg film, a day that opens fewer films, or a day with no cut."],
-    ["Used", "mg", false, "Milligrams you swallow in this cycle. Take mg × the number of days."],
-    ["Sum", "mg", false, "Milligrams you have swallowed since day 1. This is the dose total, not a count of films you opened."],
-    ["Sum", "strips", false, "How many films that swallowed dose equals, at the strip strength you set. This is less than the films you opened. The saved slivers were not swallowed."],
+    ["Used", "mg", false, "Milligrams you consumed in this cycle. Take mg × the number of days."],
+    ["Sum", "mg", false, "Milligrams you have consumed since day 1. This is the dose total, not a count of films you opened."],
+    ["Sum", "strips", false, "How many strips you consumed, at the strip strength you set. This is less than the strips you opened, because you saved some."],
     ["Banked", "mg", false, "The slivers from this cycle, added up. After a full cycle that is one whole piece of this cycle's size. This is a buffer. It is not extra daily dose."],
   ];
 
@@ -3527,13 +3534,13 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
     }
     const stay = `M ${xS(0)} ${yS(0)} L ${xS(xmax)} ${yS(stayEnd)}`;
     const fill = `${taper} L ${xS(xmax)} ${yS(stayEnd)} L ${xS(0)} ${yS(0)} Z`;
-    let inner = svgOpen(box, "Running total ingested vs staying put");
+    let inner = svgOpen(box, "Running total consumed vs staying put");
     inner += gridAndAxes(box, evenTicks(xmax, 5), evenTicks(ymax, 4), xS, yS, "Day", "Total mg");
     inner += `<path d="${fill}" fill="${C.band}" opacity="0.85"/>`;
     inner += `<path d="${stay}" fill="none" stroke="${C.stay}" stroke-dasharray="5 4" stroke-width="1.6"/>`;
     inner += `<path d="${taper}" fill="none" stroke="${C.accent}" stroke-width="2.2"/>`;
     inner += "</svg>";
-    return svgFrame("Running total ingested vs staying put", `Shaded gap is medication not taken vs ${fmtG(s.startMg)} mg/day for ${s.endDay} days (${fmt(s.savedVsStayStrips, 1)} strips).`, inner);
+    return svgFrame("Running total consumed vs staying put", `The solid line is milligrams consumed. The dashed line is what you would consume if you stayed at ${fmtG(s.startMg)} mg/day. The shaded gap is strips you do not consume (${fmt(s.savedVsStayStrips, 1)} strips over ${s.endDay} days).`, inner);
   }
 
   /* Sliver length per cycle in millimetres, with a line at 1 mm, the point
@@ -3633,7 +3640,7 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
     );
   }
 
-  /* Ingested-equivalent strips per month against an unchanged 30-strip
+  /* Strips consumed per month against an unchanged 30-strip
      prescription. Everything between the bar and the dashed line is surplus
      accumulating at home. Empty runs render nothing. */
   function rxMonthChart(s) {
@@ -3647,7 +3654,7 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
     const slot = iw / n;
     const yS = (v) => T + (1 - v / ymax) * ih;
     const xS = (m) => L + (m - 0.5) * slot;
-    let inner = svgOpen(box, "Monthly strips used vs a 30-strip script");
+    let inner = svgOpen(box, "Monthly strips consumed vs a 30-strip script");
     inner += gridAndAxes(box, months.map((m) => m.month), evenTicks(ymax, 4), xS, yS, "Month", "Strips");
     inner += `<line x1="${L}" y1="${yS(RX_STRIPS)}" x2="${W - R}" y2="${yS(RX_STRIPS)}" stroke="${C.warn}" stroke-dasharray="4 3"/>`;
     months.forEach((m, i) => {
@@ -3657,7 +3664,7 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
       inner += `<rect x="${x}" y="${y}" width="${w}" height="${Math.max(yS(0) - y, 0)}" fill="${C.accent}"/>`;
     });
     inner += "</svg>";
-    return svgFrame("Monthly strips used vs a 30-strip script", "Green bars are ingested-equivalent strips. Dashed line is an unchanged 30/month Rx. Everything above the bar is surplus stockpile.", inner);
+    return svgFrame("Monthly strips consumed vs a 30-strip script", "Green bars are strips consumed. That is less than packets opened, because you saved some. The dashed line is an unchanged 30/month prescription. Everything above the bar is leftover stockpile.", inner);
   }
 
   /* The film itself, cycle by cycle: each bar is the piece in hand, split into
@@ -3751,6 +3758,20 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
       <td>${unit(fmt(c.stayStrips, 0), "strips")}</td>
       <td>${unit(fmt(c.savedStrips, 1), "strips")}</td>
     </tr>`).join("");
+    $("compareDoc").innerHTML = [
+      ["n", "", "How many days each cycle lasts, and how fine the cut is. You cut 1/n each day."],
+      ["Cut", "", "The percentage removed each cycle. At n = 6 this is 16.7%."],
+      ["Cycles", "", "How many steps are in the run."],
+      ["Days", "", "How long the run lasts."],
+      ["End", "mg/d", "The daily dose on the last cycle."],
+      ["Total", "mg", "Milligrams you consumed on this run."],
+      ["Strips", "", "How many strips you consumed. This is less than the strips you opened, because you saved some."],
+      ["Ceiling", "mg", "Milligrams consumed if n never changes and you never stop."],
+      ["Stay", "strips", "Strips you would consume if you stayed at the start dose for the same number of days."],
+      ["Saved", "strips", "Stay minus this run. Strips you do not consume because you tapered."],
+    ].map(([name, u, tip]) =>
+      `<div><dt>${name}${u ? ` <span class="u">${u}</span>` : ""}<span class="sep"> · </span></dt><dd>${tip}</dd></div>`
+    ).join("");
   }
 
   /* The prescription-quantity table: per month, mg used, strips used, and the
@@ -3769,6 +3790,16 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
       <td>${unit(m.rxStrips, "strips")}</td>
       <td>${unit((m.surplusStrips >= 0 ? "+" : "") + fmt(m.surplusStrips, 1), "strips")}</td>
     </tr>`).join("");
+    $("monthDoc").innerHTML = [
+      ["Month", "", "A 30-day bucket of the run, in order from day 1."],
+      ["Days", "", "Which run days this bucket covers."],
+      ["Used", "mg", "Milligrams you consumed in this month."],
+      ["Used", "strips", "How many strips you consumed in this month. This is less than the strips you opened, because you saved some."],
+      ["If Rx = 30", "", "A typical unchanged prescription: 30 strips a month."],
+      ["Surplus", "strips", "30 minus used strips. Leftover in the house if the prescription does not decrease."],
+    ].map(([name, u, tip]) =>
+      `<div><dt>${name}${u ? ` <span class="u">${u}</span>` : ""}<span class="sep"> · </span></dt><dd>${tip}</dd></div>`
+    ).join("");
   }
 
   /* Redraw everything from the current inputs. Reads and clamps the inputs,

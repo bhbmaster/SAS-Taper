@@ -356,8 +356,8 @@ class CycleRow:
 class MonthRow:
     """One 30-day bucket of the run, for matching the prescription to the dose.
 
-    used_strips is ingested-equivalent, not strips dispensed; surplus_strips is
-    what a static rx_strips prescription would leave over, the stockpile.
+    used_strips is how many strips were consumed, not how many packets were
+    opened. surplus_strips is what a 30-strip prescription would leave over.
     """
 
     month: int
@@ -1528,14 +1528,14 @@ def print_schedule(
         "Cyc", "Days", "Film", "Take mg", "Take mm", "Save mg", "Save mm",
         "+Save mm", "Cycle mg", "Sum mg", "Sum strips", "Banked",
     ]
-    print("Take mg  = the dose you swallow each day.")
+    print("Take mg  = the dose you take each day. This is what goes in your mouth.")
     print("Take mm  = mark that far from the LEFT end of a full film, then cut.")
-    print("Save mg  = milligrams that go in the jar. Do not swallow this as extra dose.")
+    print("Save mg  = milligrams that go in the jar. Do not take this as extra dose.")
     print("Save mm  = everything right of the mark. Put that in the jar.")
     print("+Save mm = how much more than last cycle (this cycle's sliver). A dash means nothing to compare.")
-    print("Cycle mg = milligrams you swallow in this cycle.")
-    print("Sum mg   = milligrams you have swallowed since day 1.")
-    print("Sum strips = how many films that swallowed dose equals. Less than films opened, because slivers were saved.")
+    print("Cycle mg = milligrams you consumed in this cycle.")
+    print("Sum mg   = milligrams you have consumed since day 1.")
+    print("Sum strips = how many strips you consumed. Less than strips opened, because you saved some.")
     print("Banked  = this cycle's slivers added up. Buffer, not extra daily dose.")
     if start_date is not None:
         headers.insert(2, "Dates")
@@ -1623,11 +1623,11 @@ def print_schedule(
         )
     print(
         f"  End of run: day {sched.end_day}, {sched.end_daily_mg:.2f} mg/day, "
-        f"{sched.total_mg:.1f} mg ingested ({sched.total_strips:.1f} × "
-        f"{sched.strip_mg:g} mg strips)"
+        f"{sched.total_mg:.1f} mg consumed ({sched.total_strips:.1f} strips "
+        f"consumed, less than opened because you saved some)"
     )
     print(
-        f"  Slivers banked (buffer, not ingested): {sched.total_banked_mg:.1f} mg "
+        f"  Slivers banked (buffer, not extra dose): {sched.total_banked_mg:.1f} mg "
         f"({sched.total_banked_mg / sched.strip_mg:.1f} strips)"
     )
     print(
@@ -1637,8 +1637,10 @@ def print_schedule(
     )
     print()
 
-    print(f"Prescription quantity (swallowed dose as strips per {DEFAULT_MONTH_DAYS} days)")
-    print("Used strips is how many films that swallowed dose equals, not packets opened.")
+    print(f"Prescription quantity (strips consumed per {DEFAULT_MONTH_DAYS} days)")
+    print("Used mg = milligrams consumed this month.")
+    print("Used strips = strips consumed. Less than packets opened, because you saved some.")
+    print("If Rx=30 = a typical unchanged prescription. Surplus = leftover in the house.")
     print(f"If the prescription stays at {DEFAULT_RX_STRIPS} strips a month, the surplus is a "
           "stockpile. Ask to decrease quantity with the dose. Return the rest through take-back.")
     print()
@@ -1663,7 +1665,7 @@ def print_compare(rows: list[dict[str, Any]]) -> None:
     """Print the n = 6 / 8 / 10 comparison from compare_classic() rows."""
     print("Compare n = 6 / 8 / 10 at ~1 mg")
     print("8 mg films all the way. Last cycle still above 1 mg. Bank is not re-dosed.")
-    print("Strips = swallowed dose as films. Stay = films swallowed if you never tapered. Saved = the difference.")
+    print("Strips = strips consumed. Less than opened, because you saved some. Stay = strips consumed if you never tapered. Saved = the difference.")
     print()
     headers = [
         "n", "Cut", "Cycles", "Days", "End mg/d",

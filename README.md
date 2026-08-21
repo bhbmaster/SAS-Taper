@@ -88,9 +88,9 @@ You should never have to do arithmetic while holding a razor. Five columns of th
 
 | Column | What it is |
 |---|---|
-| **Take mg** | the dose you swallow |
+| **Take mg** | the dose you take each day. This is what goes in your mouth |
 | **Take mm** | mark a full film that far from its **left** end, then cut once |
-| **Save mg** | milligrams that go in the jar. Do not swallow this |
+| **Save mg** | milligrams that go in the jar. Do not take this as extra dose |
 | **Save mm** | everything right of the mark. Put that in the jar |
 | **Δ save mm** | how much more the jar gets than last cycle. That extra is the sliver |
 
@@ -100,9 +100,9 @@ The other columns are running totals. They are not a second cut instruction:
 
 | Column | What it is |
 |---|---|
-| **Used mg** | milligrams you swallow in this cycle |
-| **Sum mg** | milligrams you have swallowed since day 1 |
-| **Sum strips** | how many films that swallowed dose equals, at the strip strength you set. This is less than the films you opened. The saved slivers were not swallowed |
+| **Used mg** | milligrams you consumed in this cycle |
+| **Sum mg** | milligrams you have consumed since day 1 |
+| **Sum strips** | how many strips you consumed, at the strip strength you set. This is less than the strips you opened, because you saved some |
 | **Banked mg** | this cycle's slivers added up. After a full cycle that is one whole piece. Buffer, not extra daily dose |
 
 Units sit small and muted **beside every value as well as the heading**, so a row reads on its own, the same treatment as on the compare, prescription and film-size tables, and on the calendar. Not sure what a column means? Hover its heading on a desktop, or open **What each column means** under the table. Same twelve definitions either way.

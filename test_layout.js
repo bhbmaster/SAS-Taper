@@ -261,10 +261,9 @@ const probe = () => {
     await page.waitForFunction(() => !!window.SASTaperInternals, null, { timeout: 10000 });
     await page.evaluate(([g, c, s]) => {
       window.__groups = g; window.__clip = c; window.__spill = s;
-      /* Open the column glossary: collapsed it is one line and tells the sweep
-         nothing about the twelve definitions inside it. */
-      const cd = document.querySelector(".coldoc");
-      if (cd) cd.open = true;
+      /* Open every column glossary. Collapsed, each is one line and tells
+         the sweep nothing about the definitions inside it. */
+      document.querySelectorAll(".coldoc").forEach((cd) => { cd.open = true; });
       window.__selectedRow = window.SASTaperInternals.currentRow;
     }, [OVERLAP_GROUPS, CLIP_SELECTORS, SPILL_PAIRS]);
     if (theme === "light") {
