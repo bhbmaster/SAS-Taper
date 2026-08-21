@@ -233,6 +233,29 @@ Practical notes
   not feel a drop until day 4 or 5, right as you are about to drop again. Hedge
   by stretching the cycle to 8–9 days (same cut, more settling time) or switch
   to n=10 below 3 mg.
+- Ask about the long-acting injections. Sublocade (monthly) and Brixadi
+  (weekly or monthly) are buprenorphine — the same active drug as your film,
+  without the naloxone — injected under the skin by a clinician, where it forms
+  a depot that releases for weeks. Two things make them worth raising here.
+  First, you do not have to reach the bottom of this ladder before switching:
+  both are labelled for a direct transfer from an established daily sublingual
+  dose. Second, after the LAST injection the drug leaves over months rather than
+  days. The prescribing information puts the terminal half-life at roughly 43–60
+  days for Sublocade and 19–26 days for monthly Brixadi, against the 24–42 hours
+  this tool assumes for a film — which is why people describe the ending as
+  tapering itself. That is a fair reading of the pharmacology, but NEITHER
+  PRODUCT IS APPROVED AS A TAPER, and withdrawal can still arrive, sometimes
+  weeks or months after the final shot, so it needs watching for longer than you
+  would expect. The two differ in a way that matters to this goal: Brixadi has
+  more strengths, so a prescriber can step you further down before stopping,
+  while Sublocade has the longer tail once you do. Do not read the injection's
+  milligrams against your film's — different route, different absorption;
+  Sublocade's 100 mg monthly maintenance dose sits near a 24 mg/day sublingual
+  blood level, not a 100 mg one. Both are supplied under restricted distribution
+  and given in a clinic rather than collected from a pharmacy, so ask whether an
+  office actually ADMINISTERS them, not just whether it prescribes
+  buprenorphine. Raise it with a prescriber; it is not a plan you can make from
+  this tool.
 - Tell your prescriber this schedule so quantity can step down with the dose.
   A 30-strips-a-month prescription on a falling taper builds a stockpile — a
   diversion risk and a household hazard. Return surplus via pharmacy take-back.

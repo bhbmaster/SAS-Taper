@@ -1070,6 +1070,74 @@ const probe = () => {
           record(`fold.html preset ${i} ${theme} @${width}px`, await page.evaluate(probe), errs);
         }
 
+        /* The fold comparison. Stage 02's ladder is a control: 54 ticks, a
+           <select> carrying the same 54 as the keyboard path, and the two
+           always naming the same fraction. Clicking a tick has to move the
+           list, and choosing from the list has to move the highlight. */
+        const cmp = await page.evaluate(() => {
+          const read = () => ({
+            on: [...document.querySelectorAll("#f2 .tick.on")].length,
+            sel: document.getElementById("cmpPick").value,
+            head: document.getElementById("cmpHb").textContent,
+            verdict: document.getElementById("cmpVerdict").textContent,
+          });
+          const out = { ticks: document.querySelectorAll("#f2 .tick").length,
+                        hits: document.querySelectorAll("#f2 .tick-hit").length,
+                        opts: document.querySelectorAll("#cmpPick option").length,
+                        films: document.querySelectorAll("#cmpFilms svg").length,
+                        start: read() };
+          const hits = document.querySelectorAll("#f2 .tick-hit");
+          hits[3].dispatchEvent(new MouseEvent("click", { bubbles: true }));
+          out.clicked = read();
+          const sel = document.getElementById("cmpPick");
+          sel.value = "50";
+          sel.dispatchEvent(new Event("change", { bubbles: true }));
+          out.chose = read();
+          /* Moving the dose has to drop the comparison. A fold held over from
+             the previous dose is answering a question nobody asked. */
+          const drv = document.getElementById("drv");
+          drv.value = "0.5";
+          drv.dispatchEvent(new Event("input", { bubbles: true }));
+          out.afterMove = read();
+          out.closestSaid = document.getElementById("d2").textContent;
+          return out;
+        });
+        checks++;
+        if (cmp.ticks !== 54 || cmp.hits !== 54 || cmp.opts !== 54) {
+          failures.push(`fold.html ladder at ${width}px has ${cmp.ticks} ticks, ${cmp.hits} `
+            + `click targets and ${cmp.opts} list entries; all three should be 54`);
+        }
+        checks++;
+        if (cmp.films !== 2) {
+          failures.push(`fold.html comparison drew ${cmp.films} films, expected 2`);
+        }
+        checks++;
+        if (cmp.start.on !== 1 || cmp.clicked.on !== 1 || cmp.chose.on !== 1) {
+          failures.push(`fold.html ladder highlights ${cmp.start.on}/${cmp.clicked.on}/`
+            + `${cmp.chose.on} ticks at ${width}px, expected exactly 1 throughout`);
+        }
+        checks++;
+        if (cmp.clicked.sel !== "3" || cmp.clicked.head === cmp.start.head) {
+          failures.push(`fold.html: clicking a tick at ${width}px left the list on `
+            + `"${cmp.clicked.sel}" and the comparison on ${cmp.clicked.head}`);
+        }
+        checks++;
+        if (cmp.chose.sel !== "50" || cmp.chose.head === cmp.clicked.head) {
+          failures.push(`fold.html: choosing from the list at ${width}px did not move the `
+            + `comparison (${cmp.clicked.head} → ${cmp.chose.head})`);
+        }
+        checks++;
+        if (!/fold the search chose|closer|easier|Further off|as far off/.test(cmp.afterMove.verdict)) {
+          failures.push(`fold.html comparison verdict went blank after the dose moved `
+            + `at ${width}px: "${cmp.afterMove.verdict}"`);
+        }
+        /* Which fraction the panel falls back to is checked in the dose sweep
+           below rather than here. At any one dose the chosen fold is very
+           often also the closest one, and where those coincide the check
+           cannot tell the two apart — a fallback wired to the wrong one of
+           them passes. The sweep visits doses where they differ, and counts
+           how many, so it cannot quietly stop covering them. */
+
         /* The diagrams must actually be there and actually move. */
         const live = await page.evaluate(() => {
           const before = document.getElementById("f7").innerHTML;
@@ -1141,6 +1209,131 @@ const probe = () => {
       if (cleared !== null) {
         failures.push(`choosing Scroll stored "${cleared}" instead of clearing the key`);
       }
+      await ctx.close();
+    }
+
+    /* Two invariants of the comparison panel, swept across the whole dose
+       range once rather than at every viewport — neither depends on width.
+
+       The first is the panel's own arithmetic: the difficulty table itemises
+       where every point comes from, and those rows have to add up to the score
+       printed underneath them. They are computed from one list in the page, so
+       this fails the moment someone adds a term to the score and forgets to
+       give it a row, or gives it a row and forgets the term.
+
+       The second is a claim the page makes in prose and the search had better
+       honour: the pool is sorted on difficulty before anything else, so no
+       fold the search considered can be cheaper than the one it chose. The
+       panel says outright that such a fold would be a bug. If it ever prints
+       that, this fails. */
+    {
+      const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+      const page = await ctx.newPage();
+      const errs = [];
+      page.on("pageerror", (e) => errs.push("page error: " + e));
+      await page.goto(FOLD_PAGE);
+      await page.waitForTimeout(250);
+      const swept = await page.evaluate(() => {
+        const drv = document.getElementById("drv");
+        const sel = document.getElementById("cmpPick");
+        const bad = [], contradictions = [], fellWrong = [], disagreed = [];
+        let doses = 0, sums = 0, differed = 0;
+        const nearestSaid = () =>
+          (document.getElementById("d2").textContent.match(/nearest is\s*(\d+\/\d+)/) || [])[1];
+        for (let w = 0.04; w <= 1.0001; w += 0.004) {
+          drv.value = w.toFixed(3);
+          drv.dispatchEvent(new Event("input", { bubbles: true }));
+          doses++;
+
+          /* With nothing picked the panel compares against the closest
+             fraction, which stage 02's facts line names independently. Where
+             the chosen fold is not itself the closest, those are two different
+             fractions and a fallback wired to the wrong one shows up here. */
+          const nearest = nearestSaid();
+          const chosenF = document.getElementById("cmpHa").textContent;
+          const shownF = document.getElementById("cmpHb").textContent;
+          if (nearest && shownF !== nearest) {
+            fellWrong.push(`at ${w.toFixed(3)}: comparing against ${shownF}, nearest is ${nearest}`);
+          }
+          if (nearest && chosenF !== nearest) differed++;
+
+          /* EASIEST and the search have to agree about which fold reaches a
+             fraction most cheaply. Ask the list for the chosen fold's own
+             fraction and both columns must draw the same grid; if the two
+             orderings break a tie differently, they will not. */
+          const opt = [...sel.options].find((o) => o.textContent.split(" —")[0] === chosenF);
+          if (!opt) {
+            disagreed.push(`at ${w.toFixed(3)}: ${chosenF} is not on the list at all`);
+          } else {
+            sel.value = opt.value;
+            sel.dispatchEvent(new Event("change", { bubbles: true }));
+            const [x, y] = [...document.querySelectorAll("#cmpFilms svg")]
+              .map((g) => g.getAttribute("aria-label"));
+            if (x !== y) disagreed.push(`at ${w.toFixed(3)}: "${x}" vs "${y}"`);
+            drv.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+          const rows = [...document.querySelectorAll("#cmpTab tr")];
+          const tot = rows.pop();
+          for (const col of [1, 2]) {
+            const parts = rows.reduce((n, t) => n + (parseInt(t.children[col].textContent, 10) || 0), 0);
+            const said = parseInt(tot.children[col].textContent, 10);
+            sums++;
+            if (parts !== said) {
+              bad.push(`at ${w.toFixed(3)} column ${col}: rows add to ${parts}, total says ${said}`);
+            }
+          }
+          if (/is a bug/.test(document.getElementById("cmpVerdict").textContent)) {
+            contradictions.push(w.toFixed(3));
+          }
+          /* And with a fold explicitly picked, not only the default one. */
+          for (const i of [0, 17, 34, 53]) {
+            sel.value = String(i);
+            sel.dispatchEvent(new Event("change", { bubbles: true }));
+            if (/is a bug/.test(document.getElementById("cmpVerdict").textContent)) {
+              contradictions.push(`${w.toFixed(3)} vs option ${i}`);
+            }
+          }
+        }
+        return { bad, contradictions, fellWrong, disagreed, doses, sums, differed };
+      });
+      checks++;
+      if (swept.bad.length) {
+        failures.push(`fold.html difficulty rows do not add up to the difficulty `
+          + `(${swept.bad.length} of ${swept.sums}): ${swept.bad[0]}`);
+      }
+      checks++;
+      if (swept.contradictions.length) {
+        failures.push(`fold.html found ${swept.contradictions.length} fold(s) the search `
+          + `considered and could have had cheaper than the one it chose: `
+          + `${swept.contradictions.slice(0, 3).join(", ")}`);
+      }
+      checks++;
+      if (swept.fellWrong.length) {
+        failures.push(`fold.html compares against the wrong fold with nothing picked `
+          + `(${swept.fellWrong.length} of ${swept.doses} doses): ${swept.fellWrong[0]}`);
+      }
+      checks++;
+      if (swept.disagreed.length) {
+        failures.push(`fold.html draws a different grid for the chosen fraction than the `
+          + `search chose (${swept.disagreed.length} of ${swept.doses}): ${swept.disagreed[0]}`);
+      }
+      checks++;
+      if (swept.doses < 200 || swept.sums < 400) {
+        failures.push(`fold.html comparison sweep only reached ${swept.doses} doses and `
+          + `${swept.sums} score totals; it is no longer covering the dose range`);
+      }
+      /* The shape of the sweep's own coverage. The fallback check above is
+         only meaningful at doses where the chosen fold is not also the closest
+         one — everywhere else the two fractions coincide and any wiring
+         passes. If that population dries up, the check has stopped testing
+         anything and should fail rather than go on reporting green. */
+      checks++;
+      if (swept.differed < 100) {
+        failures.push(`fold.html sweep found only ${swept.differed} doses where the chosen `
+          + `fold is not the closest one; the fallback check needs those to mean anything`);
+      }
+      if (errs.length) failures.push(`fold.html comparison sweep: ${errs[0]}`);
+      states += 1;
       await ctx.close();
     }
 
