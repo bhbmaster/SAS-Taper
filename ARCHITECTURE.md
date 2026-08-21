@@ -456,7 +456,7 @@ Two phases:
 - **43 named cases** go through the CLI (`python3 taper.py --json`), so the argument plumbing is covered too. Start doses 0.1-64 mg, `n` 2-30, the switch both ways, stretched cycles, `n`-below-3, non-default lengths and strengths, clamp boundaries, empty ladders.
 - **1,280 matrix cases** go straight at `build_schedule()` in one Python process: 1-32 mg × all four strengths × `n` 2-30 × **both cut modes**, plus non-default film lengths. **13,567 cycles**, compared field by field.
 
-Every one of the 28 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes. That is **about 644,000 field comparisons**, which the suite counts as it goes and prints. `fractionCut()` gets its own sweep of 13,920 cases on top of the ladder. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
+Every one of the 28 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes. That is **about 647,000 field comparisons**, which the suite counts as it goes and prints. `fractionCut()` gets its own sweep of 13,920 cases on top of the ladder, and the lag curve adds 2,342 checks of its own. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
 
 The months and the comparison table were the last two things written twice and checked nowhere: `compareRows` only walks rows and `compareSummary` only walks scalars, so `monthly_usage()` and `compare_classic()` could have drifted from their JS twins in silence.
 
@@ -464,9 +464,9 @@ The lag curve is JS-only, so it is not in the field-by-field ladder diff. `test_
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js`: 674 viewport states, 898 checks
+### `test_layout.js`: 680 viewport states, 904 checks
 
-Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
+Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty-one reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
 
 Five failure modes at every state:
 
