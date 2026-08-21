@@ -293,7 +293,11 @@ level ← level · decay + dose          once per day
 eff    = level · (1 − decay)          the same level as a dose-equivalent mg
 ```
 
+In those units the recurrence is an exponential moving average, `eff(n) = decay·eff(n−1) + (1−decay)·dose(n)`. A single step from `D₀` to a new constant `D` has the closed form `eff(n) = D + (D₀ − D)·decay^n`: a drop leaves the curve above the new dose, a jump leaves it below, and a long half-life (`decay` close to 1) stays near `D₀` instead of hugging the ladder. `lagFromDoses` is the recurrence; `lagSeries` just expands each cycle into daily doses and calls it. Both are JS-only, exported on `SASTaperInternals` so `test_parity.js` can check the properties, and never passed to `buildSchedule`.
+
 Seeded at steady state on the pre-taper dose (`level = D₀ / (1 − decay)`), because someone starting a taper is not starting the drug. Seeding at zero drew a loading ramp through cycle 1 that nobody in this situation experiences. This is the picture behind the note *"you may not feel a drop until day 4 or 5"*.
+
+The half-life input is display-only and runs 0-2160 hours (90 days). 0 hides the curve. The old 80 h cap silently replaced 90 and 900 with 80, so a depot-scale value still hugged the doses. 2160 h is long enough to sketch a 60-day injection tail without letting a stray zero divide by `1 − decay`.
 
 **Cut error vs step size.** How much of one cycle's dose drop your cutting accuracy could swallow:
 
@@ -455,6 +459,8 @@ Two phases:
 Every one of the 28 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes. That is **about 644,000 field comparisons**, which the suite counts as it goes and prints. `fractionCut()` gets its own sweep of 13,920 cases on top of the ladder. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
 
 The months and the comparison table were the last two things written twice and checked nowhere: `compareRows` only walks rows and `compareSummary` only walks scalars, so `monthly_usage()` and `compare_classic()` could have drifted from their JS twins in silence.
+
+The lag curve is JS-only, so it is not in the field-by-field ladder diff. `test_parity.js` still checks it: the closed form of a step down, a step up and a washout, that a longer half-life stays higher, that 900 h does not hug the ladder on a default run, and that typing 900 is no longer clamped to 80.
 
 Like the Python matrix, it asserts the shape of its own coverage.
 

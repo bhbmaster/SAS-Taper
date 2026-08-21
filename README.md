@@ -151,6 +151,8 @@ It loads `index.html` in a headless browser, runs both implementations over the 
 
 **1,280 more** go straight at `build_schedule()`, the whole grid in both cut modes, in one Python process: every start dose from 1 to 32 mg against every official film strength, `n` from 2 to 30, and two non-default film lengths. That is **13,567 cycles** compared field by field, up to a sixteen-strip day. It also checks the shape of its own coverage, so a grid that stopped producing multi-film days would fail rather than pass silently. Then `baseFilmMg` across 11 film sizes.
 
+The dashed lag curve is JS-only, so it is not in that field-by-field diff. The same suite still checks it: the closed form of a step down, a step up and a washout across film and depot-scale half-lives, that a longer half-life stays higher, that 900 h does not hug the ladder, and that typing 900 is no longer clamped to 80.
+
 It exits **0** on a match, **1** with a list of mismatches otherwise. If Node or a browser is missing it prints `skipped` and exits 0, so a plain checkout still passes.
 
 #### Setup on Linux and macOS
