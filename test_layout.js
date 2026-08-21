@@ -1135,14 +1135,30 @@ const probe = () => {
         /* Every preset, so each stage is measured against a real cycle rather
            than only the one it loads with. */
         const presets = await page.evaluate(() =>
-          document.querySelectorAll("#presets button").length);
+          [...document.querySelectorAll("#presets button")].map((b) => b.textContent.trim()));
         checks++;
-        if (presets < 4) failures.push(`fold.html has ${presets} preset cycles, expected 6`);
-        for (let i = 0; i < presets; i++) {
+        if (presets.length < 7 || !presets.includes("0.32") || !presets.includes("c1")) {
+          failures.push(`fold.html has presets [${presets.join(", ")}]; expected 0.32 plus the six real cycles`);
+        }
+        for (let i = 0; i < presets.length; i++) {
           await page.evaluate((n) => document.querySelectorAll("#presets button")[n].click(), i);
           await page.waitForTimeout(60);
           errs.length = 0;
           record(`fold.html preset ${i} ${theme} @${width}px`, await page.evaluate(probe), errs);
+        }
+        /* The 0.32 button is the same-stroke case the search used to get
+           wrong. Clicking it has to choose 1/24, not 1/16. */
+        checks++;
+        {
+          const chosen = await page.evaluate(() => {
+            const b = [...document.querySelectorAll("#presets button")]
+              .find((el) => el.textContent.trim() === "0.32");
+            if (b) b.click();
+            return document.getElementById("cmpHa").textContent;
+          });
+          if (chosen !== "1/24") {
+            failures.push(`fold.html 0.32 mg preset chose ${chosen}, expected 1/24`);
+          }
         }
 
         /* The fold comparison. Stage 02's ladder is a control: 54 ticks, a
@@ -1312,7 +1328,7 @@ const probe = () => {
         const drv = document.getElementById("drv");
         const sel = document.getElementById("cmpPick");
         const bad = [], contradictions = [], fellWrong = [], disagreed = [];
-        let doses = 0, sums = 0, differed = 0;
+        let doses = 0, sums = 0, differed = 0, at032 = null;
         const nearestSaid = () =>
           (document.getElementById("d2").textContent.match(/nearest is\s*(\d+\/\d+)/) || [])[1];
         for (let w = 0.04; w <= 1.0001; w += 0.004) {
@@ -1331,6 +1347,7 @@ const probe = () => {
             fellWrong.push(`at ${w.toFixed(3)}: comparing against ${shownF}, nearest is ${nearest}`);
           }
           if (nearest && chosenF !== nearest) differed++;
+          if (Math.abs(w - 0.04) < 1e-9) at032 = chosenF;
 
           /* EASIEST and the search have to agree about which fold reaches a
              fraction most cheaply. Ask the list for the chosen fold's own
@@ -1369,7 +1386,7 @@ const probe = () => {
             }
           }
         }
-        return { bad, contradictions, fellWrong, disagreed, doses, sums, differed };
+        return { bad, contradictions, fellWrong, disagreed, doses, sums, differed, at032 };
       });
       checks++;
       if (swept.bad.length) {
@@ -1401,11 +1418,19 @@ const probe = () => {
          only meaningful at doses where the chosen fold is not also the closest
          one, everywhere else the two fractions coincide and any wiring
          passes. If that population dries up, the check has stopped testing
-         anything and should fail rather than go on reporting green. */
+         anything and should fail rather than go on reporting green.
+
+         Same-stroke closer folds now win, so this is the extra-stroke cases
+         only. A bound of 100 was written when grid fineness in the score made
+         1/16 beat 1/24; that population is gone on purpose. */
       checks++;
-      if (swept.differed < 100) {
+      if (swept.differed < 40) {
         failures.push(`fold.html sweep found only ${swept.differed} doses where the chosen `
           + `fold is not the closest one; the fallback check needs those to mean anything`);
+      }
+      checks++;
+      if (swept.at032 !== "1/24") {
+        failures.push(`fold.html at 0.32 mg on an 8 mg film chose ${swept.at032}, expected 1/24`);
       }
       if (errs.length) failures.push(`fold.html comparison sweep: ${errs[0]}`);
       states += 1;
