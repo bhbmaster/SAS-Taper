@@ -567,23 +567,38 @@ def _frac_difficulty(
 ) -> float:
     """How hard this cut is by hand. Lower is easier.
 
+    Only the physical work: stroke type, extra pieces, a tab too small to hold.
     A cut across the short axis is a 12.8 mm stroke guided by the film's own
     straight edge. A cut along the long axis is freehand down the middle and
     materially harder to keep square, so the two are not worth the same. A
     plain half should come out as a crosswise cut, not a lengthwise one, even
     though both are "one cut".
+
+    Grid fineness is not part of this score. Two folds that take the same
+    strokes are ranked by how close they are, then by `_frac_fineness`. Putting
+    the grid into the score spent 0.17 mg to prefer 1/16 over 1/24 at 0.32 mg.
+    `columns` is unused; it is here so the call site matches `fracDifficulty`.
     """
     lengthwise = 1 if tab_cells else 0
     d = (cuts - lengthwise) * 10 + lengthwise * 14 + (pieces - 1) * 4
-    # A finer fold is a harder judgement even at the same cut count, and the
-    # short axis has less room to be wrong in.
-    d += {1: 0, 2: 0, 3: 2, 4: 3, 8: 6}[long_div]
-    d += {1: 0, 2: 2, 3: 5, 4: 7}[short_div]
     if tab_cells:
         tab = min(full_mm / long_div, wide_mm * tab_cells / short_div)
         if tab < FRAC_MIN_TAB_MM:
             d += 20
     return d
+
+
+def _frac_fineness(long_div: int, short_div: int) -> int:
+    """How fine the grid is, as a tertiary ranking after error.
+
+    Halving is exact; thirds are a judgement, and the short axis has less room
+    to be wrong in. Used only when two folds already take the same strokes and
+    land equally close, never to spend milligrams on a coarser-looking grid.
+    """
+    return (
+        {1: 0, 2: 0, 3: 2, 4: 3, 8: 6}[long_div]
+        + {1: 0, 2: 2, 3: 5, 4: 7}[short_div]
+    )
 
 
 def fraction_cut(
@@ -603,11 +618,12 @@ def fraction_cut(
         tol_mg: the error a simpler cut may carry and still win, in absolute
             terms. Pass the reader's own cutting tolerance in milligrams: any
             cut inside it is no worse than the slip they would make with a
-            rule, so among those the simplest is the better instruction. Note
-            this is a cap on the error itself, not a margin on top of the best
-            one, otherwise the two would compound and the chosen cut could be
-            further out than the tolerance allows. Zero means always take the
-            closest.
+            rule, so among those the simplest is the better instruction. Among
+            folds that take the same strokes, the closer dose wins; grid
+            fineness only breaks a remaining tie. Note this is a cap on the
+            error itself, not a margin on top of the best one, otherwise the
+            two would compound and the chosen cut could be further out than the
+            tolerance allows. Zero means always take the closest.
     Returns:
         The chosen FractionCut, or None if the film has no size to fold.
 
@@ -643,7 +659,7 @@ def fraction_cut(
     near = [e for e in pool if e[0] <= cap + 1e-12]
     near.sort(key=lambda e: (
         _frac_difficulty(e[1], e[2], e[4], e[5], e[6], e[7], full_mm, wide_mm),
-        e[0], e[2], -e[1], e[3],
+        e[0], _frac_fineness(e[1], e[2]), e[2], -e[1], e[3],
     ))
     err, long_div, short_div, cells, columns, tab, cuts, pieces, frac = near[0]
     return FractionCut(

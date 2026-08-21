@@ -228,10 +228,11 @@ The chosen piece is always `columns` whole columns plus `tab_cells` cells of the
 
 A tab that runs to the film's own edge needs no cut on that side, which is what makes 5/6 on a 3×2 grid two strokes rather than three.
 
-Two things about the search are load-bearing:
+Two things about the search are load-bearing, and a third is easy to get wrong by treating grid coarseness as physical work:
 
 - **A lengthwise cut costs more than a crosswise one.** Both are "one cut", but 12.8 mm guided by the film's own straight edge is not the same job as 22 mm freehand down the middle. Without that term a plain half comes out as `1×2`, the wrong instruction.
 - **`tol_mg` caps the error, it does not add to the best one.** Pass the reader's own cutting tolerance: a fold inside it is no worse than the slip they would make with a rule, so the simplest of those wins. Written as `best + tol` the two compound and the chosen cut can land further out than the tolerance allows, which it did on the first pass.
+- **Among equal strokes, the closer dose wins.** Grid fineness is a tie-break after error, not a term in the difficulty score. Put it in the score and 0.32 mg on an 8 mg film prefers `1/16` (off by 0.18 mg) over `1/24` (off by 0.01 mg) because thirds look three points dearer than halves: same two cuts, 0.17 mg spent on the coarser-looking grid.
 
 The result is deterministic, same arguments and same cut, so the drawing never moves under a reader who has changed nothing. **`fold.html`** is a second shipped page explaining all of the above: the whole algorithm in one annotated block, then the same thing as seven live stages driven by a slider. The listing scrolls sideways rather than wrapping, with a Wrap button for readers who want the lines taken apart. It reimplements the search a third time, in the page, deliberately. It is an explainer, not the tool, and nothing doses off it. It is self-contained like `index.html` and the layout sweep checks that, plus that its links home still resolve, and that the glossary still names the listing. Stage 02's ladder doubles as a picker: 54 ticks, a `<select>` carrying the same 54 for the keyboard, and a comparison panel that draws whatever is picked next to the search's own choice. The panel itemises both difficulty scores from `SCORE_ROWS`, the single list `difficulty()` sums, so the number and the account of the number cannot drift; the sweep adds up the printed rows and checks they equal the printed total. It also names the one outcome that must never occur: a fold the search considered and could have had for fewer points than the one it chose. The sweep fails if that verdict ever renders, which makes the pool's difficulty-first sort a tested claim rather than a comment. `test_parity.js` sweeps 13,920 cases across six film sizes and four tolerances, because a search with a tie-break is exactly the kind of code that drifts between two implementations.
 
@@ -408,7 +409,7 @@ The two Node suites share `test_browser.js`, which looks for a browser in `CHROM
 
 That skip is right locally and wrong in CI, where it would be a green tick over a page nobody tested, so the workflow has an explicit gate: after installing the browser it calls `findBrowser()` and fails the job if the answer is null. Note the skip only covers a *missing binary*. A browser that exists but fails to launch throws, and both suites exit 1.
 
-### `test_taper.py`: 71 tests, ~500,000 assertions
+### `test_taper.py`: 74 tests, ~501,000 assertions
 
 Standard library, no I/O, runs in about a second.
 
@@ -418,7 +419,7 @@ one test method can make tens of thousands of assertions. The runner wraps
 last line, which is where the figure above comes from, so nobody has to remember
 to update it.
 
-Named classes cover the closed forms against the simulation, the per-cycle invariants, that the daily dose never rises across a film switch, the published film geometry, the summary figures, and worked multi-film examples a reader can follow.
+Named classes cover the closed forms against the simulation, the per-cycle invariants, that the daily dose never rises across a film switch, the published film geometry, the folded-grid search (among equal strokes the closer dose wins: 0.32 mg on an 8 mg film is `1/24`, not `1/16`), the summary figures, and worked multi-film examples a reader can follow.
 
 `TestLinearCutMode` covers the second cut mode: the cut never changes in either unit, the dose falls in equal steps, it lands on zero after exactly `n − 1` of them, no cycle ever has a zero or negative dose, the closed form matches the simulation, it still stops at a target above zero, the percentage step grows every cycle, the two geometric rescues are switched off, the cut never goes thin where geometric would, and the default mode is untouched.
 

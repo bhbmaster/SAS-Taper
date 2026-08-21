@@ -329,7 +329,7 @@
     </div>
   </div>
   <div>
-    <div class="lab">Real cycles</div>
+    <div class="lab">Examples</div>
     <div class="presets" id="presets"></div>
   </div>
 </div>
@@ -373,7 +373,8 @@
       <tr><td class="f">cut_across_the_width</td><td>How many strokes run the short way across instead, guided by the film's own straight edge. The cheap ones.</td><td class="f">2</td></tr>
       <tr><td class="f">pieces</td><td>How many separate bits of film end up being your dose.</td><td class="f">2</td></tr>
       <tr><td class="f">error_mg</td><td>How far this fold's dose is from the one you wanted, in milligrams. Never hidden from the reader.</td><td class="f">n/a</td></tr>
-      <tr><td class="f">difficulty</td><td>A made-up score for how hard this fold is to do by hand. Lower is easier. Only ever compared against other folds.</td><td class="f">n/a</td></tr>
+      <tr><td class="f">difficulty</td><td>A made-up score for how hard this fold is to do by hand: the strokes, extra pieces, a tab too small to hold. Lower is easier. Only ever compared against other folds.</td><td class="f">n/a</td></tr>
+      <tr><td class="f">fineness</td><td>How fine the grid is, as a small extra ranking after the error. A coarser grid wins only when two folds already take the same strokes and land equally close. It is not part of the difficulty score.</td><td class="f">n/a</td></tr>
       <tr><td class="f">tolerance_mg</td><td>Your own cutting tolerance in milligrams: how far out you would be anyway, using a ruler.</td><td class="f">n/a</td></tr>
       <tr><td class="f">candidates</td><td>The list of every fold the grid can make. 180 of them.</td><td class="f">n/a</td></tr>
       <tr><td class="f">closest_possible</td><td>The smallest error any fold in that list manages.</td><td class="f">n/a</td></tr>
@@ -516,12 +517,6 @@ SHORT_DIVISIONS = [1, 2, 3, 4]
                 difficulty += cut_along_the_length * 14
                 difficulty += (pieces - 1) * 4        <span class="c"># two bits is fiddlier than one</span>
 
-                <span class="c"># Folding into 3 is a judgement; folding into 2 or 4 is not.
-                # And the same fold is harder across the narrow side, where
-                # there is less room to be wrong in.</span>
-                difficulty += {1: 0, 2: 0, 3: 2, 4: 3, 8: 6}[long_div]
-                difficulty += {1: 0, 2: 2, 3: 5, 4: 7}[short_div]
-
                 <span class="c"># Whatever the arithmetic says, a scrap under 2 mm on its
                 # short side is not something fingers and a razor can handle.</span>
                 <span class="k">if</span> tab:
@@ -529,12 +524,23 @@ SHORT_DIVISIONS = [1, 2, 3, 4]
                     <span class="k">if</span> tab_mm &lt; 2:
                         difficulty += 20
 
+                <span class="c"># Grid fineness is NOT difficulty. Folding into 3 is a
+                # judgement and folding into 2 is not, but that only ranks two
+                # folds that already take the same strokes and land equally
+                # close. Put it in the score and 0.32 mg on an 8 mg film
+                # prefers 1/16 (off by 0.18 mg) over 1/24 (off by 0.01 mg)
+                # because thirds look three points dearer than halves: same
+                # two cuts, 0.17 mg spent on the coarser-looking grid.</span>
+                fineness  = {1: 0, 2: 0, 3: 2, 4: 3, 8: 6}[long_div]
+                fineness += {1: 0, 2: 2, 3: 5, 4: 7}[short_div]
+
                 <span class="c"># And how wrong the dose would be, in milligrams. The number
                 # that gets shown to the reader, every single time.</span>
                 error_mg = abs(parts_taken / parts_in_all - want) * film_mg
 
-                candidates.append((difficulty, error_mg, long_div, short_div,
-                                   parts_taken, columns, tab, cuts, pieces))
+                candidates.append((difficulty, error_mg, fineness, long_div,
+                                   short_div, parts_taken, columns, tab,
+                                   cuts, pieces))
 
     <span class="c"># ── Pick one ────────────────────────────────────────────────────────
     # Two things matter and they pull against each other: how close the dose
@@ -553,16 +559,16 @@ SHORT_DIVISIONS = [1, 2, 3, 4]
 
     shortlist = [c <span class="k">for</span> c <span class="k">in</span> candidates <span class="k">if</span> c[1] &lt;= worst_allowed]
 
-    <span class="c"># Easiest wins. The keys after `difficulty` almost never get consulted;
-    # they are there so that when two folds tie, they tie the same way every
-    # time. That is what stops the picture changing under a reader who has
-    # not changed anything.</span>
+    <span class="c"># Easiest wins. Among equal strokes, the closer dose wins;
+    # fineness only breaks a remaining tie, so the picture still never
+    # changes under a reader who has not changed anything.</span>
     chosen = min(shortlist, key=<span class="k">lambda</span> c: (
-        c[0],    <span class="c"># difficulty, the real decision</span>
+        c[0],    <span class="c"># difficulty, the strokes, the real decision</span>
         c[1],    <span class="c"># then whichever is closer</span>
-        c[3],    <span class="c"># then the coarser fold across the width</span>
-        -c[2],   <span class="c"># then the finer fold along the length</span>
-        c[4],    <span class="c"># and finally the fewer parts</span>
+        c[2],    <span class="c"># then the coarser grid</span>
+        c[4],    <span class="c"># then the coarser fold across the width</span>
+        -c[3],   <span class="c"># then the finer fold along the length</span>
+        c[5],    <span class="c"># and finally the fewer parts</span>
     ))
     <span class="k">return</span> chosen
 
@@ -638,15 +644,22 @@ paint(columns * column_width, 0, column_width, tab * row_height)  <span class="c
       doing at least once, because the search does not simply take the closest
       fraction. Every fold closer than the chosen one <em>was</em> in the running:
       being closer than the winner puts you inside the tolerance by definition, so
-      nothing closer is ever thrown out on distance. Anything closer that lost,
-      lost on difficulty alone. This is where you can see what that bought and
-      what it cost.</p>
+      nothing closer is ever thrown out on distance. A closer fold that takes
+      more strokes can still lose. A closer fold with the same strokes cannot.</p>
+    <p>Park the slider at <strong>0.32&nbsp;mg</strong> (the left stop, or the
+      0.32 button) and compare <code>1/16</code> with <code>1/24</code>. Both
+      are two cuts and one piece. <code>1/16</code> is 0.18&nbsp;mg out;
+      <code>1/24</code> is 0.01. The search takes <code>1/24</code>. Put grid
+      fineness in the difficulty score and it takes <code>1/16</code> instead:
+      same strokes, 0.17&nbsp;mg spent on the coarser-looking grid. That is the
+      whole reason fineness ranks after error, and the whole reason 0.32&nbsp;mg
+      has a button.</p>
   </div>
   <div class="fig">
     <div id="f2"></div>
     <p class="facts" id="d2"></p>
     <p class="cap">All 54 fractions the folding method can reach. Taller ticks
-      are the easier ones, reachable with fewer cuts and coarser folds. The red
+      are the easier ones, reachable with fewer strokes. The red
       line is the dose you asked for; the ring is the fold that gets chosen, and
       the highlighted tick is the one being compared below.</p>
 
@@ -738,21 +751,20 @@ cuts = (<span class="k">1 if</span> columns <span class="k">else</span> 0)
 difficulty  = across × <span class="k">10</span> + along × <span class="k">14</span>
 <span class="c"># two bits of film to handle instead of one</span>
 difficulty += (pieces − 1) × <span class="k">4</span>
-<span class="c"># a finer fold is a harder judgement</span>
-difficulty += {1:0, 2:0, 3:2, 4:3, 8:6}[long_div]
-<span class="c"># and worse still across the narrow side</span>
-difficulty += {1:0, 2:2, 3:5, 4:7}[short_div]
 <span class="c"># a scrap under 2 mm is not something fingers do</span>
 difficulty += <span class="k">20</span> <span class="k">if</span> the tab is that small</pre>
     <p>The numbers are weights, not units of anything. The score exists only to
       be compared against other folds. What matters is the ordering they
-      produce.</p>
-    <p>Why those weights: folding something in half is exact and free, and
-      folding in half again gives you quarters and eighths, so 2, 4 and 8 cost
-      nothing. Thirds cannot be got that way; you have to eyeball them, so they
-      carry a penalty, and a bigger one across the narrow side where there is
-      less room to be wrong in. And a scrap under 2&nbsp;mm is not something
-      fingers and a razor handle, whatever the arithmetic says about it.</p>
+      produce. Grid fineness is not in it. Folding into 3 is a harder judgement
+      than folding into 2, but that only ranks two folds that already take the
+      same strokes and land equally close. It is a tie-break on the next stage,
+      not a reason to take a worse dose.</p>
+    <p>Why 10 against 14: a stroke across the short axis is 12.8&nbsp;mm guided
+      by the film's own straight edge, and a stroke along the long axis is
+      22&nbsp;mm freehand down the middle. Price them the same and a plain half
+      comes out as a lengthwise slice. Why 20: a scrap under 2&nbsp;mm is not
+      something fingers and a razor handle, whatever the arithmetic says about
+      it.</p>
   </div>
   <div class="fig">
     <div class="tw"><table>
@@ -788,8 +800,8 @@ worst_allowed = <span class="k">max</span>(closest_possible, tolerance)
 shortlist = [f <span class="k">for</span> f <span class="k">in</span> candidates
              <span class="k">if</span> f.error &lt;= worst_allowed]
 
-<span class="c"># of those, the easiest to actually do</span>
-chosen = <span class="k">min</span>(shortlist, key=(difficulty, error,
+<span class="c"># of those, the easiest to actually do; among equals, the closer</span>
+chosen = <span class="k">min</span>(shortlist, key=(difficulty, error, fineness,
                               short_div, −long_div, parts))</pre>
     <p>Read <code>max</code> there carefully, because the obvious alternative is
       wrong. The ceiling is on the <strong>error itself</strong>, not a margin
@@ -798,9 +810,16 @@ chosen = <span class="k">min</span>(shortlist, key=(difficulty, error,
       end up further out than the tolerance the reader actually gave you. That
       version shipped once, and put a real cycle 0.22&nbsp;mg out while claiming
       to respect 0.18.</p>
-    <p>The three keys after <code>difficulty</code> almost never get consulted.
-      They are there so that when two folds tie, they tie the same way every
-      time. <strong>The same dose always gives the same fold</strong>, so the
+    <p>The keys after <code>difficulty</code> are not decoration.
+      <code>error</code> is the one that matters among equal strokes. Hit the
+      0.32 button: <code>1/16</code> and <code>1/24</code> are both two cuts and
+      one piece, and the first is 0.18&nbsp;mg out while the second is 0.01. Put
+      grid fineness in the score and <code>1/16</code> wins, because thirds look
+      three points dearer than halves. Keep it as a tie-break after the error
+      and <code>1/24</code> wins, which is the dose you asked for.
+      <code>fineness</code> only decides when two folds take the same strokes
+      <em>and</em> land equally close, so a plain half is still 2×1 rather than
+      8×1. <strong>The same dose always gives the same fold</strong>, so the
       picture never moves under a reader who has not changed anything.</p>
   </div>
   <div class="fig">
@@ -851,8 +870,8 @@ paint(columns × col, 0, col, tab × row)
 
 <section class="stage" style="grid-template-columns: minmax(0, 1fr);">
   <div class="txt" style="max-width: 68ch;">
-    <span class="num">Two things it got wrong first</span>
-    <h2>Both were found by drawing it before shipping it</h2>
+    <span class="num">Three things it got wrong first</span>
+    <h2>Two were caught by drawing it. The third shipped.</h2>
   </div>
   <div style="display:grid; gap:0.9rem; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));">
     <div class="note bug">
@@ -874,6 +893,17 @@ paint(columns × col, 0, col, tab × row)
         default run it picked a fold 0.22&nbsp;mg out while the page claimed to
         respect ±0.18. The ceiling has to sit on the error itself,
         <code>max(closest, tolerance)</code>.</p>
+    </div>
+    <div class="note bug">
+      <h3>A finer grid beat a closer dose</h3>
+      <p>At 0.32&nbsp;mg on an 8&nbsp;mg film, <code>1/16</code> and
+        <code>1/24</code> are both two cuts and one piece. <code>1/16</code>
+        is 0.18&nbsp;mg out; <code>1/24</code> is 0.01. The score used to add
+        points for folding into 3 instead of 2, so <code>1/16</code> won: same
+        strokes, 0.17&nbsp;mg spent on the coarser-looking grid. Grid fineness
+        now ranks after the error, and only when two folds already take the
+        same strokes and land equally close. Hit the 0.32 button and you can
+        watch <code>1/24</code> win.</p>
     </div>
   </div>
   <div class="note">
@@ -951,17 +981,21 @@ paint(columns × col, 0, col, tab × row)
     return { L, S, cells, columns, tab, cuts, pieces, f: cells / (L * S) };
   }
 
+  const fineness = (c) => LPEN[c.L] + SPEN[c.S];
+
   /* The score, itemised. Every term the difficulty is made of, in one list, so
      that the number and the explanation of the number cannot drift apart: the
      comparison panel prints these rows and difficulty() is their sum. A score
      a reader cannot take apart is a score they cannot argue with, and the
-     whole point of the panel is to let them argue with it. */
+     whole point of the panel is to let them argue with it.
+
+     Grid fineness is deliberately not a row. It ranks two folds that already
+     take the same strokes and land equally close; putting it in the score
+     made 1/16 beat 1/24 at 0.32 mg, same two cuts, 0.17 mg spent. */
   const SCORE_ROWS = [
     ["cuts across the width, at 10 each", (c) => (c.cuts - (c.tab ? 1 : 0)) * 10],
     ["a cut along the length, at 14", (c) => (c.tab ? 14 : 0)],
     ["a second piece to keep track of", (c) => (c.pieces - 1) * 4],
-    ["folding the long side that fine", (c) => LPEN[c.L]],
-    ["folding the short side that fine", (c) => SPEN[c.S]],
     ["a tab narrower than 2 mm", (c) =>
       (c.tab && Math.min(FULL / c.L, WIDE * c.tab / c.S) < 2 ? 20 : 0)],
   ];
@@ -986,10 +1020,12 @@ paint(columns × col, 0, col, tab × row)
      every fold of the same fraction shares. It has to be: if the two disagreed
      about which of two equally cheap folds to prefer, the panel could draw one
      grid in the "chosen" column and a different grid beside it under the same
-     fraction. Sorting both the same way makes EASIEST.get(pick.f) and the
+     fraction. Sorting both the same way (physical difficulty, then fineness,
+     then the same S / L / cells keys) makes EASIEST.get(pick.f) and the
      search's own winner the same fold, always, and the layout suite checks
      that they are. */
-  const CHEAPEST_FIRST = (a, b) => a.d - b.d || a.S - b.S || b.L - a.L || a.cells - b.cells;
+  const CHEAPEST_FIRST = (a, b) => a.d - b.d || fineness(a) - fineness(b)
+    || a.S - b.S || b.L - a.L || a.cells - b.cells;
   const EASIEST = new Map();
   for (const c of ALL) {
     const seen = EASIEST.get(c.f);
@@ -1001,7 +1037,8 @@ paint(columns × col, 0, col, tab × row)
     const best = Math.min(...scored.map((c) => c.err));
     const cap = Math.max(best, TOL);
     const pool = scored.filter((c) => c.err <= cap + 1e-12);
-    pool.sort((a, b) => a.d - b.d || a.err - b.err || a.S - b.S || b.L - a.L || a.cells - b.cells);
+    pool.sort((a, b) => a.d - b.d || a.err - b.err || fineness(a) - fineness(b)
+      || a.S - b.S || b.L - a.L || a.cells - b.cells);
     return { pick: pool[0], pool, best, cap,
              closest: scored.reduce((m, c) => (c.err < m.err ? c : m)) };
   }
@@ -1217,6 +1254,8 @@ paint(columns × col, 0, col, tab × row)
         + `and costs ${pts(dD)} <span class="no">more</span> to cut. `
         + `The search took the easier one. That is the whole trade, in a line. `
         + `Whether it is the right call is a judgement about your hands, not about arithmetic.`;
+    } else if (dErr > 1e-9 && dD === 0) {
+      v = `Same strokes, ${mg(dErr)} further off. The search took the closer one.`;
     } else if (dErr > 1e-9 && dD > 0) {
       v = `Further off <em>and</em> harder. Nothing recommends it.`;
     } else if (dErr > 1e-9) {
@@ -1348,8 +1387,10 @@ paint(columns × col, 0, col, tab × row)
       + `${Math.abs(err) < 5e-3 ? "exact" : (err > 0 ? "+" : "") + f2(err) + " mg"}</span>`;
   }
 
-  /* Real cycles from the default 8 mg run, so the presets are not invented. */
+  /* Default 8 mg cycles, plus 0.32 mg: the same-stroke case the search used
+     to get wrong (1/16 over 1/24). The presets are not invented. */
   const PRESETS = [
+    ["0.32", 0.32 / 8],
     ["c1", 18.3333 / 22], ["c2", 15.2778 / 22], ["c3", 12.7315 / 22],
     ["c4", 10.6096 / 22], ["c6", 7.3678 / 22], ["c7", 6.1398 / 22],
   ];
