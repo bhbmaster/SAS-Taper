@@ -1027,7 +1027,7 @@
         <div><dt>Hold / stretch days <span class="def">[blank = same as n]</span><span class="sep"> · </span></dt><dd>Makes every cycle longer without changing the size of the cut. Set 9 with n = 6 and you still cut 1/6, but hold each dose for 9 days instead of 6. Same taper, more settling time between drops.</dd></div>
         <div><dt>n below 3 mg <span class="def">[blank = off]</span><span class="sep"> · </span></dt><dd>Switches to a different n once the strip you are cutting from drops under 3 mg, where the same percentage is a much smaller piece of film. Setting 10 here makes the back half drop 10% per cycle instead of 16.7%.</dd></div>
         <div><dt>Your cutting tolerance (mm) <span class="def">[0.5]</span><span class="sep"> · </span></dt><dd>How accurately you can cut. Half a millimetre is realistic with a razor and a steel ruler. It feeds the "cutting error vs the step" graph, and it sets how much simplicity the life-size film's <strong>Folding</strong> mode may buy: a fold no further out than your own slip is offered in place of a closer but fiddlier one. Among folds that take the same strokes, it still takes the closer dose. It never changes the schedule. Set it to 0 to hide that graph and to always take the closest fold.</dd></div>
-        <div><dt>Half-life for the lag curve (h) <span class="def">[32]</span><span class="sep"> · </span></dt><dd>Buprenorphine's half-life, usually quoted as 24-42 hours for a film. Draws the dashed lag curve on the first graph and nothing else. In that film range the curve tracks the ladder with a few days' lag, which is the point of it. A long value (hundreds or thousands of hours, the depot picture) stays high and only slowly falls toward the new dose, because each day's intake is a small slice of what is already on board. Set it to 0 to hide the curve. 2160 h is 90 days, enough to sketch a 60-day injection tail.</dd></div>
+        <div><dt>Half-life for the lag curve (h) <span class="def">[32]</span><span class="sep"> · </span></dt><dd>Buprenorphine's half-life, usually quoted as 24-42 hours for a film. Draws the dashed lag curve on the first graph and nothing else. In that film range the curve tracks the ladder with a few days' lag, which is the point of it. A long value (hundreds or thousands of hours, the depot picture) stays high and only slowly falls toward the new dose, because each day's intake is a small slice of what is already on board. Set it to 0 to hide the curve. 2160 h is 90 days, enough to sketch a 60-day injection tail. <a href="lag.html">How the dashed line is drawn</a>.</dd></div>
         <div><dt>Day 1 date <span class="def">[blank = no calendar]</span><span class="sep"> · </span></dt><dd>The date you plan to start. Fills in the Calendar panel with real dates and marks today, so you can see which cycle you are on. Leave blank and the plan stays in day numbers.</dd></div>
         <div><dt>Switch to 2 mg films at or below 2.25 mg <span class="def">[on]</span><span class="sep"> · </span></dt><dd>When the strip you cut from reaches 2.25 mg, restart on a 2 mg film. A 2 mg film is a quarter the density, so the same dose is four times longer and the same cut is four times more forgiving. Turn it off to stay on one strength the whole way.</dd></div>
         <div><dt>Show n = 6 / 8 / 10 comparison <span class="def">[on]</span><span class="sep"> · </span></dt><dd>Adds the panel and graph comparing three taper speeds side by side, so you can see what slowing down costs in time and total medication.</dd></div>
@@ -1119,7 +1119,7 @@
 
     <section class="panel">
       <h2>Graphs</h2>
-      <p class="legend" style="margin-top:-0.4rem;margin-bottom:0.8rem;">Dose holds steady inside a cycle, then drops. A step ladder, not a smooth slide. Click a step or a film bar to select that cycle's cut mark.</p>
+      <p class="legend" style="margin-top:-0.4rem;margin-bottom:0.8rem;">Dose holds steady inside a cycle, then drops. A step ladder, not a smooth slide. Click a step or a film bar to select that cycle's cut mark. The dashed line on the first graph is a lag, not a prediction. <a href="lag.html">How the dashed line is drawn</a>.</p>
       <div class="charts" id="charts"></div>
     </section>
 
@@ -3431,7 +3431,8 @@
         }
       }
       cap += ` Illustration of the lag only: a shape, not a prediction of anyone's blood levels,`
-        + ` which vary widely. Set the half-life to 0 to hide it.`;
+        + ` which vary widely. Set the half-life to 0 to hide it.`
+        + ` <a href="lag.html">How the dashed line is drawn</a>.`;
     }
     return svgFrame("Daily dose over time", cap, inner);
   }

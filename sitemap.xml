@@ -2,10 +2,14 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://bhbmaster.github.io/SAS-Taper/</loc>
-    <lastmod>2026-08-20</lastmod>
+    <lastmod>2026-08-21</lastmod>
   </url>
   <url>
     <loc>https://bhbmaster.github.io/SAS-Taper/fold.html</loc>
     <lastmod>2026-08-20</lastmod>
+  </url>
+  <url>
+    <loc>https://bhbmaster.github.io/SAS-Taper/lag.html</loc>
+    <lastmod>2026-08-21</lastmod>
   </url>
 </urlset>

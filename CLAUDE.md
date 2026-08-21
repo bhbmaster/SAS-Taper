@@ -64,8 +64,9 @@ Most changes should leave a plain 8 mg run byte-identical. Diff the rendered tex
 
 ## Constraints that are easy to break by accident
 
-- **`index.html` and `fold.html` each stay one self-contained file.** All CSS and JS inline, no external requests, no build step. People open them from disk, offline. A CDN link or a bundler breaks that, and it breaks it *silently*, so `test_layout.js` greps `fold.html` for off-site URLs.
+- **`index.html`, `fold.html` and `lag.html` each stay one self-contained file.** All CSS and JS inline, no external requests, no build step. People open them from disk, offline. A CDN link or a bundler breaks that, and it breaks it *silently*, so `test_layout.js` greps the explainers for off-site URLs.
 - **`fold.html` explains the fold search and reimplements it in-page.** That third copy is deliberate: it is an explainer and nobody doses off it, so it is not in the parity contract. If you change `fraction_cut()`, change the explainer's copy too or the page starts teaching the wrong algorithm.
+- **`lag.html` explains the dashed lag curve and reimplements it in-page.** Same rule: a third copy, nobody doses off it. If you change `lagFromDoses()`, change the explainer too. `test_parity.js` diffs the two.
 - **`taper.py` stays standard-library only.** No pip installs, and `test_taper.py` likewise.
 - **Every colour token goes in all three theme blocks**: bare `:root` (dark, the default), `:root[data-theme="light"]`, and `@media print`. Miss one and it is undefined in that mode.
 - **Chart colours come from `readChartPalette()`**, never hardcoded. They are baked into the SVG at render time, so a CSS variable in an SVG attribute does not resolve.

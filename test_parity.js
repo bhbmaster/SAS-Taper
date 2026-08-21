@@ -13,7 +13,7 @@
 "use strict";
 
 const { execFileSync } = require("child_process");
-const { launchOrSkip, PAGE } = require("./test_browser");
+const { launchOrSkip, PAGE, LAG_PAGE } = require("./test_browser");
 
 const REPO = __dirname;
 const TOL = 1e-9;
@@ -563,6 +563,43 @@ json.dump(out, sys.stdout)
     if (!/Half-life/.test(form.over.warn)) {
       fail(`lag: over-max half-life produced no clamp warning`);
     }
+  }
+
+  /* The explainer is a third copy of lagFromDoses. Same rule as fold.html:
+     if the listing's function drifts from the calculator, the page starts
+     teaching the wrong algorithm. */
+  {
+    const lagPage = await browser.newPage();
+    await lagPage.goto(LAG_PAGE);
+    await lagPage.waitForFunction(() => !!window.SASLagExplainer, null, { timeout: 10000 });
+    const cases = [
+      { hl: 32, start: 8, doses: Array(20).fill(4) },
+      { hl: 36, start: 8, doses: Array(20).fill(4) },
+      { hl: 90, start: 4, doses: Array(20).fill(8) },
+      { hl: 900, start: 8, doses: Array(20).fill(0) },
+      { hl: 1440, start: 8, doses: Array(12).fill(6.6667) },
+    ];
+    const fromIndex = await page.evaluate((cs) => cs.map((c) =>
+      window.SASTaperInternals.lagFromDoses(c.doses, c.hl, c.start)), cases);
+    const fromExplainer = await lagPage.evaluate((cs) => cs.map((c) =>
+      window.SASLagExplainer.lagFromDoses(c.doses, c.hl, c.start)), cases);
+    for (let i = 0; i < cases.length; i++) {
+      const a = fromIndex[i], b = fromExplainer[i];
+      comparisons++;
+      lagChecked++;
+      if (a.length !== b.length) {
+        fail(`lag explainer case ${i}: length ${b.length} vs calculator ${a.length}`);
+        continue;
+      }
+      for (let d = 0; d < a.length; d++) {
+        comparisons++;
+        lagChecked++;
+        if (Math.abs(a[d].eff - b[d].eff) > TOL) {
+          fail(`lag explainer case ${i} day ${d}: ${b[d].eff} vs calculator ${a[d].eff}`);
+        }
+      }
+    }
+    await lagPage.close();
   }
 
   if (pageErrors.length) fail("page errors: " + pageErrors.join("; "));

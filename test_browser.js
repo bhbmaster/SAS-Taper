@@ -80,6 +80,7 @@ module.exports = {
   findBrowser,
   launchOrSkip,
   PAGE: fileUrl("index.html"),
-  /* The algorithm explainer. A second shipped page, so it gets swept too. */
+  /* Algorithm explainers. Second and third shipped pages, so they get swept too. */
   FOLD_PAGE: fileUrl("fold.html"),
+  LAG_PAGE: fileUrl("lag.html"),
 };
