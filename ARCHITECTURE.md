@@ -39,6 +39,8 @@ The cost is that **the ladder maths exists twice and can drift**, and it already
 | File | What it is |
 |---|---|
 | `index.html` | The whole site: HTML, CSS and JS in one file. ~3060 lines. |
+| `fold.html` | Fold-search explainer, one self-contained file. Nobody doses off it. |
+| `lag.html` | Lag-curve explainer, one self-contained file. Nobody doses off it. |
 | `taper.py` | The CLI and the reference implementation of the maths. ~1370 lines. |
 | `test_taper.py` | Maths checks, standard library only. No browser, no Node. |
 | `test_parity.js` | Runs both implementations and diffs them. Needs Node + Chromium. |
@@ -299,6 +301,8 @@ Seeded at steady state on the pre-taper dose (`level = D₀ / (1 − decay)`), b
 
 The half-life input is display-only and runs 0-2160 hours (90 days). 0 hides the curve. The old 80 h cap silently replaced 90 and 900 with 80, so a depot-scale value still hugged the doses. 2160 h is long enough to sketch a 60-day injection tail without letting a stray zero divide by `1 − decay`.
 
+**`lag.html`** is a shipped page explaining all of the above: the whole recurrence in one annotated block, then the same thing as seven live stages driven by a half-life slider, with a drop, a jump, a washout and a default taper as the four paths. It reimplements `lagFromDoses` a third time, in the page, deliberately. It is an explainer, not the tool, and nothing is dosed off it. `test_parity.js` diffs that copy against the calculator's, and `test_layout.js` checks it is self-contained, that the glossary still names the listing, and that the closed form of a step still matches the loop.
+
 **Cut error vs step size.** How much of one cycle's dose drop your cutting accuracy could swallow:
 
 ```
@@ -355,7 +359,8 @@ Several things are placed from measured pixels rather than by normal flow, and *
 | `fitBandLabels()` | steps each band's label down, full to short to nothing, checking **both** width and height |
 | `calMeasure()` | one cycle's cut as the three numbers a day cell can show (`save`, `take`, `delta`), with the mode picking which |
 | `renderFoldViz()` | the life-size panel's folding mode: the chosen grid, the strokes, and the dose error in milligrams |
-| `fold.html` | the explainer page, its own file and its own stylesheet, linked from the mode switch |
+| `fold.html` | the fold-search explainer, its own file and its own stylesheet, linked from the mode switch |
+| `lag.html` | the lag-curve explainer, its own file, linked from the half-life input and the first graph |
 | `foldSvg()` | one folded film as SVG, sized in CSS mm like the flex bars beside it, not in pixels |
 | `renderCalLegend()` | the worked day cell above the grid: one real day, its three lines named, and a swatch per cell state |
 | `fitCalCells()` | measures every calendar number and shrinks the ones that overflow their cell |
@@ -456,7 +461,7 @@ Two phases:
 - **43 named cases** go through the CLI (`python3 taper.py --json`), so the argument plumbing is covered too. Start doses 0.1-64 mg, `n` 2-30, the switch both ways, stretched cycles, `n`-below-3, non-default lengths and strengths, clamp boundaries, empty ladders.
 - **1,280 matrix cases** go straight at `build_schedule()` in one Python process: 1-32 mg × all four strengths × `n` 2-30 × **both cut modes**, plus non-default film lengths. **13,567 cycles**, compared field by field.
 
-Every one of the 28 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes. That is **about 647,000 field comparisons**, which the suite counts as it goes and prints. `fractionCut()` gets its own sweep of 13,920 cases on top of the ladder, and the lag curve adds 2,342 checks of its own. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
+Every one of the 28 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes. That is **about 647,000 field comparisons**, which the suite counts as it goes and prints. `fractionCut()` gets its own sweep of 13,920 cases on top of the ladder, and the lag curve adds 2,444 checks of its own, including a diff of `lag.html`'s copy against the calculator. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
 
 The months and the comparison table were the last two things written twice and checked nowhere: `compareRows` only walks rows and `compareSummary` only walks scalars, so `monthly_usage()` and `compare_classic()` could have drifted from their JS twins in silence.
 
@@ -464,7 +469,7 @@ The lag curve is JS-only, so it is not in the field-by-field ladder diff. `test_
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js`: 680 viewport states, 904 checks
+### `test_layout.js`: 689 viewport states, 948 checks
 
 Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty-one reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
 
@@ -478,7 +483,7 @@ Five failure modes at every state:
 | **spill**, an absolute label escaping its container | bounding box against its parent's |
 | **bar count**, a drawing showing a different day than it describes | one bar per film in each panel, against the layout for that panel's strength |
 
-`fold.html`'s algorithm listing scrolls sideways inside its own `<pre>` at every width, and **Wrap** is the opt-in. It is written as hard-wrapped 80-column text with its comments in an aligned second column, so soft-wrapping costs more than it saves: at 375 px, 108 of its 167 lines re-wrap, the `──` rules break into orphan stubs, and every continuation returns to column 0 where it reads as a new statement. The sweep checks the default at four widths, that each button flips the listing, that the scroller stays inside the `<pre>` instead of widening the page, that only the non-default value is stored, and that the restore lives in the `<head>`. That last one is read off the file, because by the time a test can evaluate anything both scripts have run and a before-paint restore is indistinguishable from an after-load one.
+`fold.html`'s algorithm listing scrolls sideways inside its own `<pre>` at every width, and **Wrap** is the opt-in. It is written as hard-wrapped 80-column text with its comments in an aligned second column, so soft-wrapping costs more than it saves: at 375 px, 108 of its 167 lines re-wrap, the `──` rules break into orphan stubs, and every continuation returns to column 0 where it reads as a new statement. `lag.html` uses the same widget (`sas-taper-lag-wrap`) for the recurrence listing. The sweep checks the default at four widths, that each button flips the listing, that the scroller stays inside the `<pre>` instead of widening the page, that only the non-default value is stored, and that the restore lives in the `<head>`. That last one is read off the file, because by the time a test can evaluate anything both scripts have run and a before-paint restore is indistinguishable from an after-load one.
 
 It also greps the glossary against the listing **in both directions**. Glossary → listing catches a table still teaching names the code has renamed; listing → glossary catches a name the search introduces that nobody ever defines. Only the first direction existed at first, and `parts_in_all`, the denominator of the whole fraction, sat undocumented behind it. Names match on word boundaries, so a row for `err` cannot be satisfied by the `error_mg` that replaced it.
 

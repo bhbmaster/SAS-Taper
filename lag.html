@@ -1,0 +1,821 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How the dashed line is drawn · SAS-Taper</title>
+<meta name="description" content="How SAS-Taper draws the dashed lag curve: one-compartment, once-daily accumulation, as a dose-equivalent milligram figure, never as a plasma concentration.">
+<meta name="color-scheme" content="dark light">
+<script>
+  /* Applied before first paint so a reader who chose Wrap does not watch the
+     listing flash as a strip and then re-wrap. Scrolling is the default, so
+     there is nothing to restore unless "on" was stored. The key must match
+     WRAP_KEY in the page script. */
+  (function () {
+    try {
+      if (localStorage.getItem("sas-taper-lag-wrap") === "on") {
+        document.documentElement.setAttribute("data-code-wrap", "on");
+      }
+    } catch (e) { /* private mode */ }
+  })();
+</script>
+<style>
+  :root {
+    --paper: #fbfaf8; --card: #ffffff; --sunk: #f4f1ec;
+    --ink: #1c1917; --muted: #57534e; --faint: #8a837c;
+    --line: #e7e3dd; --rule: #d6d1c9;
+    --accent: #0f6b5c; --accent-soft: #e4f2ee;
+    --level: #4a5f85; --level-soft: #e8eef6;
+    --bad: #b91c1c; --bad-soft: #fef2f2;
+    --shadow: 0 1px 2px rgb(28 25 23 / .05), 0 10px 30px -20px rgb(28 25 23 / .35);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #14120f; --card: #1d1a17; --sunk: #211d1a;
+      --ink: #f4efe7; --muted: #a8a29e; --faint: #8a837c;
+      --line: #302b27; --rule: #3d3733;
+      --accent: #3ad0b4; --accent-soft: #14352f;
+      --level: #9fb4d8; --level-soft: #1c2433;
+      --bad: #f87171; --bad-soft: #2b1614;
+      --shadow: 0 1px 2px rgb(0 0 0 / .5), 0 10px 30px -20px rgb(0 0 0 / .9);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #14120f; --card: #1d1a17; --sunk: #211d1a;
+    --ink: #f4efe7; --muted: #a8a29e; --faint: #8a837c;
+    --line: #302b27; --rule: #3d3733;
+    --accent: #3ad0b4; --accent-soft: #14352f;
+    --level: #9fb4d8; --level-soft: #1c2433;
+    --bad: #f87171; --bad-soft: #2b1614;
+    --shadow: 0 1px 2px rgb(0 0 0 / .5), 0 10px 30px -20px rgb(0 0 0 / .9);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font: 400 16px/1.65 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 3.5rem 1.5rem 6rem; }
+  h1, h2, h3 { margin: 0; letter-spacing: -0.02em; text-wrap: balance; }
+  h1 { font-size: clamp(2rem, 1.2rem + 2.6vw, 3rem); font-weight: 600; line-height: 1.08; }
+  h2 { font-size: 1.3rem; font-weight: 600; }
+  h3 { font-size: 0.95rem; font-weight: 600; }
+  p { margin: 0; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  code { font-size: 0.86em; background: var(--sunk); padding: 0.12em 0.38em; border-radius: 4px; }
+  .eyebrow {
+    font: 600 0.72rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent);
+  }
+  .lede { font-size: 1.08rem; color: var(--muted); max-width: 62ch; }
+  header { display: flex; flex-direction: column; gap: 0.9rem; }
+  nav {
+    display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+    margin: 0 0 1.6rem;
+  }
+  nav a {
+    display: inline-flex; align-items: center; gap: 0.4rem;
+    font: 500 0.82rem/1 ui-sans-serif, system-ui, sans-serif;
+    text-decoration: none; color: var(--muted);
+    border: 1px solid var(--line); background: var(--card);
+    padding: 0.5rem 0.75rem; border-radius: 8px;
+  }
+  nav a:hover { border-color: var(--accent); color: var(--accent); }
+  nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  nav a.home { border-color: var(--accent); color: var(--accent); }
+
+  .driver {
+    position: sticky; top: 0; z-index: 20; margin: 2.5rem 0 0;
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 0.9rem 1.1rem; box-shadow: var(--shadow);
+    display: grid; grid-template-columns: 1fr auto; gap: 0.65rem 1.4rem; align-items: center;
+  }
+  .driver .lab { font: 600 0.72rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                 letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); }
+  .driver .row { display: flex; align-items: center; gap: 0.8rem; }
+  .driver input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+  .driver .read { font: 600 1.5rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                  font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .driver .read small { font-size: 0.62em; font-weight: 500; color: var(--faint); margin-left: 0.15em; }
+  .driver .span2 { grid-column: 1 / -1; }
+  .presets, .modes { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+  .presets button, .modes button {
+    font: 500 0.76rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    padding: 0.4rem 0.55rem; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--sunk); color: var(--muted);
+  }
+  .presets button:hover, .modes button:hover { border-color: var(--accent); color: var(--accent); }
+  .presets button:focus-visible, .modes button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+  .modes button[aria-pressed="true"] {
+    background: var(--accent-soft); color: var(--ink); border-color: var(--accent);
+  }
+  @media (max-width: 700px) { .driver { grid-template-columns: 1fr; } }
+
+  .stage {
+    margin-top: 2.5rem; display: grid; gap: 1.1rem 2rem;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); align-items: start;
+  }
+  @media (max-width: 860px) { .stage { grid-template-columns: minmax(0, 1fr); } }
+  .stage > .txt { display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; }
+  .stage > .txt p { color: var(--muted); }
+  .stage > .txt strong { color: var(--ink); font-weight: 600; }
+  .num {
+    display: inline-flex; align-items: baseline; gap: 0.55rem;
+    font: 600 0.72rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent);
+  }
+  .num b { font-size: 1.5rem; letter-spacing: -0.02em; opacity: 0.35; }
+  .fig {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 1rem; box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 0.7rem; min-width: 0;
+  }
+  .fig .cap { font-size: 0.76rem; color: var(--faint); }
+  .fig svg { display: block; width: 100%; height: auto; color: var(--faint); }
+
+  table { border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+  th, td { padding: 0.34rem 0.5rem; text-align: right; white-space: nowrap; }
+  th { font: 600 0.66rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+       letter-spacing: 0.05em; text-transform: uppercase; color: var(--faint);
+       border-bottom: 1px solid var(--rule); }
+  td { font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: 0; }
+  td.f, th.f { text-align: left; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  tr.on td { background: var(--accent-soft); font-weight: 600; color: var(--ink); }
+  .tw { overflow-x: auto; min-width: 0; }
+
+  .note {
+    border-left: 3px solid var(--accent); background: var(--sunk);
+    border-radius: 0 8px 8px 0; padding: 0.75rem 0.95rem;
+    display: flex; flex-direction: column; gap: 0.35rem;
+  }
+  .note h3 { font-size: 0.9rem; }
+  .note p { font-size: 0.87rem; color: var(--muted); }
+  .note code { background: rgb(128 128 128 / .16); }
+
+  pre.whole { font-size: 0.74rem; line-height: 1.7; padding: 1.1rem 1.2rem; }
+  pre {
+    margin: 0; background: var(--sunk); border: 1px solid var(--line);
+    border-radius: 8px; padding: 0.8rem 0.9rem; overflow-x: auto; min-width: 0;
+    font: 400 0.78rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink);
+  }
+  @media (max-width: 620px) { pre.whole { font-size: 0.68rem; } }
+  html[data-code-wrap="on"] pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  pre .c { color: var(--faint); }
+  pre .k { color: var(--accent); }
+
+  .code-panel { min-width: 0; background: var(--sunk); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .code-panel pre { border: 0; border-radius: 0; background: transparent; }
+  .code-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 0.55rem 0.8rem; flex-wrap: wrap;
+    padding: 0.4rem 0.45rem 0.4rem 0.9rem;
+    border-bottom: 1px solid var(--line); background: var(--card);
+  }
+  .code-bar .code-kicker {
+    font: 600 0.68rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint);
+  }
+  .code-modes { display: inline-flex; gap: 0.2rem; background: var(--sunk);
+                border: 1px solid var(--line); border-radius: 8px; padding: 0.15rem; }
+  .code-modes button {
+    font: 500 0.78rem/1 ui-sans-serif, system-ui, sans-serif;
+    padding: 0.4rem 0.7rem; border-radius: 6px; cursor: pointer;
+    border: 1px solid transparent; background: transparent; color: var(--muted);
+  }
+  .code-modes button:hover { color: var(--accent); }
+  .code-modes button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .code-modes button[aria-pressed="true"] {
+    background: var(--card); color: var(--ink); border-color: var(--line);
+    box-shadow: var(--shadow);
+  }
+
+  .facts { display: flex; flex-wrap: wrap; gap: 0.2rem 1.2rem;
+           font: 400 0.78rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+           color: var(--muted); font-variant-numeric: tabular-nums; }
+  .facts b { color: var(--ink); font-weight: 600; }
+  .facts .ok { color: var(--accent); font-weight: 600; }
+  .facts .no { color: var(--bad); font-weight: 600; }
+
+  table.gloss td, table.gloss th { text-align: left; white-space: normal; vertical-align: top; }
+  table.gloss td.f { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                     color: var(--accent); white-space: nowrap; }
+  table.gloss td:nth-child(2) { min-width: 22ch; }
+  table.gloss td:last-child { color: var(--faint); }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 3rem 0 0; }
+  footer { margin-top: 2rem; font-size: 0.82rem; color: var(--faint); max-width: 62ch; }
+  a { color: var(--accent); }
+
+  .bars { display: flex; flex-direction: column; gap: 0.45rem; }
+  .bars .row { display: grid; grid-template-columns: 7.5rem 1fr 4.2rem; gap: 0.45rem; align-items: center; }
+  .bars .k { font: 500 0.72rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); }
+  .bars .track { height: 10px; background: var(--sunk); border-radius: 99px; overflow: hidden; border: 1px solid var(--line); }
+  .bars .fill { height: 100%; background: var(--level); border-radius: 99px; }
+  .bars .n { font: 600 0.78rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+             font-variant-numeric: tabular-nums; text-align: right; }
+  .eq { font: 400 0.9rem/1.7 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        background: var(--sunk); border-radius: 8px; padding: 0.7rem 0.85rem; overflow-x: auto; }
+  .eq b { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <a class="home" href="index.html">&larr; Back to the calculator</a>
+  <a href="fold.html">How the fold is chosen</a>
+  <a href="https://github.com/bhbmaster/SAS-Taper">Source on GitHub</a>
+</nav>
+<header>
+  <span class="eyebrow">SAS-Taper · how it works</span>
+  <h1>How the dashed line is drawn</h1>
+  <p class="lede"><strong>Not medical advice.</strong> The first graph on the
+    calculator draws a dashed line next to the dose ladder. People read it as
+    "where I actually am." At a film half-life it hugs the steps. At 900 hours
+    it should stay high and only slowly fall. This page is the function that
+    draws that line, one day at a time.</p>
+  <p class="lede">It is a shape, not a blood test. The number is a
+    <em>dose-equivalent milligram</em>: the steady daily dose that would sit
+    at the same level. Absolute plasma units would invite reading it as one
+    person's concentration, which this page cannot stand behind.</p>
+  <p class="lede">Every diagram below is live. Move the half-life, pick a drop
+    or a jump, and the whole thing runs again.</p>
+</header>
+
+<div class="driver">
+  <div>
+    <div class="lab">Half-life</div>
+    <div class="row">
+      <input type="range" id="hl" min="0" max="1000" step="1" value="248"
+             aria-label="Half-life, logarithmic from 8 to 2160 hours">
+      <span class="read" id="hlRead">32<small>h</small></span>
+    </div>
+  </div>
+  <div>
+    <div class="lab">Hours</div>
+    <div class="presets" id="hlPresets"></div>
+  </div>
+  <div class="span2">
+    <div class="lab">What the dose does</div>
+    <div class="modes" id="modes" role="group" aria-label="Dose path"></div>
+  </div>
+  <div class="span2">
+    <div class="lab">Day to inspect</div>
+    <div class="row">
+      <input type="range" id="day" min="0" max="40" step="1" value="6"
+             aria-label="Day of the series to inspect">
+      <span class="read" id="dayRead">6</span>
+    </div>
+  </div>
+</div>
+
+<section class="stage" style="grid-template-columns: minmax(0, 1fr);">
+  <div class="txt" style="max-width:68ch">
+    <span class="num">Start here</span>
+    <h2>The words this page uses</h2>
+    <p>One compartment, one dose a day, one number on the same milligram axis
+      as the ladder. Every name in the listing is in the table.</p>
+  </div>
+  <div class="tw"><table class="gloss">
+    <thead><tr><th class="f">Name</th><th class="f">Means</th><th class="f">On the graph</th></tr></thead>
+    <tbody>
+      <tr><td class="f">doses</td><td>One milligram figure per day: what you actually take. The solid step line.</td><td class="f">teal steps</td></tr>
+      <tr><td class="f">half_life_h</td><td>Hours for the level to fall by half if you took nothing more. The slider.</td><td class="f">n/a</td></tr>
+      <tr><td class="f">ln_two</td><td>Natural log of 2, about 0.693. Turns a half-life into a decay constant.</td><td class="f">n/a</td></tr>
+      <tr><td class="f">k</td><td>The decay constant per hour, ln2 divided by the half-life.</td><td class="f">n/a</td></tr>
+      <tr><td class="f">decay</td><td>The fraction still on board after one day, e to the minus k times 24. Close to 1 when the half-life is long.</td><td class="f">n/a</td></tr>
+      <tr><td class="f">to_dose</td><td>1 minus decay. Turns a compartment level back into a steady daily dose.</td><td class="f">n/a</td></tr>
+      <tr><td class="f">start_mg</td><td>The steady dose you were on before day 1. Day 0 of the dashed line.</td><td class="f">left end of the dash</td></tr>
+      <tr><td class="f">level</td><td>The compartment amount, just after today's dose. Not plotted; it is an internal unit.</td><td class="f">n/a</td></tr>
+      <tr><td class="f">dose</td><td>Today's take, one entry of doses.</td><td class="f">one step</td></tr>
+      <tr><td class="f">day</td><td>How many doses have been taken since day 0.</td><td class="f">x axis</td></tr>
+      <tr><td class="f">eff</td><td>The steady daily dose that would produce this level. The dashed line. Not a plasma concentration.</td><td class="f">the dash</td></tr>
+      <tr><td class="f">out</td><td>The list of (day, eff, dose) points the graph is drawn from, including day 0.</td><td class="f">every vertex</td></tr>
+      <tr><td class="f">d_start</td><td>The closed form's name for start_mg, the dose you were steady on.</td><td class="f">day 0</td></tr>
+      <tr><td class="f">new_d</td><td>The closed form's name for a new constant dose after a single step.</td><td class="f">the new step</td></tr>
+      <tr><td class="f">n</td><td>How many days you have been at that new constant dose.</td><td class="f">a day tick</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section class="stage" style="grid-template-columns: minmax(0, 1fr);">
+  <div class="txt" style="max-width:none">
+    <span class="num">The whole algorithm</span>
+    <h2>All of it, in one place</h2>
+    <p>This is the recurrence the calculator runs, with the comments written
+      for someone meeting it for the first time. Everything after it on this
+      page is these same steps, one at a time, with a picture for each. If you
+      would rather see the pictures first, skip past it. Nothing below depends
+      on having read it. Nothing is dosed off this page.</p>
+  </div>
+  <div class="code-panel">
+    <div class="code-bar">
+      <span class="code-kicker">Lines</span>
+      <div class="code-modes" role="group" aria-label="Wrap or scroll the listing">
+        <button type="button" id="codeWrapOn" aria-pressed="false">Wrap</button>
+        <button type="button" id="codeWrapOff" aria-pressed="true">Scroll</button>
+      </div>
+    </div>
+  <pre class="whole"><span class="c"># ── One-compartment, once a day ─────────────────────────────────────────────
+# The dashed line on the first graph is not plasma. It is the daily dose that
+# would produce the same level, so it can be read against the ladder. Nothing
+# is dosed off this number. The calculator's copy lives in index.html as
+# lagFromDoses; this page carries a third copy, for the diagrams.</span>
+ln_two = 0.693147                         <span class="c"># natural log of two</span>
+
+
+<span class="k">def</span> lag_from_doses(doses, half_life_h, start_mg):
+    <span class="c"># doses         one milligram figure per day, the ladder you actually take
+    # half_life_h   hours for the level to fall by half, with no new dose
+    # start_mg      the steady dose you were on before day 1 of the taper</span>
+
+    k       = ln_two / half_life_h        <span class="c"># per hour</span>
+    decay   = exp(-k * 24)                <span class="c"># still on board after one day</span>
+    to_dose = 1 - decay                   <span class="c"># turns a level back into a dose</span>
+
+    <span class="c"># Day 0 is already steady on start_mg. Seeding at zero drew a loading
+    # ramp through cycle 1 that nobody starting a taper experiences.</span>
+    out   = [(0, start_mg, start_mg)]     <span class="c"># day, eff, dose</span>
+    level = start_mg / to_dose
+    day   = 0
+
+    <span class="k">for</span> dose <span class="k">in</span> doses:
+        level = level * decay + dose      <span class="c"># remains, plus today's take</span>
+        day  += 1
+        eff   = level * to_dose           <span class="c"># the matching steady dose</span>
+        out.append((day, eff, dose))
+
+    <span class="k">return</span> out
+
+
+<span class="c"># ── A single step, in closed form ───────────────────────────────────────────
+# After n days at a new constant dose, having started at d_start, the loop
+# above is just an exponential moving average, and it has a closed form:
+#
+#     eff(n) = new_d + (d_start - new_d) * decay ** n
+#
+# A drop (new_d &lt; d_start) leaves the curve ABOVE the new dose.
+# A jump (new_d &gt; d_start) leaves the curve BELOW the new dose.
+# A long half-life (decay close to 1) stays near d_start instead of hugging.</span>
+d_start = start_mg                        <span class="c"># where you were steady</span>
+new_d = doses[0]                          <span class="c"># the new constant dose</span>
+n     = 6                                 <span class="c"># days at that dose</span>
+<span class="c"># eff(n) = new_d + (d_start - new_d) * decay ** n</span>
+
+
+<span class="c"># ── Draw it ─────────────────────────────────────────────────────────────────
+# One vertex per day. The solid line is dose; the dashed line is eff. They
+# share an axis because of to_dose. Clip nothing: a long half-life is
+# supposed to sit high.</span>
+<span class="k">for</span> day, eff, dose <span class="k">in</span> out:
+    line_to(day, eff)                     <span class="c"># the dash</span>
+    step_to(day, dose)                    <span class="c"># the ladder</span></pre>
+  </div>
+</section>
+
+<section class="stage">
+  <div class="txt">
+    <span class="num"><b>01</b> Decay</span>
+    <h2>A half-life becomes a fraction per day</h2>
+    <p>The only number the slider changes is <code>half_life_h</code>. From it
+      the page computes two fractions: how much of yesterday is still here
+      after 24 hours (<code>decay</code>), and the rest
+      (<code>to_dose</code>), which is also the weight on today's dose.</p>
+    <p>At 32 h, a day knocks the level down to about 60% and today's dose
+      supplies the other 40%. At 900 h a day knocks it down to about 98%, so
+      today's intake is a 2% nudge. That is why 900 h stays up.</p>
+  </div>
+  <div class="fig">
+    <div id="f1"></div>
+    <div class="facts" id="d1"></div>
+    <p class="cap">Remaining fraction of yesterday, after 1 day, 6 days and
+      30 days, at the half-life on the slider.</p>
+  </div>
+</section>
+
+<section class="stage">
+  <div class="txt">
+    <span class="num"><b>02</b> Seed</span>
+    <h2>Day 0 is already at the old dose</h2>
+    <p>Someone starting a taper is not starting the drug. The dashed line
+      begins at <code>start_mg</code>, not at zero. Seeding at zero drew a
+      loading ramp through cycle 1 that nobody in this situation
+      experiences.</p>
+    <p>The internal <code>level</code> is larger than the milligram dose,
+      because it is the peak amount that a daily dose of
+      <code>start_mg</code> would pile up to. Multiplying by
+      <code>to_dose</code> puts it back on the milligram axis, so day 0
+      reads as the dose you were already on.</p>
+  </div>
+  <div class="fig">
+    <div class="eq" id="f2"></div>
+    <p class="cap">The seed. <code>eff</code> on day 0 is exactly
+      <code>start_mg</code>, by construction.</p>
+  </div>
+</section>
+
+<section class="stage">
+  <div class="txt">
+    <span class="num"><b>03</b> One day</span>
+    <h2>Yesterday's remains, plus today's take</h2>
+    <p>Each morning the compartment keeps <code>decay</code> of what it had,
+      then today's <code>dose</code> is added. That is the whole
+      pharmacokinetic model: one compartment, instantaneous intake, first-order
+      loss, sampled once a day just after the dose.</p>
+    <p>Move <strong>Day to inspect</strong> to walk the arithmetic. The
+      highlighted row is that day. The closed form of a single step has to
+      match this loop; if it does not, the listing is teaching the wrong
+      function.</p>
+  </div>
+  <div class="fig">
+    <div class="eq" id="f3eq"></div>
+    <div class="tw"><table id="f3"></table></div>
+    <div class="facts" id="d3"></div>
+    <p class="cap">First days of the series. <code>eff</code> is what gets
+      plotted. The identity line is the closed form against this loop, on
+      every day of a constant step.</p>
+  </div>
+</section>
+
+<section class="stage">
+  <div class="txt">
+    <span class="num"><b>04</b> The axis</span>
+    <h2>Same milligrams as the ladder</h2>
+    <p><code>eff = level * to_dose</code> is only a unit change. It answers
+      "what steady daily dose would sit here?" so the dashed line and the
+      solid steps share an axis. It is deliberately not a plasma
+      concentration. A shape whose size you cannot see against the ladder
+      would be worse than no shape.</p>
+  </div>
+  <div class="fig">
+    <div id="f4"></div>
+    <p class="cap">Solid = the dose you take. Dashed = the dose-equivalent
+      level. The inspected day is the dot.</p>
+  </div>
+</section>
+
+<section class="stage">
+  <div class="txt">
+    <span class="num"><b>05</b> A drop, a jump</span>
+    <h2>The closed form of a single step</h2>
+    <p>After <code>n</code> days at a new constant <code>new_d</code>, having
+      been steady at <code>d_start</code>:</p>
+    <p><code>eff(n) = new_d + (d_start - new_d) * decay ** n</code></p>
+    <p>A <strong>drop</strong> leaves the curve above the new dose. A
+      <strong>jump</strong> leaves it below. Pick those two modes on the
+      driver and the inequality cannot flip. A washout is a drop to zero:
+      the curve is then a pure exponential, the "stay up and fall" picture
+      at 900 h.</p>
+  </div>
+  <div class="fig">
+    <div id="f5"></div>
+    <div class="facts" id="d5"></div>
+    <p class="cap">The same half-life, three paths: drop 8 to 4, jump 4 to
+      8, washout 8 to 0. The inspected day is marked on each.</p>
+  </div>
+</section>
+
+<section class="stage">
+  <div class="txt">
+    <span class="num"><b>06</b> Long versus short</span>
+    <h2>900 h does not hug the ladder</h2>
+    <p>A 32 h film half-life, in the usual 24-42 hour range, is short next to
+      a 6-day cycle, so the dashed line has almost landed by the next drop.
+      That hugging is the point of the graph on the calculator: you may not
+      feel a drop on the day you make it, but you have almost landed by
+      day 6.</p>
+    <p>A 900 h half-life is 37.5 days. After one 6-day cycle about 90% of
+      the first drop is still in front of you, so the line stays up. The
+      calculator used to cap the input at 80 h, which silently redrew 900
+      as 80, and 80 still hugs. The cap is 2160 h now, 90 days, enough to
+      sketch a 60-day injection tail.</p>
+  </div>
+  <div class="fig">
+    <div id="f6"></div>
+    <div class="facts" id="d6"></div>
+    <p class="cap">Two half-lives on the same dose path: 32 h in teal, the
+      slider's value dashed. On a default 8 mg taper the 900 h line is the
+      one that stays high.</p>
+  </div>
+</section>
+
+<section class="stage">
+  <div class="txt">
+    <span class="num"><b>07</b> The taper</span>
+    <h2>The real ladder, not one step</h2>
+    <p>The calculator does not hold a constant dose. Each cycle drops, then
+      holds. The function is the same: feed it the daily milligrams, one per
+      day. The closed form no longer applies once the dose keeps moving, but
+      the inequalities still do. After a drop, <code>eff</code> is above
+      today's dose. After a jump, below. The page checks both, live, on
+      whatever path you picked.</p>
+  </div>
+  <div class="fig">
+    <div id="f7"></div>
+    <div class="facts" id="d7"></div>
+    <p class="cap" id="c7">The path selected on the driver, drawn the way
+      the calculator draws it.</p>
+  </div>
+</section>
+
+<hr>
+<footer>
+  SAS-Taper · <a href="index.html">the calculator</a> ·
+  <a href="https://github.com/bhbmaster/SAS-Taper">source</a>.
+  The lag curve is written twice, once in <code>index.html</code> as
+  <code>lagFromDoses</code> and once here for the diagrams. It is display-only
+  and is never passed to <code>buildSchedule</code>, so it cannot move the
+  ladder. A test diffs the two copies. <strong>Not medical advice.</strong>
+  Illustration of a shape, not a prediction of anyone's blood levels, which
+  vary widely.
+</footer>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+
+  const WRAP_KEY = "sas-taper-lag-wrap"; /* must match the head script */
+  let codeWrap = false;
+  try { codeWrap = localStorage.getItem(WRAP_KEY) === "on"; } catch (e) { /* private mode */ }
+  function applyCodeWrap(on) {
+    if (on) document.documentElement.setAttribute("data-code-wrap", "on");
+    else document.documentElement.removeAttribute("data-code-wrap");
+    $("codeWrapOn").setAttribute("aria-pressed", String(on));
+    $("codeWrapOff").setAttribute("aria-pressed", String(!on));
+  }
+  function setCodeWrap(on) {
+    codeWrap = on;
+    try {
+      if (on) localStorage.setItem(WRAP_KEY, "on");
+      else localStorage.removeItem(WRAP_KEY);
+    } catch (e) { /* private mode */ }
+    applyCodeWrap(on);
+  }
+  applyCodeWrap(codeWrap);
+  $("codeWrapOn").addEventListener("click", () => setCodeWrap(true));
+  $("codeWrapOff").addEventListener("click", () => setCodeWrap(false));
+
+  const HL_MIN = 8, HL_MAX = 2160;
+  const HL_PRESETS = [24, 32, 36, 90, 900, 1440];
+  const MODES = [
+    ["drop", "Drop 8 to 4"],
+    ["jump", "Jump 4 to 8"],
+    ["wash", "Washout 8 to 0"],
+    ["taper", "Taper 8 mg, n = 6"],
+  ];
+  const DAYS = 40;
+  const FILM = 32;
+
+  const hlFromSlider = (v) => HL_MIN * Math.pow(HL_MAX / HL_MIN, Number(v) / 1000);
+  const sliderFromHl = (h) => 1000 * Math.log(h / HL_MIN) / Math.log(HL_MAX / HL_MIN);
+  const fmt = (n, d) => Number(n).toFixed(d);
+  const fmtG = (n) => String(parseFloat(Number(n).toFixed(4)));
+  const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  function decayOf(halfLifeH) {
+    return Math.exp(-Math.LN2 * 24 / halfLifeH);
+  }
+  function lagFromDoses(doses, halfLifeH, startMg) {
+    if (!(halfLifeH > 0) || !doses.length || !(startMg >= 0)) return [];
+    const decay = decayOf(halfLifeH);
+    const toDose = 1 - decay;
+    if (!(toDose > 0) || !Number.isFinite(toDose)) return [];
+    const out = [{ day: 0, eff: startMg, dose: startMg }];
+    let level = startMg / toDose;
+    let day = 0;
+    for (const dose of doses) {
+      level = level * decay + dose;
+      day += 1;
+      out.push({ day, eff: level * toDose, dose });
+    }
+    return out;
+  }
+  function closedStep(d0, newD, decay, n) {
+    return newD + (d0 - newD) * Math.pow(decay, n);
+  }
+  function taperDoses() {
+    const n = 6, r = 1 - 1 / n;
+    const out = [];
+    let D = 8;
+    while (out.length < 72) {
+      const daily = D * r;
+      for (let i = 0; i < n; i++) out.push(daily);
+      if (daily <= 1) break;
+      D *= r;
+    }
+    return out;
+  }
+  function pathFor(mode) {
+    if (mode === "jump") return { start: 4, doses: Array(DAYS).fill(8) };
+    if (mode === "wash") return { start: 8, doses: Array(DAYS).fill(0) };
+    if (mode === "taper") return { start: 8, doses: taperDoses() };
+    return { start: 8, doses: Array(DAYS).fill(4) };
+  }
+
+  let mode = "drop";
+  let halfLifeH = 32;
+
+  $("hlPresets").innerHTML = HL_PRESETS.map((h) =>
+    `<button type="button" data-h="${h}">${h}h</button>`).join("");
+  $("modes").innerHTML = MODES.map(([id, lab]) =>
+    `<button type="button" data-m="${id}" aria-pressed="${id === mode}">${lab}</button>`).join("");
+
+  function chartSvg(seriesList, inspectDay, ymaxHint) {
+    const W = 560, H = 220, L = 40, R = 12, T = 12, B = 32;
+    const iw = W - L - R, ih = H - T - B;
+    const xmax = Math.max(...seriesList.map((s) => s.pts[s.pts.length - 1].day), 1);
+    let ymax = Math.max(ymaxHint || 0, 1);
+    for (const s of seriesList) for (const p of s.pts) ymax = Math.max(ymax, p.eff, p.dose);
+    const xS = (d) => L + (d / xmax) * iw;
+    const yS = (v) => T + (1 - v / ymax) * ih;
+    const ticks = (max, n) => {
+      const out = [];
+      for (let i = 0; i <= n; i++) out.push(max * i / n);
+      return out;
+    };
+    let inner = `<svg class="plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="Lag curve">`;
+    inner += `<rect x="${L}" y="${T}" width="${iw}" height="${ih}" fill="var(--card)" stroke="var(--line)"/>`;
+    for (const t of ticks(ymax, 4)) {
+      inner += `<line x1="${L}" y1="${yS(t)}" x2="${W - R}" y2="${yS(t)}" stroke="var(--line)"/>`;
+      inner += `<text x="${L - 6}" y="${yS(t) + 3}" text-anchor="end" font-size="10" fill="currentColor">${fmtG(t)}</text>`;
+    }
+    for (const t of ticks(xmax, 5)) {
+      inner += `<text x="${xS(t)}" y="${H - 10}" text-anchor="middle" font-size="10" fill="currentColor">${fmtG(t)}</text>`;
+    }
+    inner += `<text x="${L + iw / 2}" y="${H - 1}" text-anchor="middle" font-size="10" fill="currentColor">Day</text>`;
+    for (const s of seriesList) {
+      if (s.steps) {
+        let d = "";
+        let prev = null;
+        for (const p of s.pts) {
+          const y = yS(p.dose);
+          const x = xS(p.day);
+          if (!prev) d += `M ${x} ${y}`;
+          else d += ` L ${xS(prev.day)} ${y} L ${x} ${y}`;
+          prev = p;
+        }
+        inner += `<path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.2" stroke-linejoin="round"/>`;
+      }
+      let lp = "";
+      s.pts.forEach((p, i) => { lp += `${i ? "L" : "M"} ${xS(p.day)} ${yS(p.eff)} `; });
+      inner += `<path d="${lp}" fill="none" stroke="${s.stroke || "var(--level)"}" stroke-width="1.6" stroke-dasharray="3 3"/>`;
+    }
+    const main = seriesList[0];
+    const pt = main.pts.find((p) => p.day === inspectDay) || main.pts[0];
+    inner += `<circle cx="${xS(pt.day)}" cy="${yS(pt.eff)}" r="4" fill="var(--level)"/>`;
+    inner += `</svg>`;
+    return inner;
+  }
+
+  function remainBars(decay) {
+    const rows = [
+      ["after 1 day", Math.pow(decay, 1)],
+      ["after 6 days", Math.pow(decay, 6)],
+      ["after 30 days", Math.pow(decay, 30)],
+    ];
+    return `<div class="bars">${rows.map(([k, v]) =>
+      `<div class="row"><span class="k">${k}</span>`
+      + `<div class="track"><div class="fill" style="width:${Math.max(0, Math.min(1, v)) * 100}%"></div></div>`
+      + `<span class="n">${fmt(100 * v, 1)}%</span></div>`).join("")}</div>`;
+  }
+
+  function render() {
+    const hlShow = Math.round(halfLifeH);
+    $("hlRead").innerHTML = `${hlShow}<small>h</small>`;
+    const dayN = Math.round(Number($("day").value));
+    $("dayRead").textContent = String(dayN);
+
+    const decay = decayOf(halfLifeH);
+    const toDose = 1 - decay;
+    const path = pathFor(mode);
+    const series = lagFromDoses(path.doses, halfLifeH, path.start);
+    const lastDay = series[series.length - 1].day;
+    $("day").max = String(lastDay);
+    const inspect = Math.min(dayN, lastDay);
+    if (inspect !== dayN) $("day").value = String(inspect);
+
+    $("f1").innerHTML = remainBars(decay);
+    $("d1").innerHTML =
+      `<span>k = ln2 / ${hlShow} = <b>${fmt(Math.LN2 / halfLifeH, 5)}</b> /h</span>`
+      + `<span>decay = <b>${fmt(decay, 4)}</b></span>`
+      + `<span>to_dose = <b>${fmt(toDose, 4)}</b></span>`;
+
+    $("f2").innerHTML =
+      `level<sub>0</sub> = start_mg / to_dose = ${fmtG(path.start)} / ${fmt(toDose, 4)}`
+      + ` = <b>${fmt(path.start / toDose, 3)}</b><br>`
+      + `eff(0) = level<sub>0</sub> × to_dose = <b>${fmtG(path.start)}</b> mg`;
+
+    const pt = series[inspect];
+    const prev = inspect > 0 ? series[inspect - 1] : series[0];
+    const prevLevel = prev.eff / toDose;
+    $("f3eq").innerHTML = inspect === 0
+      ? `day 0 is the seed, no dose yet.`
+      : `level = ${fmt(prevLevel, 3)} × ${fmt(decay, 4)} + ${fmt(pt.dose, 3)}`
+        + ` = <b>${fmt(pt.eff / toDose, 3)}</b><br>`
+        + `eff = ${fmt(pt.eff / toDose, 3)} × ${fmt(toDose, 4)} = <b>${fmt(pt.eff, 3)}</b> mg`;
+
+    const show = series.slice(0, 9);
+    $("f3").innerHTML = `<thead><tr><th class="f">day</th><th>dose</th><th>eff</th><th>closed</th><th class="f">side</th></tr></thead><tbody>`
+      + show.map((p) => {
+        const cl = closedStep(path.start, path.doses[0], decay, p.day);
+        const step = path.doses[0] !== path.start;
+        const side = !step || p.day === 0 ? "seed"
+          : (path.doses[0] < path.start ? (p.eff >= path.doses[0] ? "above" : "BELOW")
+            : (p.eff <= path.doses[0] ? "below" : "ABOVE"));
+        return `<tr class="${p.day === inspect ? "on" : ""}"><td class="f">${p.day}</td>`
+          + `<td>${fmt(p.dose, 3)}</td><td>${fmt(p.eff, 3)}</td>`
+          + `<td>${fmt(cl, 3)}</td><td class="f">${side}</td></tr>`;
+      }).join("") + `</tbody>`;
+
+    let match = true;
+    if (mode !== "taper") {
+      for (const p of series) {
+        if (Math.abs(p.eff - closedStep(path.start, path.doses[0], decay, p.day)) > 1e-9) match = false;
+      }
+    }
+    $("d3").innerHTML = mode === "taper"
+      ? `<span>closed form is for a <b>constant</b> new dose; the taper keeps moving</span>`
+      : `<span id="idMatch">closed form ${match ? `<span class="ok">matches the loop on all ${series.length - 1} days</span>` : `<span class="no">MISMATCH</span>`}</span>`;
+
+    $("f4").innerHTML = chartSvg([{ pts: series, steps: true }], inspect, path.start);
+
+    const drop = lagFromDoses(Array(DAYS).fill(4), halfLifeH, 8);
+    const jump = lagFromDoses(Array(DAYS).fill(8), halfLifeH, 4);
+    const wash = lagFromDoses(Array(DAYS).fill(0), halfLifeH, 8);
+    $("f5").innerHTML = chartSvg([
+      { pts: drop, steps: false, stroke: "var(--level)" },
+      { pts: jump, steps: false, stroke: "var(--accent)" },
+      { pts: wash, steps: false, stroke: "var(--bad)" },
+    ], inspect, 8);
+    const dPt = drop[Math.min(inspect, drop.length - 1)];
+    const jPt = jump[Math.min(inspect, jump.length - 1)];
+    const dropOk = dPt.day === 0 || dPt.eff + 1e-9 >= 4;
+    const jumpOk = jPt.day === 0 || jPt.eff - 1e-9 <= 8;
+    $("d5").innerHTML =
+      `<span id="idDrop">drop day ${dPt.day}: eff <b>${fmt(dPt.eff, 2)}</b> mg, ${dropOk ? `<span class="ok">above 4</span>` : `<span class="no">fell below</span>`}</span>`
+      + `<span id="idJump">jump day ${jPt.day}: eff <b>${fmt(jPt.eff, 2)}</b> mg, ${jumpOk ? `<span class="ok">below 8</span>` : `<span class="no">rose above</span>`}</span>`
+      + `<span>washout day ${Math.min(inspect, wash.length - 1)}: <b>${fmt(wash[Math.min(inspect, wash.length - 1)].eff, 2)}</b> mg</span>`;
+
+    const film = lagFromDoses(path.doses, FILM, path.start);
+    $("f6").innerHTML = chartSvg([
+      { pts: film, steps: true, stroke: "var(--accent)" },
+      { pts: series, steps: false, stroke: "var(--level)" },
+    ], inspect, path.start);
+    const end = series[series.length - 1];
+    const endFilm = film[film.length - 1];
+    const c1 = series.find((p) => p.day === 6) || series[1];
+    const remain = (c1.eff - c1.dose) / Math.max(1e-12, path.start - c1.dose);
+    $("d6").innerHTML =
+      `<span id="idStay">after cycle 1, <b>${fmt(100 * remain, 1)}%</b> of the first drop is still in front of you</span>`
+      + `<span>end: slider <b>${fmt(end.eff, 2)}</b> mg vs 32 h <b>${fmt(endFilm.eff, 2)}</b> mg</span>`;
+
+    $("f7").innerHTML = chartSvg([{ pts: series, steps: true }], inspect, path.start);
+    const side = end.eff >= end.dose - 1e-9;
+    $("d7").innerHTML =
+      `<span>${hlShow} h · ${mode} · ${series.length - 1} days</span>`
+      + `<span id="idSide">${mode === "jump" ? (end.eff <= end.dose + 1e-9 ? `<span class="ok">stays below the new dose</span>` : `<span class="no">rose above</span>`) : (side ? `<span class="ok">stays above today's dose</span>` : `<span class="no">fell through</span>`)}</span>`;
+    $("c7").textContent = mode === "taper"
+      ? "Default geometric 8 mg run, n = 6, down to about 1 mg. Same function the calculator uses."
+      : "A constant new dose, so the closed form applies on every day.";
+  }
+
+  $("hlPresets").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    halfLifeH = Number(b.dataset.h);
+    $("hl").value = String(sliderFromHl(halfLifeH));
+    render();
+  });
+  $("modes").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    mode = b.dataset.m;
+    for (const x of $("modes").querySelectorAll("button")) {
+      x.setAttribute("aria-pressed", String(x === b));
+    }
+    render();
+  });
+  $("hl").addEventListener("input", () => {
+    halfLifeH = hlFromSlider($("hl").value);
+    render();
+  });
+  $("day").addEventListener("input", render);
+
+  $("hl").value = String(sliderFromHl(32));
+  halfLifeH = 32;
+  render();
+
+  window.SASLagExplainer = Object.freeze({
+    lagFromDoses, closedStep, decayOf, pathFor,
+    current: () => ({ halfLifeH, mode }),
+  });
+})();
+</script>
+</body>
+</html>

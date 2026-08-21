@@ -24,7 +24,7 @@
 
 "use strict";
 
-const { launchOrSkip, PAGE, FOLD_PAGE } = require("./test_browser");
+const { launchOrSkip, PAGE, FOLD_PAGE, LAG_PAGE } = require("./test_browser");
 
 /* Phone through desktop, with the known breakpoints (360, 420, 640, 820) and
    both sides of each. 280 is a Galaxy Fold cover screen, the narrowest thing
@@ -173,7 +173,7 @@ const probe = () => {
      hours") rather than spelled "to". */
   {
     const files = [
-      "index.html", "fold.html", "taper.py", "test_taper.py",
+      "index.html", "fold.html", "lag.html", "taper.py", "test_taper.py",
       "test_parity.js", "test_layout.js", "test_browser.js",
       "README.md", "ARCHITECTURE.md", "CLAUDE.md", "CONTRIBUTING.md",
     ];
@@ -185,7 +185,7 @@ const probe = () => {
     ];
     /* User-facing files and docs only: the list below lives in this file. */
     const rangeFiles = [
-      "index.html", "fold.html", "taper.py",
+      "index.html", "fold.html", "lag.html", "taper.py",
       "README.md", "ARCHITECTURE.md", "CLAUDE.md", "CONTRIBUTING.md",
     ];
     const forbidden = [
@@ -1431,6 +1431,326 @@ const probe = () => {
       }
       if (keys < 2) {
         failures.push(`fold.html writes the code-wrap key ${keys} time(s); `
+          + "the head script and the page script each need it, spelled the same");
+      }
+    }
+  }
+
+  /* 10. lag.html, the lag-curve explainer. Same deal as fold.html: a second
+        shipped page, self-contained, live diagrams from a slider, a listing
+        whose glossary has to agree in both directions, and a closed form
+        that has to match the loop. */
+  {
+    const SRC = require("fs").readFileSync(require("path").join(__dirname, "lag.html"), "utf8");
+    checks++;
+    const remote = SRC.match(/(?:src|href)\s*=\s*["']https?:\/\/[^"']+/gi) || [];
+    const offsite = remote.filter((m) => !/github\.com/.test(m));
+    if (offsite.length) {
+      failures.push(`lag.html loads something off-site: ${offsite.join(", ")}`);
+    }
+    checks++;
+    {
+      const indexSrc = require("fs").readFileSync(require("path").join(__dirname, "index.html"), "utf8");
+      const hits = [...indexSrc.matchAll(/href="lag.html"/g)].length;
+      if (hits < 2) {
+        failures.push(`index.html only links to lag.html ${hits} time(s); the graphs legend and the half-life input both need it`);
+      }
+    }
+
+    checks++;
+    {
+      const glossBlock = SRC.match(/<table class="gloss">[\s\S]*?<\/table>/);
+      const from = SRC.indexOf("<pre class=\"whole\">");
+      const listingHtml = from < 0 ? "" : SRC.slice(from, SRC.indexOf("</pre>", from));
+      const listing = listingHtml.replace(/<[^>]+>/g, "")
+        .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+      const search = listing.split("# \u2500\u2500 Draw it")[0];
+      const word = (n) => new RegExp(`\\b${n}\\b`);
+
+      if (!glossBlock) {
+        failures.push("lag.html has no names glossary");
+      } else if (!listing) {
+        failures.push("lag.html has no whole-algorithm listing to check the glossary against");
+      } else {
+        const names = [...glossBlock[0].matchAll(/<tr><td class="f">([a-z_]+)<\/td>/g)].map((m) => m[1]);
+        const missing = names.filter((n) => !word(n).test(listing));
+        if (missing.length) {
+          failures.push(`lag.html glossary names missing from the listing: ${missing.join(", ")}`);
+        }
+        const bound = new Set();
+        const add = (t) => t.split(",").forEach((n) => {
+          const m = n.trim().match(/^([a-z][a-z0-9_]*)$/);
+          if (m) bound.add(m[1]);
+        });
+        const def = search.match(/def lag_from_doses\(([^)]*)\)/);
+        if (!def) failures.push("lag.html listing no longer defines lag_from_doses");
+        else add(def[1]);
+        for (const line of search.split("\n")) {
+          let m = line.match(/^\s*for\s+([a-z0-9_,\s]+?)\s+in\s/);
+          if (m) add(m[1]);
+          m = line.match(/^\s*([a-z][a-z0-9_,\s]*?)\s*(?:\+)?=[^=]/);
+          if (m) add(m[1]);
+        }
+        const undocumented = [...bound].filter((n) => !names.includes(n));
+        if (undocumented.length) {
+          failures.push(`lag.html listing uses names the glossary never defines: ${undocumented.sort().join(", ")}`);
+        }
+        checks++;
+        if (!bound.has("decay") || !bound.has("to_dose") || !bound.has("d_start")) {
+          failures.push("lag.html glossary sweep stopped seeing the names it was written for "
+            + `(found ${[...bound].sort().join(", ")})`);
+        }
+      }
+    }
+
+    const LAG_WIDTHS = [320, 414, 768, 1280];
+    for (const width of LAG_WIDTHS) {
+      for (const theme of ["dark", "light"]) {
+        const ctx = await browser.newContext({
+          viewport: { width, height: 900 }, colorScheme: theme,
+        });
+        const page = await ctx.newPage();
+        const errs = [];
+        page.on("pageerror", (e) => errs.push("page error: " + e));
+        page.on("console", (m) => { if (m.type() === "error") errs.push("console error: " + m.text()); });
+        await page.goto(LAG_PAGE);
+        await page.waitForTimeout(250);
+        await page.evaluate(([g, c, s2]) => {
+          window.__groups = g; window.__clip = c; window.__spill = s2;
+          window.__selectedRow = () => null;
+        }, [OVERLAP_GROUPS, CLIP_SELECTORS, SPILL_PAIRS]);
+
+        const listing = await page.evaluate(() => {
+          const pre = document.querySelector("pre.whole");
+          const wrapOn = document.getElementById("codeWrapOn");
+          const wrapOff = document.getElementById("codeWrapOff");
+          if (!pre || !wrapOn || !wrapOff) return null;
+          const cs = getComputedStyle(pre);
+          return {
+            wrapLabel: wrapOn.textContent.trim(),
+            scrollLabel: wrapOff.textContent.trim(),
+            wrapPressed: wrapOn.getAttribute("aria-pressed"),
+            scrollPressed: wrapOff.getAttribute("aria-pressed"),
+            whiteSpace: cs.whiteSpace,
+            scrollW: pre.scrollWidth,
+            clientW: pre.clientWidth,
+          };
+        });
+        checks++;
+        if (!listing) {
+          failures.push("lag.html has no Wrap/Scroll controls on the listing");
+        } else {
+          if (listing.wrapLabel !== "Wrap" || listing.scrollLabel !== "Scroll") {
+            failures.push(`lag.html listing controls read "${listing.wrapLabel}" / "${listing.scrollLabel}", expected Wrap / Scroll`);
+          }
+          if (listing.scrollPressed !== "true" || listing.wrapPressed !== "false") {
+            failures.push(`lag.html listing default at ${width}px is wrap=${listing.wrapPressed} `
+              + `scroll=${listing.scrollPressed}`);
+          }
+          if (/wrap/.test(listing.whiteSpace)) {
+            failures.push(`lag.html code listing wraps by default at ${width}px`);
+          }
+          if (width <= 414 && listing.scrollW <= listing.clientW + 1) {
+            failures.push(`lag.html listing has no sideways scroller at ${width}px`);
+          }
+
+          await page.click("#codeWrapOn");
+          const wrapped = await page.evaluate(() => {
+            const pre = document.querySelector("pre.whole");
+            const wrapOn = document.getElementById("codeWrapOn");
+            const cs = getComputedStyle(pre);
+            return {
+              whiteSpace: cs.whiteSpace,
+              wrapPressed: wrapOn.getAttribute("aria-pressed"),
+              wrapAttr: document.documentElement.getAttribute("data-code-wrap"),
+              scrollW: pre.scrollWidth,
+              clientW: pre.clientWidth,
+            };
+          });
+          checks++;
+          if (!/wrap/.test(wrapped.whiteSpace) || wrapped.wrapPressed !== "true"
+              || wrapped.wrapAttr !== "on") {
+            failures.push(`lag.html Wrap at ${width}px did not turn wrapping on `
+              + `(white-space: ${wrapped.whiteSpace}, pressed=${wrapped.wrapPressed})`);
+          }
+          if (wrapped.scrollW > wrapped.clientW + 1) {
+            failures.push(`lag.html <pre> still scrolls sideways with Wrap on at ${width}px `
+              + `(${wrapped.scrollW - wrapped.clientW}px)`);
+          }
+
+          await page.click("#codeWrapOff");
+          const unwrapped = await page.evaluate(() => {
+            const pre = document.querySelector("pre.whole");
+            const wrapOff = document.getElementById("codeWrapOff");
+            const cs = getComputedStyle(pre);
+            return {
+              whiteSpace: cs.whiteSpace,
+              scrollPressed: wrapOff.getAttribute("aria-pressed"),
+              wrapAttr: document.documentElement.getAttribute("data-code-wrap"),
+              scrollW: pre.scrollWidth,
+              clientW: pre.clientWidth,
+            };
+          });
+          checks++;
+          if (/wrap/.test(unwrapped.whiteSpace) || unwrapped.scrollPressed !== "true"
+              || unwrapped.wrapAttr !== null) {
+            failures.push(`lag.html Scroll at ${width}px did not turn wrapping off `
+              + `(white-space: ${unwrapped.whiteSpace}, pressed=${unwrapped.scrollPressed})`);
+          }
+          if (width <= 414 && unwrapped.scrollW <= unwrapped.clientW + 1) {
+            failures.push(`lag.html Scroll at ${width}px left no sideways scroller on the listing`);
+          }
+          const after = await page.evaluate(probe);
+          checks++;
+          if (after.scrollX > 0) {
+            failures.push(`lag.html page scrolls horizontally by ${after.scrollX}px `
+              + `with the listing scrolling at ${width}px`);
+          }
+        }
+
+        const live = await page.evaluate(() => {
+          const before = document.getElementById("d1").innerHTML;
+          const slider = document.getElementById("hl");
+          slider.value = String(Math.min(1000, parseFloat(slider.value) + 200));
+          slider.dispatchEvent(new Event("input", { bubbles: true }));
+          return {
+            svgs: document.querySelectorAll(".fig svg").length,
+            rows: document.querySelectorAll("#f3 tr").length,
+            changed: document.getElementById("d1").innerHTML !== before,
+          };
+        });
+        checks++;
+        if (live.svgs < 4) failures.push(`lag.html drew ${live.svgs} diagrams, expected at least 4`);
+        if (!live.rows) failures.push("lag.html tabulated no days");
+        if (!live.changed) failures.push("lag.html did not redraw when the slider moved");
+
+        const links = await page.evaluate(() =>
+          [...document.querySelectorAll("nav a")].map((a) => a.getAttribute("href")));
+        checks++;
+        if (!links.includes("index.html")) failures.push("lag.html has no link back to the calculator");
+        if (!links.some((h) => /github\.com/.test(h))) failures.push("lag.html has no link to the source");
+
+        errs.length = 0;
+        record(`lag.html ${theme} @${width}px`, await page.evaluate(probe), errs);
+        await ctx.close();
+      }
+    }
+
+    {
+      const ctx = await browser.newContext({ viewport: { width: 320, height: 900 } });
+      const page = await ctx.newPage();
+      await page.goto(LAG_PAGE);
+      await page.waitForTimeout(250);
+      const fresh = await page.evaluate(() => ({
+        pressed: document.getElementById("codeWrapOff").getAttribute("aria-pressed"),
+        wrap: getComputedStyle(document.querySelector("pre.whole")).whiteSpace,
+        stored: localStorage.getItem("sas-taper-lag-wrap"),
+      }));
+      checks++;
+      if (fresh.pressed !== "true" || /wrap/.test(fresh.wrap) || fresh.stored !== null) {
+        failures.push(`lag.html: a fresh phone visit did not default to Scroll with nothing stored (${JSON.stringify(fresh)})`);
+      }
+      await page.click("#codeWrapOn");
+      await page.reload();
+      await page.waitForTimeout(250);
+      const kept = await page.evaluate(() => ({
+        pressed: document.getElementById("codeWrapOn").getAttribute("aria-pressed"),
+        wrap: getComputedStyle(document.querySelector("pre.whole")).whiteSpace,
+        attr: document.documentElement.getAttribute("data-code-wrap"),
+        stored: localStorage.getItem("sas-taper-lag-wrap"),
+      }));
+      checks++;
+      if (kept.pressed !== "true" || !/wrap/.test(kept.wrap) || kept.attr !== "on" || kept.stored !== "on") {
+        failures.push(`lag.html: Wrap did not survive a reload (${JSON.stringify(kept)})`);
+      }
+      await page.click("#codeWrapOff");
+      const cleared = await page.evaluate(() => localStorage.getItem("sas-taper-lag-wrap"));
+      checks++;
+      if (cleared !== null) {
+        failures.push(`lag.html: choosing Scroll stored "${cleared}" instead of clearing the key`);
+      }
+      await ctx.close();
+    }
+
+    {
+      const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+      const page = await ctx.newPage();
+      const errs = [];
+      page.on("pageerror", (e) => errs.push("page error: " + e));
+      await page.goto(LAG_PAGE);
+      await page.waitForTimeout(250);
+      const swept = await page.evaluate(() => {
+        const I = window.SASLagExplainer;
+        const bad = [];
+        let n = 0, drops = 0, jumps = 0, stays = 0;
+        const HLS = [24, 32, 36, 90, 900, 1440, 2160];
+        for (const hl of HLS) {
+          const decay = I.decayOf(hl);
+          const down = I.lagFromDoses(Array(40).fill(4), hl, 8);
+          const up = I.lagFromDoses(Array(40).fill(8), hl, 4);
+          for (let i = 0; i < down.length; i++) {
+            n++;
+            const want = I.closedStep(8, 4, decay, i);
+            if (Math.abs(down[i].eff - want) > 1e-9) bad.push(`drop ${hl}h day ${i}`);
+            n++;
+            const wantUp = I.closedStep(4, 8, decay, i);
+            if (Math.abs(up[i].eff - wantUp) > 1e-9) bad.push(`jump ${hl}h day ${i}`);
+            if (i === 0) continue;
+            n++;
+            if (down[i].eff + 1e-9 < 4) bad.push(`drop ${hl}h day ${i} fell below`);
+            else drops++;
+            n++;
+            if (up[i].eff - 1e-9 > 8) bad.push(`jump ${hl}h day ${i} rose above`);
+            else jumps++;
+          }
+        }
+        const t900 = I.lagFromDoses(Array(6).fill(4), 900, 8);
+        const c1 = t900[6];
+        const remain = (c1.eff - c1.dose) / (8 - c1.dose);
+        n++;
+        if (!(remain > 0.8)) bad.push(`900 h remaining fraction ${remain}`);
+        else stays++;
+        const t32 = I.lagFromDoses(Array(6).fill(4), 32, 8);
+        const r32 = (t32[6].eff - t32[6].dose) / (8 - t32[6].dose);
+        n++;
+        if (!(r32 < 0.2)) bad.push(`32 h remaining fraction ${r32}`);
+        document.querySelector('[data-h="32"]').click();
+        document.querySelector('[data-m="drop"]').click();
+        const match = (document.getElementById("idMatch") || {}).textContent || "";
+        n++;
+        if (!/matches the loop/.test(match)) bad.push(`drop/32h caption is ${match}`);
+        document.querySelector('[data-h="900"]').click();
+        const stay = (document.getElementById("idStay") || {}).textContent || "";
+        n++;
+        if (!/%/.test(stay)) bad.push(`900 h stay caption is ${stay}`);
+        return { bad, n, drops, jumps, stays, remain, r32, match, stay };
+      });
+      checks++;
+      if (swept.bad.length) {
+        failures.push(`lag.html maths: ${swept.bad.slice(0, 8).join("; ")}`);
+      }
+      checks++;
+      if (!swept.drops || !swept.jumps || !swept.stays) {
+        failures.push(`lag.html maths coverage drop=${swept.drops} jump=${swept.jumps} stay=${swept.stays}`);
+      }
+      if (errs.length) failures.push(`lag.html maths sweep: ${errs[0]}`);
+      states += 1;
+      await ctx.close();
+    }
+
+    checks++;
+    {
+      const head = SRC.slice(0, SRC.indexOf("</head>"));
+      const keys = [...SRC.matchAll(/"(sas-taper-lag-wrap)"/g)].length;
+      if (!/data-code-wrap/.test(head)) {
+        failures.push("lag.html no longer restores the code-wrap choice in the <head>; "
+          + "a stored Wrap would be applied after first paint");
+      }
+      if (!head.includes("sas-taper-lag-wrap")) {
+        failures.push("lag.html's head script no longer reads the code-wrap key");
+      }
+      if (keys < 2) {
+        failures.push(`lag.html writes the code-wrap key ${keys} time(s); `
           + "the head script and the page script each need it, spelled the same");
       }
     }

@@ -10,7 +10,7 @@ Thanks for looking. This is a small project with an unusual constraint or two, w
 
 ## Constraints
 
-- **`index.html` stays one self-contained file.** All CSS and JS inline, no build step, no external requests. People open it from disk, offline. A CDN link or a bundler would break that.
+- **`index.html` stays one self-contained file.** All CSS and JS inline, no build step, no external requests. People open it from disk, offline. A CDN link or a bundler would break that. The same is true of `fold.html` and `lag.html`.
 - **`taper.py` stays standard-library only.** No pip installs.
 - **Colours go in all three theme blocks**: bare `:root` (dark, the default), `:root[data-theme="light"]`, and the `@media print` block. Miss one and it is undefined in that mode.
 - **Chart colours are read through `readChartPalette()`**, not hardcoded, because they get baked into the SVG at render time.

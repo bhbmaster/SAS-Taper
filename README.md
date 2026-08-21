@@ -78,6 +78,8 @@ A fold can only land on the fractions it can make, so the panel always states th
 
 **[How the fold is chosen](https://bhbmaster.github.io/SAS-Taper/fold.html)** is a page of its own, an interactive walkthrough of the search, with every diagram driven by a slider. The algorithm listing is 80-column text with its comments in an aligned second column, so it scrolls sideways rather than re-wrapping; a **Wrap** button on the listing takes the lines apart if you would rather have them all on screen. The ladder of reachable fractions is a control as well as a picture: click any of the 54 ticks, or take one from the list under it, and that fold is drawn beside the one the search chose, with both difficulty scores itemised and a plain statement of what the trade cost. It ships with the site (`fold.html`), so it works offline too.
 
+**[How the dashed line is drawn](https://bhbmaster.github.io/SAS-Taper/lag.html)** is the same kind of page for the lag curve on the first graph. A half-life slider, a drop / jump / washout / taper switch, and the recurrence one day at a time, including the closed form of a single step. It ships with the site (`lag.html`) and works offline too.
+
 **In linear mode the folds come out exact.** A constant step lands on `5/6, 2/3, 1/2, 1/3, 1/6` and so on, every cycle, so a linear taper can be cut from the first day to the last without measuring anything.
 
 ### The four numbers at the strip
@@ -130,8 +132,8 @@ test method can make tens of thousands of assertions:
 | Suite | Test cases | What that means |
 |---|---|---|
 | `test_taper.py` | **71 tests, ~500,000 assertions** | 1,440 ladders / 15,422 cycles in the matrix alone |
-| `test_parity.js` | **1,323 schedules + 13,920 folded cuts + 2,342 lag checks, ~647,000 field comparisons** | 13,567 matrix cycles × 28 row fields, plus summaries, months, the compare table, the fraction search and the lag-curve closed form |
-| `test_layout.js` | **680 viewport states, 904 checks** | each state is a whole rendered page, `index.html` or `fold.html`, measured for five failure modes, plus a source scan for leftover dashes and ranges spelled "to" |
+| `test_parity.js` | **1,323 schedules + 13,920 folded cuts + 2,444 lag checks, ~647,000 field comparisons** | 13,567 matrix cycles × 28 row fields, plus summaries, months, the compare table, the fraction search, the lag-curve closed form and the explainer copy |
+| `test_layout.js` | **689 viewport states, 948 checks** | each state is a whole rendered page, `index.html`, `fold.html` or `lag.html`, measured for five failure modes, plus a source scan for leftover dashes and ranges spelled "to" |
 
 Around **1,147,000 individual checks** in total, in about five minutes.
 
@@ -187,7 +189,7 @@ The script also finds a browser on its own in the usual places: the Playwright c
 
 Several parts of the page are positioned from measured pixels rather than by normal flow: the ruler tick captions, the life-size cut label, the calendar grid. Those have broken four separate times: captions stacked on each other, a percentage painted over a button, "SAVE" sliced in half, the page scrolling sideways on a narrow phone. Each was found by sweeping viewports by hand, then lost again, because nothing re-ran the sweep.
 
-This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus twenty-one reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode. That is **680 viewport states**, `fold.html` included, and it checks five things at each:
+This is that sweep, committed. It loads the page at **14 widths from 280px to 1920px**, in both themes, across several cycles, zoom levels, calendar densities and measurement modes, plus twenty-one reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode. That is **689 viewport states**, `fold.html` and `lag.html` included, and it checks five things at each:
 
 | Failure | Detected by |
 |---|---|
