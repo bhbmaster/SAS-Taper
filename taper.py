@@ -29,12 +29,12 @@ CUT_MODES = ("geometric", "linear")
 CUT_WARN_MM = 1.0
 
 # Subdivisions the fraction cut is allowed to fold the film into. The long axis
-# gets eighths because three successive halvings stay reproducible over 22 mm;
-# the short axis stops at quarters, because at 12.8 mm an eighth is 1.6 mm and
-# nobody is judging that by eye.
+# gets eighths because three successive halvings stay reproducible over 22 mm.
+# The short axis stops at quarters. At 12.8 mm an eighth is 1.6 mm, and nobody
+# is judging that by eye.
 FRAC_LONG_DIVS = (1, 2, 3, 4, 8)
 FRAC_SHORT_DIVS = (1, 2, 3, 4)
-# A tab narrower than this on its short side is not handleable, whatever the
+# A tab narrower than this on its short side is not easy to hold, whatever the
 # arithmetic says.
 FRAC_MIN_TAB_MM = 2.0
 SITE_URL = "https://bhbmaster.github.io/SAS-Taper/"
@@ -46,7 +46,7 @@ class FilmSpec:
 
     mg / nal are the buprenorphine and naloxone content. cut_mm is the side this
     tool cuts along (22 mm on every strength, which is why the film-length input
-    is the same number whichever you start on); keep_mm is the side kept at full
+    is the same number whichever you start on). keep_mm is the side kept at full
     width.
     """
 
@@ -70,7 +70,7 @@ class FilmSpec:
         return self.mg / self.area_mm2
 
 
-# Official Suboxone film sizes. Cut along cut_mm; keep keep_mm as full width.
+# Official Suboxone film sizes. Cut along cut_mm. Keep keep_mm as full width.
 FILM_SPECS: dict[int, FilmSpec] = {
     2: FilmSpec(2, 0.5, 22.0, 12.8, "2 mg / 0.5 mg"),
     4: FilmSpec(4, 1.0, 22.0, 25.6, "4 mg / 1 mg"),
@@ -106,166 +106,183 @@ HOW_TO = f"""\
 SAS means save-a-sliver. Source: https://github.com/bhbmaster/SAS-Taper
 
 How to use this
-  Site: {SITE_URL}  (or open index.html offline)
+  Site: {SITE_URL}  (or open index.html with no network)
   CLI:  python3 taper.py
         python3 taper.py --compare
         python3 taper.py --cycle 6
         python3 taper.py --n 10 --no-switch-2mg
         python3 taper.py --start-date 2026-03-01
-  Same math either way. Print / save the site, or copy this CLI output, for
-  your prescriber before day 1.
+  The site and the CLI use the same math. Print or save the site before day 1.
+  Or copy this CLI output. Take that copy to your prescriber.
 
 Why save-a-sliver
   The hard part is often the sense of getting less, not the milligrams. Each day's
   remaining piece is framed as a complete strip, the dose you have. Surplus in
-  view is easier to use; once the sliver is saved, it is not part of today's dose.
+  view is easier to use. Once the sliver is saved, it is not part of today's dose.
   The bank is a safety net, not extra daily supply.
 
 The method, every day of a cycle
-  1. The current piece is the "whole strip" (cycle 1: a full 8 mg film).
-  2. Keep full width; cut along length only. Mark, then cut with a razor, not scissors.
-  3. Cut 1/n off the RIGHT end. SAVE that sliver. TAKE the long left piece. Once daily.
-  4. In practice you open a FRESH film each day, so measure the same cut from
-     the other end: mark Take mm from the LEFT, take that, and everything right
-     of the mark, Save mm, goes in the jar. Same cut. The save is bigger than
-     the sliver because it also carries what earlier cycles took off, and it
-     grows every cycle; that growth is the +Save column, and it is the sliver.
-  5. After n days the save jar holds one full piece: buffer, not extra dose.
-     If you eat the bank, the dose never drops.
-  6. Next cycle the new whole strip is dose × (1 − 1/n). Repeat to the target.
+  1. Start with the current whole strip. For cycle 1, this is one full 8 mg film.
+  2. Keep the full width of the film. Cut along the length only.
+     Mark the cut first. Then cut with a razor. Do not use scissors.
+  3. Cut 1/n from the RIGHT end. SAVE that sliver. TAKE the long left piece.
+     Take the dose one time each day.
+  4. Open a FRESH film each day. Measure the same cut from the other end.
+     Mark Take mm from the LEFT. TAKE that piece.
+     Put everything right of the mark in the jar. That length is Save mm.
+     This is the same cut as step 3.
+     The save is larger than the sliver. It also holds the part that earlier
+     cycles already removed. The save grows each cycle. That growth is the
+     +Save column. +Save is the sliver.
+  5. After n days, the save jar holds one full piece. This is a buffer.
+     It is not extra dose. If you take the bank as extra daily dose, the
+     taper does not decrease.
+  6. The next cycle uses a new whole strip. In geometric mode the new strip
+     is dose × (1 − 1/n). Repeat until you reach the target.
 
 Two cut modes (--cut-mode)
-  geometric (default)  Cut 1/n off the piece in your hand. The cut shrinks as
-      the dose does, so every cycle is the same PERCENTAGE step, 16.7% at n=6,
-      all the way down. The dose keeps halving and never quite reaches zero, so
-      you pick a target and stop there.
-  linear (easier to cut)  Cut the same AMOUNT every cycle: 1/n of the original
-      strip, the same milligrams and the same millimetres from the first day to
-      the last. The dose falls in equal steps and lands on zero after n-1 of
-      them: 8 mg at n=6 goes 6.67, 5.33, 4.00, 2.67, 1.33, then nothing.
-      Easier because the mark never moves: measure once, reuse it every day,
-      and it never shrinks under a millimetre where a razor stops resolving.
+  geometric (default)  Cut 1/n of the piece in your hand. The cut becomes
+      smaller as the dose becomes smaller. Each cycle is the same PERCENTAGE
+      step. At n=6 that step is 16.7% all the way down. The dose continues
+      to decrease by half and never quite reaches zero. Set a target and
+      stop there.
+  linear (easier to cut)  Cut the same AMOUNT each cycle. That amount is
+      1/n of the original strip. The milligrams and the millimetres stay
+      the same from the first day to the last. The dose decreases in equal
+      steps. It reaches zero after n-1 of them. 8 mg at n=6 goes 6.67,
+      5.33, 4.00, 2.67, 1.33, then nothing. This is easier to cut because
+      the mark does not move. Measure one time. Use that mark every day.
+      The mark never becomes smaller than one millimetre, where a razor
+      cannot resolve it.
 
   Same cut, very different shape. Equal steps in milligrams are growing steps in
-  percentage: that run drops 20%, then 25%, 33%, 50%, and the last step is 100%.
-  The back end is where a taper is hardest and linear is at its most aggressive
-  exactly there. It is much shorter and uses much less medication; neither of
-  those is the same as easier. Ask your prescriber which shape suits you, and
-  remember that holding a cycle is available in either mode.
+  percentage. That run drops 20%, then 25%, 33%, 50%, and the last step is 100%.
+  The back end is where a taper is hardest. Linear is at its most aggressive
+  exactly there. It is much shorter and uses much less medication. Neither of
+  those is the same as easier. Ask your prescriber which shape suits you.
+  You can hold a cycle in either mode.
 
-If it gets rough: hold this dose another cycle (cravings matter most). Stretch the
-cycle to 8-9 days or switch n to 10 below 3 mg. When the sliver is under ~1 mm,
-switch to 2 mg films. Lock up saved pieces. Step the prescribed quantity down
-with the dose.
+If it gets rough
+  1. Hold this dose for one more cycle. Cravings are the signal that matters most.
+  2. Stretch the cycle to 8-9 days. Or set n to 10 below 3 mg.
+  3. When the sliver is under ~1 mm, change to 2 mg films.
+  4. Lock saved pieces. Decrease the prescribed quantity with the dose.
 
-More than one strip a day: a dose bigger than one film, say 16 mg on 8 mg strips,
-is simply several strips, and still one cut. Take the whole ones as they are and
-mark only the last; the Film column shows ×2, ×3 and so on. If the day's sliver
-runs past the strips you opened, that is a strip you never need to open.
+More than one strip a day
+  A dose larger than one film is several strips and still one cut.
+  Example: 16 mg on 8 mg strips. TAKE the whole films as they are.
+  Mark only the last film. The Film column shows ×2, ×3 and so on.
+  If the day's sliver runs past the strips you opened, do not open that strip.
 
-Limitation: the schedule starts on one given film size and either stays there or
-switches only to 2 mg films (not 12→8→4). The official size table is a reference;
-it does not change the ladder. To plan a 12 mg or 4 mg start, change --start-mg /
---strip-mg and recalc; the base film becomes the smallest official strength that
-holds the start dose, or 8 mg above 12 mg where no single film holds it
-(--film-strength overrides either).
+Limitation
+  The schedule starts on one given film size. It then keeps that size, or it
+  changes only to 2 mg films (not 12→8→4). The official size table is a
+  reference. It does not change the ladder. To plan a 12 mg or 4 mg start,
+  change --start-mg / --strip-mg and calculate again. The base film is the
+  smallest official strength that holds the start dose. Above 12 mg, where
+  no single film holds the dose, the base film is 8 mg. --film-strength
+  overrides either.
 """
 
 NOTES = """\
 Practical notes
-- Cut along one axis only. Keep the full width of the film and only shorten it.
-  (The site's film panel offers a folding mode that cuts both axes instead; the
-  arithmetic holds there because area fraction is dose fraction on an evenly
-  made sheet. What you must not do is cut both axes while thinking in lengths.)
-  Length fraction = dose fraction. Cutting both dimensions loses the arithmetic.
-- Use a fresh razor/craft blade and a ruler on a clean mat, not scissors. Mark
-  before you cut. Cutting films is not manufacturer-sanctioned; the drug is
-  distributed reasonably evenly, which is why this method is widely used.
-- Cutting aids. A steel ruler and a fresh blade on a mat is enough for most of
-  the ladder. If your cuts wander, small purpose-made film slicers exist;
-  search "Suboxone film cutter" or "subslicer". A guided cut you can repeat
-  beats a freehand one you cannot.
+- Cut along one axis only. Keep the full width of the film. Shorten the length
+  only. (The site's film panel has a folding mode that cuts both axes. The
+  arithmetic still holds there, because area fraction is dose fraction on an
+  evenly made sheet. Do not cut both axes while you think in lengths.)
+  Length fraction = dose fraction. A cut on both axes loses the arithmetic.
+- Use a new razor or craft blade and a ruler on a clean mat. Do not use
+  scissors. Mark the film before you cut. The manufacturer does not sanction
+  film cuts. The drug is distributed reasonably evenly, which is why this
+  method is widely used.
+- Cutting aids. A steel ruler and a new blade on a mat is enough for most of
+  the ladder. If your cuts wander, small purpose-made film slicers exist.
+  Search "Suboxone film cutter" or "subslicer". A guided cut you can repeat
+  is better than a freehand cut you cannot repeat.
 - Doses below what you can cut. Some people move to liquid (volumetric) dosing
-  at the very bottom: dissolve a film in a measured volume of water and draw a
-  dose with an oral syringe. A 2 mg film in 20 mL is THEORETICALLY 0.1 mg/mL,
-  arithmetic, not a measurement. It is not manufacturer-sanctioned (the
-  labelling says take the film whole), buprenorphine is only sparingly
-  water-soluble so the real concentration can differ from the calculated one, a
-  homemade solution is not sterile, and you only absorb what you hold under the
-  tongue. Raise it with your prescriber first; quartered 2 mg films, a different
-  product, or a compounded liquid may be the better route.
-- Saved slivers are surplus / a safety net. Do not add them back into the daily
-  dose or the taper never drops. Store airtight and dry, separated by wax paper,
-  and keep them locked up. Buprenorphine is severely dangerous to kids and pets.
-- The low end is where cutting 8 mg films breaks down. A ~1 mm sliver is already
-  in the noise. Ask your prescriber for 2 mg films before you need them (around
-  the time daily dose is heading through ~4 mg toward ~2 mg). A 2 mg film is one
-  quarter the density, so the same dose is four times longer on it and the same
+  at the very bottom. Dissolve a film in a measured volume of water. Draw a
+  dose with an oral syringe. A 2 mg film in 20 mL is THEORETICALLY 0.1 mg/mL.
+  That number is arithmetic, not a measurement. The manufacturer does not
+  sanction this. The labelling says take the film whole. Buprenorphine is only
+  sparingly water-soluble, so the real concentration can differ from the
+  calculated one. A homemade solution is not sterile. You only absorb what you
+  hold under the tongue. Raise it with your prescriber first. Quartered 2 mg
+  films, a different product, or a compounded liquid may be the better route.
+- Saved slivers are surplus / a safety net. Do not add them to the daily dose.
+  If you add them, the taper does not decrease. Store them airtight and dry.
+  Separate them with wax paper. Keep them locked. Buprenorphine is severely
+  dangerous to children and pets.
+- The low end is where cuts on 8 mg films fail. A ~1 mm sliver is already in
+  the noise. Ask your prescriber for 2 mg films before you need them (around
+  the time daily dose is heading through ~4 mg toward ~2 mg). A 2 mg film is
+  one quarter the density. The same dose is four times longer on it. The same
   cut is four times more forgiving.
-- A dose over one film is just more films, and still only one cut. Take the
-  whole strips as they are and mark the last one; the cut marks name it. If the
-  day's sliver runs past the strips you opened, that is a strip you simply do
-  not need to open. Leave it in the box.
+- A dose over one film is more films, and still only one cut. TAKE the whole
+  strips as they are. Mark the last one. The cut marks name that film. If the
+  day's sliver runs past the strips you opened, do not open that strip. Leave
+  it in the box.
 - Holding is not failure. If a cycle leaves you with bad sleep, restlessness,
   sweats, GI upset, or above all a spike in cravings, stay at that
-  dose for another cycle or two before dropping again.
-- The two cut modes trade different things. Geometric holds the percentage step
-  constant and lets the milligrams shrink, which is the gentler shape at the low
-  end but never reaches zero. Linear holds the milligrams constant and lets the
-  percentage grow, which reaches zero on a schedule but makes the last steps the
-  biggest ones you will have taken. Either way, holding a cycle is always
-  available and never a failure.
-- Linear is the easier mode to cut. The mark never moves, so you measure once
-  and reuse it every day instead of working out a new smaller one each cycle,
-  and it never shrinks under a millimetre where a razor stops resolving. That is
-  also why the 2 mg switch is unnecessary there.
-- Once daily is fine at every level here. Buprenorphine's half-life is long
-  enough that splitting doses buys you nothing.
+  dose for another cycle or two before you decrease again.
+- The two cut modes trade different things. Geometric holds the percentage
+  step constant and lets the milligrams decrease. That is the gentler shape
+  at the low end, but it never reaches zero. Linear holds the milligrams
+  constant and lets the percentage grow. It reaches zero on a schedule, but
+  the last steps are the largest ones you will have taken. Either way, you
+  can hold a cycle. A hold is never a failure.
+- Linear is the easier mode to cut. The mark does not move. Measure one time.
+  Use that mark every day. You do not calculate a new smaller mark each cycle.
+  The mark never becomes smaller than one millimetre, where a razor cannot
+  resolve it. That is also why the 2 mg switch is not needed there.
+- One dose each day is enough at every level here. Buprenorphine's half-life
+  is long enough that split doses give you nothing.
 - Every step is held for days on purpose. That same long half-life means a new
   dose needs most of a cycle to land: about 88-91% of the way there on
-  day 1, and 98-100% by day 6, across the usual 24-42 hour range. It is why the
-  ladder moves in cycles instead of shaving a little off daily, and it puts a
-  floor under how fast this can honestly go: the default is roughly two months
-  from 8 mg to 1 mg. Plenty of people need longer than that, and the tool is
-  built for it. Hold a cycle, raise --n, or stretch --hold-days. --n 10
-  --hold-days 9 is about six months. Going slower is a plan, not a failure.
+  day 1, and 98-100% by day 6, across the usual 24-42 hour range. That is why
+  the ladder moves in cycles instead of a small daily decrease. It also sets
+  a floor under how fast this can honestly go: the default is roughly two
+  months from 8 mg to 1 mg. Plenty of people need longer than that, and the
+  tool is built for it. Hold a cycle, raise --n, or stretch --hold-days.
+  --n 10 --hold-days 9 is about six months. Going slower is a plan, not a
+  failure.
 - 16.7% every 6 days (n=6) is at the fast end of typical 10-25% steps. You may
   not feel a drop until day 4 or 5, right as you are about to drop again. Hedge
-  by stretching the cycle to 8-9 days (same cut, more settling time) or switch
+  by stretching the cycle to 8-9 days (same cut, more settling time) or change
   to n=10 below 3 mg.
 - Ask about the long-acting injections. Sublocade (monthly) and Brixadi
   (weekly or monthly) are buprenorphine, the same active drug as your film
-  without the naloxone, injected under the skin by a clinician, where it forms
-  a depot that releases for weeks. Two things make them worth raising here.
-  First, you do not have to reach the bottom of this ladder before switching:
-  both are labelled for a direct transfer from an established daily sublingual
-  dose. Second, after the LAST injection the drug leaves over months rather than
-  days. The prescribing information puts the terminal half-life at roughly 43-60
-  days for Sublocade and 19-26 days for monthly Brixadi, against the 24-42 hours
-  this tool assumes for a film. That is why people describe the ending as
-  tapering itself. That is a fair reading of the pharmacology, but NEITHER
-  PRODUCT IS APPROVED AS A TAPER, and withdrawal can still arrive, sometimes
-  weeks or months after the final shot, so it needs watching for longer than you
-  would expect. The two differ in a way that matters to this goal: Brixadi has
-  more strengths, so a prescriber can step you further down before stopping,
-  while Sublocade has the longer tail once you do. Do not read the injection's
-  milligrams against your film's. Different route, different absorption;
-  Sublocade's 100 mg monthly maintenance dose sits near a 24 mg/day sublingual
-  blood level, not a 100 mg one. Both are supplied under restricted distribution
-  and given in a clinic rather than collected from a pharmacy, so ask whether an
-  office actually ADMINISTERS them, not just whether it prescribes
-  buprenorphine. Raise it with a prescriber; it is not a plan you can make from
-  this tool.
-- Tell your prescriber this schedule so quantity can step down with the dose.
-  A 30-strips-a-month prescription on a falling taper builds a stockpile, which is a
-  diversion risk and a household hazard. Return surplus via pharmacy take-back.
+  without the naloxone. A clinician injects them under the skin, where the
+  drug forms a depot that releases for weeks. Two things make them worth
+  raising here. First, you do not have to reach the bottom of this ladder
+  before you change: both are labelled for a direct transfer from an
+  established daily sublingual dose. Second, after the LAST injection the
+  drug leaves over months rather than days. The prescribing information puts
+  the terminal half-life at roughly 43-60 days for Sublocade and 19-26 days
+  for monthly Brixadi, against the 24-42 hours this tool assumes for a film.
+  That is why people describe the ending as tapering itself. That is a fair
+  reading of the pharmacology, but NEITHER PRODUCT IS APPROVED AS A TAPER,
+  and withdrawal can still arrive, sometimes weeks or months after the final
+  shot, so it needs watching for longer than you would expect. The two differ
+  in a way that matters to this goal: Brixadi has more strengths, so a
+  prescriber can step you further down before stopping, while Sublocade has
+  the longer tail once you do. Do not read the injection's milligrams against
+  your film's. Different route, different absorption. Sublocade's 100 mg
+  monthly maintenance dose sits near a 24 mg/day sublingual blood level, not
+  a 100 mg one. Both are supplied under restricted distribution and given in
+  a clinic rather than collected from a pharmacy, so ask whether an office
+  actually ADMINISTERS them, not just whether it prescribes buprenorphine.
+  Raise it with a prescriber. It is not a plan you can make from this tool.
+- Tell your prescriber this schedule so quantity can decrease with the dose.
+  A 30-strips-a-month prescription on a falling taper builds a stockpile.
+  That stockpile is a diversion risk and a household hazard. Return surplus
+  through a pharmacy take-back.
 
-Bring this to your prescriber. A taper from 8 mg to 1-2 mg is a routine goal;
-they are the one who can write 2 mg films and match the quantity to the ladder.
+Bring this to your prescriber. A taper from 8 mg to 1-2 mg is a routine goal.
+They are the one who can write 2 mg films and match the quantity to the ladder.
 """
 
-# Printed at the end of every run, --no-notes included: this names the method
-# rather than advising anything, so it does not belong in the notes block.
+# Printed at the end of every run, --no-notes included. This names the method.
+# It does not advise. It does not belong in the notes block.
 FOOTER = """\
 Strictly unofficially, the method can be called SAS-Sub-minning, because the stat you
 are grinding down is Suboxone.
@@ -276,25 +293,25 @@ are grinding down is Suboxone.
 class CycleRow:
     """One cycle of the ladder, n days at a fixed dose and a fixed cut.
 
-    cut_from_mg is the piece you start the cycle holding; daily_mg is what you
-    take each day after removing sliver_mg. piece_mm and cut_mm are the same two
-    quantities in millimetres of film, totals for the day, which can exceed one
-    film when the dose does. banked_mg is the cycle's slivers added up, which
-    is exactly one whole piece when days == n, the method's milestone, not a
-    tally of every offcut the reader physically ends up holding. cut_warn flags
-    a sliver under CUT_WARN_MM, where hand-cutting stops being meaningful.
+    cut_from_mg is the piece you start the cycle holding. daily_mg is what you
+    take each day after you remove sliver_mg. piece_mm and cut_mm are the same
+    two quantities in millimetres of film, totals for the day. They can exceed
+    one film when the dose does. banked_mg is the cycle's slivers added up.
+    That is exactly one whole piece when days == n, the method's milestone. It
+    is not a tally of every offcut the reader physically ends up holding.
+    cut_warn flags a sliver under CUT_WARN_MM, where a hand cut stops being
+    meaningful.
 
     take_mm / save_mg / save_mm are the three numbers the reader acts on at the
-    strip, and they are about the film in front of them rather than the ladder:
-    open a film, cut once, swallow take_mm, and everything past that mark,
-    save_mm, worth save_mg, goes in the jar. take_mm + save_mm is the film you
-    opened (films_out of them on a day whose dose needs more than one), so the
-    two partition it with nothing unaccounted for. The save grows every cycle,
-    because it is this cycle's sliver plus everything earlier cycles had
-    already taken off.
+    strip. They are about the film in front of them, not the ladder. Open a
+    film. Cut one time. Swallow take_mm. Everything past that mark, save_mm,
+    worth save_mg, goes in the jar. take_mm + save_mm is the film you opened
+    (films_out of them on a day whose dose needs more than one). The two
+    partition it with nothing unaccounted for. The save grows every cycle.
+    It is this cycle's sliver plus everything earlier cycles already removed.
 
     delta_save_mm is how much more that is than the last cycle which cut a
-    film. The "extra", and equals cut_mm whenever the day keeps opening the
+    film. The extra. It equals cut_mm whenever the day keeps opening the
     same films off the same strip. It is None in the three cases where that
     comparison would be against a different thing: a restart on a fresh 2 mg
     film, a cycle that drops a whole film from the day, and a whole-films-only
@@ -339,8 +356,8 @@ class CycleRow:
 class MonthRow:
     """One 30-day bucket of the run, for matching the prescription to the dose.
 
-    used_strips is ingested-equivalent, not strips dispensed; surplus_strips is
-    what a static rx_strips prescription would leave over, the stockpile.
+    used_strips is how many strips were consumed, not how many packets were
+    opened. surplus_strips is what a 30-strip prescription would leave over.
     """
 
     month: int
@@ -360,16 +377,16 @@ class ScheduleResult:
     0/None so an empty ladder still answers every question asked of it,
     index.html mirrors these exact defaults, and test_parity.js checks that.
 
-    cut_mode is "geometric" (cut 1/n off what is left, so the step shrinks and
-    the dose never quite reaches zero) or "linear" (cut the same 1/n of the
-    ORIGINAL strip every cycle, so the step never changes and the dose lands on
-    zero after n − 1 of them). r is the geometric keep ratio and describes the
-    linear mode not at all, there the per-cycle drop grows every step.
+    cut_mode is "geometric" (cut 1/n of what is left. The step becomes smaller
+    and the dose never quite reaches zero) or "linear" (cut the same 1/n of the
+    ORIGINAL strip every cycle. The step never changes and the dose reaches
+    zero after n − 1 of them). r is the geometric keep ratio and does not
+    describe the linear mode at all. There the per-cycle drop grows every step.
 
     zero_day is the first day at 0 mg, which only a linear run reaches.
 
-    truncated means the run hit MAX_CYCLES before reaching the target;
-    switch_never_fired means the 2 mg switch was wanted but could not fire
+    truncated means the run hit MAX_CYCLES before reaching the target.
+    switch_never_fired means the 2 mg switch was wanted but could not start
     without raising the dose. Both are reported rather than hidden.
     """
 
@@ -558,6 +575,11 @@ class FractionCut:
 
     @property
     def exact(self) -> bool:
+        """True when the fold lands inside 0.0005 mg of the asked dose.
+
+        Half a microgram is well below anything a hand cut can resolve, so
+        the panel may print "exact" rather than "+0.00 mg".
+        """
         return abs(self.error_mg) < 5e-4
 
 
@@ -753,15 +775,16 @@ def build_schedule(
               (classic n=6/8/10 comparison tables).
 
     cut_mode:
-      geometric, cut 1/n off the piece in your hand (default). The cut shrinks
-              with the dose, every cycle is the same percentage step, and the
-              dose approaches zero without arriving.
+      geometric, cut 1/n of the piece in your hand (default). The cut becomes
+              smaller with the dose. Every cycle is the same percentage step.
+              The dose approaches zero without arriving.
       linear, cut the same amount every cycle: 1/n of the ORIGINAL strip, in
               the same milligrams and the same millimetres, from the first day
-              to the last. The dose falls in equal steps and reaches zero after
-              n − 1 of them. Because the cut never gets thinner there is nothing
-              for the 2 mg switch to rescue, and changing n partway would break
-              the one constant the mode is built on, so both are ignored here.
+              to the last. The dose decreases in equal steps and reaches zero
+              after n − 1 of them. The cut never becomes thinner, so there is
+              nothing for the 2 mg switch to rescue. A change of n partway
+              would break the one constant the mode is built on. Both are
+              ignored here.
     """
     if n < 2:
         raise ValueError("n must be at least 2")
@@ -799,8 +822,8 @@ def build_schedule(
     for cycle in range(1, max_cycles + 1):
         n_changed = False
         # Both of these are geometric-mode rescues. In linear mode the cut never
-        # gets thinner, so there is nothing for the 2 mg switch to fix, and
-        # changing n would change the step the whole mode is defined by.
+        # becomes thinner, so there is nothing for the 2 mg switch to fix. A
+        # change of n would change the step the whole mode is defined by.
         if (
             not linear
             and n_below_3mg
@@ -820,9 +843,9 @@ def build_schedule(
             and not switched
             and film_mg > 2.0 + 1e-9
             and D <= switch_at_mg + 1e-12
-            # Restarting on a 2 mg film pins the whole strip at 2 mg, so only do
+            # A restart on a 2 mg film pins the whole strip at 2 mg. Only do
             # it while the resulting daily dose is still a step down. A low
-            # --switch-at would otherwise walk the dose back up mid-taper.
+            # --switch-at would otherwise increase the dose mid-taper.
             and (prev_daily is None or 2.0 * keep_ratio(current_n) < prev_daily)
         ):
             D = 2.0
@@ -835,7 +858,7 @@ def build_schedule(
             sliver = step_mg
             daily = D - sliver
             # The last cut takes the dose to exactly zero. A cycle of n days at
-            # 0 mg is not an instruction, so the ladder ends before it and the
+            # 0 mg is not an instruction. The ladder ends before it. The
             # summary reports the day the dose reaches zero instead.
             if daily <= 1e-12:
                 break
@@ -849,9 +872,9 @@ def build_schedule(
         days = int(hold_days) if hold_days and hold_days >= 1 else current_n
         piece_mm = current_film_mm * D / film_mg
         # From the sliver, not from piece_mm / n. The two are identical in
-        # geometric mode, where the sliver IS the piece over n, but in linear
+        # geometric mode, where the sliver IS the piece over n. In linear
         # mode the sliver is a fixed number of milligrams, and the millimetres
-        # have to hold still with it. That constant cut is the whole point of
+        # have to stay constant with it. That constant cut is the whole point of
         # the mode: the same mark, every day, from the first cut to the last.
         cut_mm = current_film_mm * sliver / film_mg
         # The dose as a length. Take + save is the film you opened, so this is
@@ -862,17 +885,17 @@ def build_schedule(
         lay = film_layout(D, sliver, film_mg, current_film_mm)
         # What physically goes in the jar from the film you mark: everything
         # past the take mark. That is the day's sliver plus the part earlier
-        # cycles had already taken off, so it grows as the ladder descends,
-        # and it is the number the reader acts on, not cut_mm.
+        # cycles already removed. It grows as the ladder descends.
+        # It is the number the reader acts on, not cut_mm.
         if lay.cut_take_mm > 1e-9:
             save_mm = max(0.0, current_film_mm - lay.cut_take_mm)
             save_mg = film_mg * (save_mm / current_film_mm) if current_film_mm else 0.0
             # How much more goes in the jar than the last cycle that cut one.
-            # Identically cut_mm while the day keeps opening the same films,
+            # Identically cut_mm while the day keeps opening the same films.
             # take(k−1) is piece(k), so the difference of two "full minus take"
-            # figures is exactly this cycle's sliver. Two things break that and
-            # both make "extra" meaningless rather than merely different: a
-            # 2 mg restart puts a different film underneath, and dropping a
+            # figures is exactly this cycle's sliver. Two things break that.
+            # Both make "extra" meaningless rather than merely different. A
+            # 2 mg restart puts a different film underneath. A drop of a
             # whole film from the day changes how much film is opened at all.
             comparable = (
                 not just_switched
@@ -881,8 +904,8 @@ def build_schedule(
             )
             delta_save_mm = save_mm - prev_save_mm if comparable else None
         else:
-            # The take lands on a film boundary: nothing is marked, so nothing
-            # is cut off a film to save and there is no cut to compare against.
+            # The take reaches a film boundary. Nothing is marked. Nothing
+            # is cut from a film to save. There is no cut to compare against.
             save_mm = 0.0
             save_mg = 0.0
             delta_save_mm = None
@@ -1107,7 +1130,14 @@ def compare_classic(
 
 
 def share_cols(values: list[float], inner: int) -> list[int]:
-    """Integer column counts that sum to inner, proportional to values."""
+    """Integer column counts that sum to inner, proportional to values.
+
+    Used by the ASCII ruler so TAKE, this cycle's extra, and already-off
+    share a fixed width. Largest remainder wins leftover columns. A band
+    with any real millimetres is never given zero columns if another band
+    can spare one. That is what stops a thin sliver vanishing from the
+    drawing.
+    """
     n = len(values)
     total = sum(max(0.0, v) for v in values)
     if inner <= 0 or n == 0:
@@ -1141,8 +1171,11 @@ def ascii_ruler(
     ghost_mm: float = 0.0,
     width: int = 52,
 ) -> str:
-    """TAKE (=) on the left, then the SAVE: this cycle's extra (#), then the
-    part already off before (.). Everything right of the = is saved."""
+    """One line picture of a full unused film.
+
+    TAKE (=) on the left. Then the SAVE: this cycle's extra (#), then the
+    part already off before (.). Everything right of the = goes in the jar.
+    """
     inner = max(12, width - 2)
     take_c, save_c, ghost_c = share_cols([take_mm, save_mm, ghost_mm], inner)
     parts = [("=", take_c), ("#", save_c), (".", ghost_c)]
@@ -1386,7 +1419,12 @@ def print_table(headers: list[str], rows: list[list[str]]) -> None:
 
 
 def parse_start_date(raw: Optional[str]) -> Optional[date]:
-    """YYYY-MM-DD, or None. Raises ValueError on anything else."""
+    """Parse YYYY-MM-DD, or return None for blank.
+
+    Raises ValueError on anything else. The CLI rejects a bad date rather
+    than clamping it. The web page cannot throw at its reader, so it
+    ignores an unparseable box instead.
+    """
     if not raw:
         return None
     return date.fromisoformat(raw.strip())
@@ -1440,9 +1478,9 @@ def print_schedule(
         if sched.n_below_3mg:
             ignored.append("n below 3 mg")
         print(
-            f"Ignored in linear mode: {' and '.join(ignored)}. The cut never gets "
-            f"thinner here, so there is nothing for a film switch to rescue, and "
-            f"changing n partway would change the one step the mode is built on."
+            f"Ignored in linear mode: {' and '.join(ignored)}. The cut never becomes "
+            f"thinner here, so there is nothing for a film switch to rescue. A "
+            f"change of n partway would change the one step the mode is built on."
         )
     if linear:
         print(
@@ -1463,8 +1501,8 @@ def print_schedule(
         )
     if sched.switch_never_fired:
         print(
-            "WARNING: the 2 mg switch never fired, --switch-at is below 2 mg, and "
-            "restarting on a 2 mg film there would raise the dose. Use --switch-at 2.25."
+            "WARNING: the 2 mg switch did not start. --switch-at is below 2 mg. "
+            "A restart on a 2 mg film there would raise the dose. Use --switch-at 2.25."
         )
     if linear and sched.zero_day is not None:
         print(
@@ -1503,16 +1541,22 @@ def print_schedule(
         )
     print()
 
-    # Take and Save are the pair you act on at the strip: open a film, cut
-    # once, swallow the take, jar the save. Delta is how much more the jar
-    # gets than last cycle. Everything after them is running totals.
+    # Take and Save are the pair you act on at the strip. Open a film. Cut
+    # one time. Swallow the take. Put the save in the jar. Delta is how much
+    # more the jar gets than last cycle. Everything after them is running totals.
     headers = [
         "Cyc", "Days", "Film", "Take mg", "Take mm", "Save mg", "Save mm",
         "+Save mm", "Cycle mg", "Sum mg", "Sum strips", "Banked",
     ]
-    print("Take = the dose and where to mark it, from the LEFT end of a full film.")
-    print("Save = everything right of that mark, which all goes in the jar.")
-    print("+Save = how much more than last cycle; a dash where nothing is comparable.")
+    print("Take mg  = the dose you take each day. This is what goes in your mouth.")
+    print("Take mm  = mark that far from the LEFT end of a full film, then cut.")
+    print("Save mg  = milligrams that go in the jar. Do not take this as extra dose.")
+    print("Save mm  = everything right of the mark. Put that in the jar.")
+    print("+Save mm = how much more than last cycle (this cycle's sliver). A dash means nothing to compare.")
+    print("Cycle mg = milligrams you consumed in this cycle.")
+    print("Sum mg   = milligrams you have consumed since day 1.")
+    print("Sum strips = how many strips you consumed. Less than strips opened, because you saved some.")
+    print("Banked  = this cycle's slivers added up. Buffer, not extra daily dose.")
     if start_date is not None:
         headers.insert(2, "Dates")
     table = []
@@ -1599,11 +1643,11 @@ def print_schedule(
         )
     print(
         f"  End of run: day {sched.end_day}, {sched.end_daily_mg:.2f} mg/day, "
-        f"{sched.total_mg:.1f} mg ingested ({sched.total_strips:.1f} × "
-        f"{sched.strip_mg:g} mg strips)"
+        f"{sched.total_mg:.1f} mg consumed ({sched.total_strips:.1f} strips "
+        f"consumed, less than opened because you saved some)"
     )
     print(
-        f"  Slivers banked (buffer, not ingested): {sched.total_banked_mg:.1f} mg "
+        f"  Slivers banked (buffer, not extra dose): {sched.total_banked_mg:.1f} mg "
         f"({sched.total_banked_mg / sched.strip_mg:.1f} strips)"
     )
     print(
@@ -1613,9 +1657,12 @@ def print_schedule(
     )
     print()
 
-    print(f"Prescription quantity (ingested-equivalent strips per {DEFAULT_MONTH_DAYS} days)")
+    print(f"Prescription quantity (strips consumed per {DEFAULT_MONTH_DAYS} days)")
+    print("Used mg = milligrams consumed this month.")
+    print("Used strips = strips consumed. Less than packets opened, because you saved some.")
+    print("If Rx=30 = a typical unchanged prescription. Surplus = leftover in the house.")
     print(f"If the prescription stays at {DEFAULT_RX_STRIPS} strips a month, the surplus is a "
-          "stockpile. Ask to step quantity down; return the rest via take-back.")
+          "stockpile. Ask to decrease quantity with the dose. Return the rest through take-back.")
     print()
     mheaders = ["Month", "Days", "Used mg", "Used strips", "If Rx=30", "Surplus"]
     mtable = []
@@ -1635,9 +1682,14 @@ def print_schedule(
 
 
 def print_compare(rows: list[dict[str, Any]]) -> None:
-    """Print the n = 6 / 8 / 10 comparison from compare_classic() rows."""
+    """Print the n = 6 / 8 / 10 table from compare_classic().
+
+    Args:
+        rows: one dict per n, the same shape the site's compare panel uses.
+    """
     print("Compare n = 6 / 8 / 10 at ~1 mg")
-    print("8 mg films all the way; last cycle still above 1 mg. Bank is not re-dosed.")
+    print("8 mg films all the way. Last cycle still above 1 mg. Bank is not re-dosed.")
+    print("Strips = strips consumed. Less than opened, because you saved some. Stay = strips consumed if you never tapered. Saved = the difference.")
     print()
     headers = [
         "n", "Cut", "Cycles", "Days", "End mg/d",
@@ -1700,8 +1752,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--strip-mg", type=float, default=DEFAULT_STRIP_MG)
     p.add_argument("--no-switch-2mg", action="store_true", help="stay on 8 mg films the whole way")
     p.add_argument("--switch-at", type=float, default=DEFAULT_SWITCH_AT_MG, help="cut-from mg that triggers a 2 mg restart")
-    p.add_argument("--hold-days", type=int, default=None, help="stretch each cycle to this many days; cut is still 1/n")
-    p.add_argument("--n-below-3", type=int, default=None, dest="n_below_3mg", help="switch n once cut-from drops below 3 mg")
+    p.add_argument("--hold-days", type=int, default=None, help="stretch each cycle to this many days. Cut is still 1/n")
+    p.add_argument("--n-below-3", type=int, default=None, dest="n_below_3mg", help="change n once cut-from drops below 3 mg")
     p.add_argument("--compare", action="store_true", help="also print n=6/8/10 classic totals")
     p.add_argument(
         "--cycle",
@@ -1713,17 +1765,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--cut-mode",
         choices=CUT_MODES,
         default="geometric",
-        help="geometric = cut 1/n off the piece in your hand, so the cut shrinks "
-        "with the dose and every cycle is the same percentage step (default); "
+        help="geometric = cut 1/n of the piece in your hand. The cut becomes "
+        "smaller with the dose. Every cycle is the same percentage step (default). "
         "linear = cut the same amount every cycle, 1/n of the ORIGINAL strip in "
-        "the same mg and the same mm, so the dose falls in equal steps and "
+        "the same mg and the same mm. The dose decreases in equal steps and "
         "reaches zero after n-1 of them",
     )
     p.add_argument(
         "--stop-mode",
         choices=("reach", "above"),
         default="reach",
-        help="reach = include first cycle at or under target (default); "
+        help="reach = include first cycle at or under target (default). "
         "above = stop while still strictly above target (classic compare)",
     )
     p.add_argument("--json", action="store_true", help="dump machine-readable JSON")

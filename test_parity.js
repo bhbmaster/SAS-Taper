@@ -94,6 +94,7 @@ const CASES = [
 ];
 
 function pyRun(c) {
+  /* Run taper.py --json with the same inputs the JS side used. */
   const args = ["taper.py", "--json"];
   for (const [k, v] of Object.entries(c)) {
     if (FLAGS[k]) args.push(FLAGS[k], String(v));
@@ -109,6 +110,7 @@ let comparisons = 0;
 let fracChecked = 0;
 
 function compareRows(label, js, py, fail) {
+  /* Diff every field of every cycle row. JS camelCase vs Python snake_case. */
   if (js.rows.length !== py.rows.length) {
     fail(`${label}: row count ${js.rows.length} (js) vs ${py.rows.length} (py)`);
     return;
@@ -199,6 +201,8 @@ function compareCompare(label, js, py, fail) {
 }
 
 function compareSummary(label, js, py, fail) {
+  /* Diff the headline totals. Both sides must answer the same questions,
+     including the empty-ladder defaults of 0 and null. */
   for (const [j, p] of SUMMARY) {
     const av = js[j];
     const ev = py[p];

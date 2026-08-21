@@ -20,6 +20,14 @@
   })();
 </script>
 <style>
+  /* Light is the base set. The two blocks after it redefine only tokens, so
+     no colour is ever defined in one theme and missing from another.
+
+     Unlike the calculator, this explainer follows prefers-color-scheme.
+     Nobody doses off this page, so matching the OS is the better default.
+
+     The dashed lag line uses --level, not the film oranges. This page never
+     draws a film. */
   :root {
     --paper: #fbfaf8; --card: #ffffff; --sunk: #f4f1ec;
     --ink: #1c1917; --muted: #57534e; --faint: #8a837c;
@@ -50,6 +58,9 @@
     --shadow: 0 1px 2px rgb(0 0 0 / .5), 0 10px 30px -20px rgb(0 0 0 / .9);
   }
 
+  /* ---- Page frame -------------------------------------------------------
+     Reset, wrap, type, nav. Max width matches the calculator so the two
+     pages sit together. */
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--paper); color: var(--ink);
@@ -85,6 +96,9 @@
   nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   nav a.home { border-color: var(--accent); color: var(--accent); }
 
+  /* ---- Driver -----------------------------------------------------------
+     Sticky half-life and scenario controls. Every diagram on the page is
+     driven from these two numbers. */
   .driver {
     position: sticky; top: 0; z-index: 20; margin: 2.5rem 0 0;
     background: var(--card); border: 1px solid var(--line); border-radius: 12px;
@@ -115,6 +129,10 @@
   }
   @media (max-width: 700px) { .driver { grid-template-columns: 1fr; } }
 
+  /* ---- Stages -----------------------------------------------------------
+     Numbered pipeline. Each stage consumes what the one before it produced.
+     Two columns until 860 px, then stacked. min-width: 0 so a <pre> that
+     scrolls does not widen the page. */
   .stage {
     margin-top: 2.5rem; display: grid; gap: 1.1rem 2rem;
     grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); align-items: start;
@@ -137,6 +155,7 @@
   .fig .cap { font-size: 0.76rem; color: var(--faint); }
   .fig svg { display: block; width: 100%; height: auto; color: var(--faint); }
 
+  /* ---- Tables and callouts ---------------------------------------------- */
   table { border-collapse: collapse; width: 100%; font-size: 0.8rem; }
   th, td { padding: 0.34rem 0.5rem; text-align: right; white-space: nowrap; }
   th { font: 600 0.66rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -157,6 +176,9 @@
   .note p { font-size: 0.87rem; color: var(--muted); }
   .note code { background: rgb(128 128 128 / .16); }
 
+  /* ---- Code listings ----------------------------------------------------
+     Same Wrap/Scroll rule as fold.html. The listing is hard-wrapped, so
+     scrolling keeps the shape the code was written in. */
   pre.whole { font-size: 0.74rem; line-height: 1.7; padding: 1.1rem 1.2rem; }
   pre {
     margin: 0; background: var(--sunk); border: 1px solid var(--line);
@@ -213,6 +235,9 @@
   footer { margin-top: 2rem; font-size: 0.82rem; color: var(--faint); max-width: 62ch; }
   a { color: var(--accent); }
 
+  /* ---- Remain bars and the equation -------------------------------------
+     How much of a dose is still on board after 1, 6 and 30 days. The fill
+     uses --level, the same colour as the dashed curve. */
   .bars { display: flex; flex-direction: column; gap: 0.45rem; }
   .bars .row { display: grid; grid-template-columns: 7.5rem 1fr 4.2rem; gap: 0.45rem; align-items: center; }
   .bars .k { font: 500 0.72rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); }
@@ -539,17 +564,22 @@ n     = 6                                 <span class="c"># days at that dose</s
 
 <script>
 (() => {
+  /* Look up one element by id. Short because every stage writes through it. */
   const $ = (id) => document.getElementById(id);
 
   const WRAP_KEY = "sas-taper-lag-wrap"; /* must match the head script */
   let codeWrap = false;
   try { codeWrap = localStorage.getItem(WRAP_KEY) === "on"; } catch (e) { /* private mode */ }
+  /* Apply the Wrap/Scroll choice to the listings and the two buttons.
+     Scrolling is the default, so it is the absence of the attribute. */
   function applyCodeWrap(on) {
     if (on) document.documentElement.setAttribute("data-code-wrap", "on");
     else document.documentElement.removeAttribute("data-code-wrap");
     $("codeWrapOn").setAttribute("aria-pressed", String(on));
     $("codeWrapOff").setAttribute("aria-pressed", String(!on));
   }
+  /* Remember the Wrap/Scroll choice, then apply it. Silent if storage is
+     blocked. Removing the key (not storing "off") lets the default move later. */
   function setCodeWrap(on) {
     codeWrap = on;
     try {
@@ -573,15 +603,24 @@ n     = 6                                 <span class="c"># days at that dose</s
   const DAYS = 40;
   const FILM = 32;
 
+  /* Half-life slider is log-scaled: 8 h at 0, 2160 h (90 days) at 1000.
+     Linear would crush the 24-42 h film range into a few pixels. */
   const hlFromSlider = (v) => HL_MIN * Math.pow(HL_MAX / HL_MIN, Number(v) / 1000);
   const sliderFromHl = (h) => 1000 * Math.log(h / HL_MIN) / Math.log(HL_MAX / HL_MIN);
   const fmt = (n, d) => Number(n).toFixed(d);
   const fmtG = (n) => String(parseFloat(Number(n).toFixed(4)));
   const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+  /* Fraction remaining after one day: e^(−ln2 · 24 / half-life). Close to 1
+     for a long half-life, which is why a depot tail stays high. */
   function decayOf(halfLifeH) {
     return Math.exp(-Math.LN2 * 24 / halfLifeH);
   }
+  /* One-compartment, once-daily accumulation. Same function as
+     lagFromDoses in index.html. Level is expressed as the steady dose that
+     would produce it, so the curve sits on the same mg axis as the ladder.
+     Deliberately not plasma concentration. Returns one point per day,
+     including day 0 at the pre-taper steady state. */
   function lagFromDoses(doses, halfLifeH, startMg) {
     if (!(halfLifeH > 0) || !doses.length || !(startMg >= 0)) return [];
     const decay = decayOf(halfLifeH);
@@ -597,9 +636,15 @@ n     = 6                                 <span class="c"># days at that dose</s
     }
     return out;
   }
+  /* Closed form of one step from d0 to newD after n days:
+     newD + (d0 − newD) · decay^n. The tests check the recurrence against
+     this, so a change to the loop that is not also a change here shows up
+     as a failure rather than as new truth. */
   function closedStep(d0, newD, decay, n) {
     return newD + (d0 - newD) * Math.pow(decay, n);
   }
+  /* Default geometric 8 mg run, n = 6, down to about 1 mg. Same ladder the
+     calculator draws. Display-only. Never passed to buildSchedule. */
   function taperDoses() {
     const n = 6, r = 1 - 1 / n;
     const out = [];
@@ -612,6 +657,8 @@ n     = 6                                 <span class="c"># days at that dose</s
     }
     return out;
   }
+  /* Daily milligrams for the four scenarios the driver offers: a drop,
+     a jump, a washout, and the default taper. */
   function pathFor(mode) {
     if (mode === "jump") return { start: 4, doses: Array(DAYS).fill(8) };
     if (mode === "wash") return { start: 8, doses: Array(DAYS).fill(0) };
@@ -627,6 +674,8 @@ n     = 6                                 <span class="c"># days at that dose</s
   $("modes").innerHTML = MODES.map(([id, lab]) =>
     `<button type="button" data-m="${id}" aria-pressed="${id === mode}">${lab}</button>`).join("");
 
+  /* Draw the step line (dose) and the dashed lag curve for one or more
+     series. inspectDay is the circled point the reader is looking at. */
   function chartSvg(seriesList, inspectDay, ymaxHint) {
     const W = 560, H = 220, L = 40, R = 12, T = 12, B = 32;
     const iw = W - L - R, ih = H - T - B;
@@ -674,6 +723,7 @@ n     = 6                                 <span class="c"># days at that dose</s
     return inner;
   }
 
+  /* How much of a dose is still on board after 1, 6 and 30 days, as bars. */
   function remainBars(decay) {
     const rows = [
       ["after 1 day", Math.pow(decay, 1)],
@@ -686,6 +736,7 @@ n     = 6                                 <span class="c"># days at that dose</s
       + `<span class="n">${fmt(100 * v, 1)}%</span></div>`).join("")}</div>`;
   }
 
+  /* Redraw every stage from the current half-life and scenario. */
   function render() {
     const hlShow = Math.round(halfLifeH);
     $("hlRead").innerHTML = `${hlShow}<small>h</small>`;

@@ -7,7 +7,7 @@ A geometric buprenorphine (Suboxone) film-taper calculator. **Not medical advice
 - Live site: [bhbmaster.github.io/SAS-Taper](https://bhbmaster.github.io/SAS-Taper/) <--- Main site
 - Source: [github.com/bhbmaster/SAS-Taper](https://github.com/bhbmaster/SAS-Taper)  
 
-Each day you cut `1/n` off the current piece, **save** the short right sliver, and **take** the long left piece. After `n` days the save jar holds one full piece: a buffer, not extra daily dose. Next cycle the new "whole strip" is `dose × (1 − 1/n)`.
+Each day you cut `1/n` of the current piece. **Save** the short right sliver. **Take** the long left piece. After `n` days the save jar holds one full piece: a buffer, not extra daily dose. Next cycle the new whole strip is `dose × (1 − 1/n)`.
 
 Default: start 8 mg, **n = 6** (16.7% every 6 days), switch to 2 mg films once the strip reaches 2.25 mg.
 
@@ -27,7 +27,7 @@ The cut is the same physical act either way. What differs is what stays constant
 | CLI | default | `--cut-mode linear` |
 | cutting it | a new, smaller measurement each cycle | **measure once, reuse the same mark every day** |
 
-**Linear is the easier one to actually cut**, which is the practical reason to pick it. The mark never moves: you measure once and reuse it every day, instead of working out a new and smaller measurement each cycle, and it never shrinks into the sub-millimetre range where a razor and a ruler stop resolving. The site turns the 2 mg switch off in that mode and says why: the switch exists to rescue a cut that has got too fine, and here it never does.
+**Linear is the easier one to cut**, which is the practical reason to pick it. The mark never moves. Measure one time. Use that mark every day. You do not calculate a new and smaller measurement each cycle. It never becomes smaller than one millimetre, where a razor and a ruler stop resolving. The site disables the 2 mg switch in that mode and says why: the switch exists to rescue a cut that has become too fine. Here it never does.
 
 **It is also steeper where a taper is hardest.** Equal milligrams are growing percentages:
 
@@ -65,7 +65,7 @@ The calculator lives at **[bhbmaster.github.io/SAS-Taper](https://bhbmaster.gith
 
 There is no build step and no server. `index.html` is one self-contained file. All the CSS and JavaScript are inline and nothing is fetched over the network, so opening it straight from disk in any browser gives you the identical calculator, working offline. Clone the repo, or just save that one file and double-click it.
 
-Either way: measure your film **length only**, put that in the inputs, and the schedule / cut marks / graphs update live. Click a cycle for that day's ruler (TAKE left, SAVE right). Print it for your prescriber.
+Either way: measure your film **length only**. Put that in the inputs. The schedule, cut marks and graphs update live. Click a cycle for that day's ruler (TAKE left, SAVE right). Print it for your prescriber.
 
 ### Two ways to find the cut
 
@@ -82,21 +82,30 @@ A fold can only land on the fractions it can make, so the panel always states th
 
 **In linear mode the folds come out exact.** A constant step lands on `5/6, 2/3, 1/2, 1/3, 1/6` and so on, every cycle, so a linear taper can be cut from the first day to the last without measuring anything.
 
-### The four numbers at the strip
+### The numbers at the strip
 
 You should never have to do arithmetic while holding a razor. Five columns of the schedule are tinted as one block, and they are the whole job:
 
-| Column | What you do with it |
+| Column | What it is |
 |---|---|
-| **Take mg** | the dose, what you swallow |
-| **Take mm** | mark a full film that far from its **left** end, and cut once |
-| **Save mg** | what goes in the jar, in milligrams |
-| **Save mm** | everything right of the mark, the rest of the film |
-| **Δ save mm** | how much more the jar gets than last cycle |
+| **Take mg** | the dose you take each day. This is what goes in your mouth |
+| **Take mm** | mark a full film that far from its **left** end, then cut once |
+| **Save mg** | milligrams that go in the jar. Do not take this as extra dose |
+| **Save mm** | everything right of the mark. Put that in the jar |
+| **Δ save mm** | how much more the jar gets than last cycle. That extra is the sliver |
 
-Take + Save is the film you opened, so nothing is unaccounted for. The save is bigger than that cycle's sliver, because it also carries the part earlier cycles had already taken off, and it grows every cycle. That growth is Δ save, and it is the sliver. Δ save shows a dash where there is nothing comparable: a restart on a fresh 2 mg film, a day that opens fewer films than the last, or a day whose dose is a whole number of films and needs no cut.
+Take + Save is the film you opened, so nothing is unaccounted for. The save is larger than that cycle's sliver, because it also holds the part earlier cycles already removed, and it grows every cycle. That growth is Δ save, and it is the sliver. Δ save shows a dash where there is nothing to compare: a restart on a fresh 2 mg film, a day that opens fewer films than the last, or a day whose dose is a whole number of films and needs no cut.
 
-Everything else on the row is context. Units sit small and muted **beside every value as well as the heading**, so a row reads on its own, the same treatment as on the compare, prescription and film-size tables, and on the calendar. Not sure what a column means? Hover its heading on a desktop, or open **What each column means** under the table. Same twelve definitions either way.
+The other columns are running totals. They are not a second cut instruction:
+
+| Column | What it is |
+|---|---|
+| **Used mg** | milligrams you consumed in this cycle |
+| **Sum mg** | milligrams you have consumed since day 1 |
+| **Sum strips** | how many strips you consumed, at the strip strength you set. This is less than the strips you opened, because you saved some |
+| **Banked mg** | this cycle's slivers added up. After a full cycle that is one whole piece. Buffer, not extra daily dose |
+
+Units sit small and muted **beside every value as well as the heading**, so a row reads on its own, the same treatment as on the compare, prescription and film-size tables, and on the calendar. Not sure what a column means? Hover its heading on a desktop, or open **What each column means** under the table. Same twelve definitions either way.
 
 ## CLI
 
@@ -113,7 +122,7 @@ python3 taper.py --start-mg 20 --film-strength 12
 python3 test_taper.py          # math checks
 ```
 
-No extra packages. Python 3.11 is fine. Same math as the site. The table carries the same tinted block the site does: Take mg / Take mm / Save mg / Save mm / +Save mm. Cut marks are a full unused film: TAKE on the left, then the save, split into this cycle's extra (`#`) and the part already off before (`.`). Everything right of the take mark goes in the jar. `--cycle N` prints only that cycle's cut with the extra note. `--stop-mode above` matches the classic n=6/8/10 comparison (last cycle still strictly above target). `--start-date` adds real dates to the schedule, the same ones the site's calendar shows. `--film-strength` says which strength you actually hold, when it is not the one the start dose implies. `--cut-mode linear` switches from the default geometric cut to the linear one; the report names the mode, the day the dose reaches zero, and the percentage each step actually is.
+No extra packages. Python 3.11 is fine. Same math as the site. The table carries the same tinted block the site does: Take mg / Take mm / Save mg / Save mm / +Save mm. Cut marks are a full unused film: TAKE on the left, then the save, split into this cycle's extra (`#`) and the part already removed before (`.`). Everything right of the take mark goes in the jar. `--cycle N` prints only that cycle's cut with the extra note. `--stop-mode above` matches the classic n=6/8/10 comparison (last cycle still strictly above target). `--start-date` adds real dates to the schedule, the same ones the site's calendar shows. `--film-strength` says which strength you actually hold, when it is not the one the start dose implies. `--cut-mode linear` changes from the default geometric cut to the linear one. The report names the mode, the day the dose reaches zero, and the percentage each step actually is.
 
 ## Tests
 
@@ -212,16 +221,16 @@ All three run in GitHub Actions on every push and pull request.
 
 ## Method (every day of a cycle)
 
-0. Pick a cut mode. Geometric (default) or linear, see [Two cut modes](#two-cut-modes). Everything below is the same either way; only the size of the next cut differs.
-1. Start with the current "whole strip" (cycle 1: a full 8 mg film, or several if your dose is bigger than one).
-2. Keep full width; cut along length only. Mark, then cut with a razor, not scissors.
-3. Cut `1/n` off the **right** end. Save that sliver. Take the long left piece. Once daily. If the day is more than one film, cut one of them and take the rest whole.
-4. After `n` days the save jar holds one full piece. Do not use the bank as extra daily dose or the taper never drops.
-5. Next cycle, the leftover size is the new whole strip. In geometric mode that means the next cut is smaller; in linear mode you cut the identical piece again. Repeat to the target (default 1 mg), or in linear mode until there is nothing left to cut.
+0. Pick a cut mode. Geometric (default) or linear. See [Two cut modes](#two-cut-modes). Everything below is the same either way. Only the size of the next cut differs.
+1. Start with the current whole strip. For cycle 1, this is one full 8 mg film. If your dose is larger than one film, start with that number of films.
+2. Keep the full width. Cut along the length only. Mark the cut first. Then cut with a razor. Do not use scissors.
+3. Cut `1/n` from the **right** end. Save that sliver. Take the long left piece. Take the dose one time each day. If the day is more than one film, cut one of them and take the rest whole.
+4. After `n` days the save jar holds one full piece. Do not take the bank as extra daily dose. If you do, the taper does not decrease.
+5. Next cycle, the leftover size is the new whole strip. In geometric mode the next cut is smaller. In linear mode you cut the identical piece again. Repeat until you reach the target (default 1 mg). In linear mode, repeat until there is nothing left to cut.
 
-**Cutting aids:** a steel ruler and a fresh blade on a mat covers most of the ladder; if your cuts wander, purpose-made film slicers exist (search "Suboxone film cutter" or "subslicer"). **Below what you can cut:** some people move to liquid dosing. A 2 mg film in 20 mL is *theoretically* 0.1 mg/mL, but that is not manufacturer-sanctioned, buprenorphine is only sparingly water-soluble so the real strength can differ from the arithmetic, and a homemade solution is not sterile. Raise it with your prescriber first.
+**Cutting aids.** A steel ruler and a new blade on a mat covers most of the ladder. If your cuts wander, purpose-made film slicers exist (search "Suboxone film cutter" or "subslicer"). **Below what you can cut.** Some people move to liquid dosing. A 2 mg film in 20 mL is *theoretically* 0.1 mg/mL. The manufacturer does not sanction this. Buprenorphine is only sparingly water-soluble, so the real strength can differ from the arithmetic. A homemade solution is not sterile. Raise it with your prescriber first.
 
-Hold a cycle if cravings spike, sleep goes, or you are restless and sweating. When the sliver is under ~1 mm, switch to 2 mg films. Lock up saved pieces (dangerous to kids and pets). Ask the prescriber to step quantity down with the dose.
+Hold a cycle if cravings spike, sleep goes, or you are restless and sweating. When the sliver is under ~1 mm, change to 2 mg films. Lock saved pieces (dangerous to children and pets). Ask the prescriber to decrease quantity with the dose.
 
 ## More than one film a day
 
@@ -229,7 +238,7 @@ Start at 16 mg with 8 mg strips and one day's dose is two films. That is support
 
 > **2 × 8 mg films a day: 1 taken whole, plus the marked one below.**
 
-Take the whole ones as they are; **only one strip is ever cut, on any day, at any dose**. Picture the day laid end to end: you take from the left, and everything past the mark goes in the jar. So you open only the strips the dose actually reaches. A strip that would be opened purely to put it in the jar stays in the box. The schedule's Film column shows `×2`, the calendar puts a small `×2` beside the dose, and both drawings show one bar per strip you open.
+TAKE the whole ones as they are. **Only one strip is ever cut, on any day, at any dose**. Picture the day laid end to end. You take from the left. Everything past the mark goes in the jar. So you open only the strips the dose actually reaches. A strip that would be opened only to put it in the jar stays in the box. The schedule's Film column shows `×2`. The calendar puts a small `×2` beside the dose. Both drawings show one bar per strip you open.
 
 The **Life-size film** panel is the one exception, on purpose: pick a different strength in the size table and it redraws the same day on that film, film count and all, so you can see what a 32 mg day looks like on 12 mg strips instead of 8 mg ones. The cut-mark panel above always stays on the strength your inputs describe.
 
@@ -237,9 +246,9 @@ Above 12 mg no single official film holds the dose, so the plan defaults to 8 mg
 
 ## Limitation
 
-The schedule runs on **one film strength at a time** and either stays on that strength or **switches only to 2 mg films**. It does not auto-step 12 → 8 → 4 mg. Clicking those rows on the site only changes the life-size drawing.
+The schedule runs on **one film strength at a time**. It then keeps that strength, or it **changes only to 2 mg films**. It does not auto-step 12 → 8 → 4 mg. A click on those rows on the site only changes the life-size drawing.
 
-To plan a different start, change the inputs and recalc. Try start dose 12, start dose 4, or turn off the 2 mg switch to stay on 8 mg films the whole way. The base film is the smallest official strength that holds the start dose (2 / 4 / 8 / 12 mg), and 8 mg above that; `--film-strength` overrides it if you are cutting something else.
+To plan a different start, change the inputs and calculate again. Try start dose 12, start dose 4, or disable the 2 mg switch to stay on 8 mg films the whole way. The base film is the smallest official strength that holds the start dose (2 / 4 / 8 / 12 mg), and 8 mg above that. `--film-strength` overrides it if you are cutting something else.
 
 All four Suboxone strengths measure 22 mm on the side this tool cuts, so the film-length input is the same number whichever you start on. The two low strengths (2 and 4 mg) share one density and the two high ones (8 and 12 mg) share another that is 4× as concentrated, which is why moving from 8 mg to 2 mg films makes the same dose four times longer, and the same cut four times more forgiving.
 
