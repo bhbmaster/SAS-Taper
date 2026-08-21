@@ -858,7 +858,7 @@ class TestFractionCut(unittest.TestCase):
     FULL, WIDE = 22.0, 12.8
 
     def each(self, tol_mg=0.0, film_mg=8.0):
-        """Walk the whole 0 to 1 range in fine steps, plus the exact grid points."""
+        """Walk the whole 0-1 range in fine steps, plus the exact grid points."""
         seen = set()
         for i in range(1, 1001):
             seen.add(i / 1000)

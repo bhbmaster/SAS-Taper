@@ -46,7 +46,7 @@ People work with what is in hand. Surplus that stays in view is easier to use, a
 
 ## Pace
 
-Every step is held for days on purpose. Buprenorphine's half-life is long, usually quoted as 24 to 42 hours, so a new dose needs most of a cycle to land: about 88 to 91% of the way there on day 1, and 98 to 100% by day 6. That is why the ladder moves in cycles instead of shaving a little off every day, and it puts a floor under how fast this can honestly go. The default is roughly two months from 8 mg to 1 mg.
+Every step is held for days on purpose. Buprenorphine's half-life is long, usually quoted as 24-42 hours, so a new dose needs most of a cycle to land: about 88-91% of the way there on day 1, and 98-100% by day 6. That is why the ladder moves in cycles instead of shaving a little off every day, and it puts a floor under how fast this can honestly go. The default is roughly two months from 8 mg to 1 mg.
 
 Plenty of people need longer than that, and the tool is built for it. Hold a cycle, raise `n`, or stretch the cycle length:
 
@@ -147,7 +147,7 @@ The taper maths is written **twice**: `buildSchedule()` in `index.html` and `bui
 
 It loads `index.html` in a headless browser, runs both implementations over the same inputs, and diffs the results, comparing all 28 fields of every cycle row, 9 summary figures, every 30-day month bucket, and the n = 6/8/10 comparison table.
 
-**43 named schedules** go through the CLI, so the argument plumbing is covered too: start doses 0.1 to 64 mg, `n` from 2 to 30, the 2 mg switch on and off, stretched cycles, `n`-below-3, non-default film lengths and strengths, doses needing two to eight films a day, clamp boundaries, empty ladders.
+**43 named schedules** go through the CLI, so the argument plumbing is covered too: start doses 0.1-64 mg, `n` from 2 to 30, the 2 mg switch on and off, stretched cycles, `n`-below-3, non-default film lengths and strengths, doses needing two to eight films a day, clamp boundaries, empty ladders.
 
 **1,280 more** go straight at `build_schedule()`, the whole grid in both cut modes, in one Python process: every start dose from 1 to 32 mg against every official film strength, `n` from 2 to 30, and two non-default film lengths. That is **13,567 cycles** compared field by field, up to a sixteen-strip day. It also checks the shape of its own coverage, so a grid that stopped producing multi-film days would fail rather than pass silently. Then `baseFilmMg` across 11 film sizes.
 

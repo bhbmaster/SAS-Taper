@@ -154,7 +154,7 @@ Two cut modes (--cut-mode)
   remember that holding a cycle is available in either mode.
 
 If it gets rough: hold this dose another cycle (cravings matter most). Stretch the
-cycle to 8 or 9 days or switch n to 10 below 3 mg. When the sliver is under ~1 mm,
+cycle to 8-9 days or switch n to 10 below 3 mg. When the sliver is under ~1 mm,
 switch to 2 mg films. Lock up saved pieces. Step the prescribed quantity down
 with the dose.
 
@@ -222,16 +222,16 @@ Practical notes
 - Once daily is fine at every level here. Buprenorphine's half-life is long
   enough that splitting doses buys you nothing.
 - Every step is held for days on purpose. That same long half-life means a new
-  dose needs most of a cycle to land: about 88 to 91% of the way there on
-  day 1, and 98 to 100% by day 6, across the usual 24 to 42 hour range. It is why the
+  dose needs most of a cycle to land: about 88-91% of the way there on
+  day 1, and 98-100% by day 6, across the usual 24-42 hour range. It is why the
   ladder moves in cycles instead of shaving a little off daily, and it puts a
   floor under how fast this can honestly go: the default is roughly two months
   from 8 mg to 1 mg. Plenty of people need longer than that, and the tool is
   built for it. Hold a cycle, raise --n, or stretch --hold-days. --n 10
   --hold-days 9 is about six months. Going slower is a plan, not a failure.
-- 16.7% every 6 days (n=6) is at the fast end of typical 10 to 25% steps. You may
+- 16.7% every 6 days (n=6) is at the fast end of typical 10-25% steps. You may
   not feel a drop until day 4 or 5, right as you are about to drop again. Hedge
-  by stretching the cycle to 8 or 9 days (same cut, more settling time) or switch
+  by stretching the cycle to 8-9 days (same cut, more settling time) or switch
   to n=10 below 3 mg.
 - Ask about the long-acting injections. Sublocade (monthly) and Brixadi
   (weekly or monthly) are buprenorphine, the same active drug as your film
@@ -240,9 +240,9 @@ Practical notes
   First, you do not have to reach the bottom of this ladder before switching:
   both are labelled for a direct transfer from an established daily sublingual
   dose. Second, after the LAST injection the drug leaves over months rather than
-  days. The prescribing information puts the terminal half-life at roughly 43 to
-  60 days for Sublocade and 19 to 26 days for monthly Brixadi, against the 24 to
-  42 hours this tool assumes for a film. That is why people describe the ending as
+  days. The prescribing information puts the terminal half-life at roughly 43-60
+  days for Sublocade and 19-26 days for monthly Brixadi, against the 24-42 hours
+  this tool assumes for a film. That is why people describe the ending as
   tapering itself. That is a fair reading of the pharmacology, but NEITHER
   PRODUCT IS APPROVED AS A TAPER, and withdrawal can still arrive, sometimes
   weeks or months after the final shot, so it needs watching for longer than you
@@ -534,7 +534,8 @@ class FractionCut:
     side, which is what makes 5/6 on a 3x2 grid two strokes rather than three.
 
     error_mg is the dose this lands on minus the dose the ladder asked for. It
-    is not hidden: a fraction cut is an approximation and every surface says so.
+    is not hidden: a fraction cut is an approximation and the panel, the CLI and
+    the schedule all say so.
     """
 
     long_div: int
@@ -1656,7 +1657,7 @@ def result_to_json(sched: ScheduleResult, compare: Optional[list[dict[str, Any]]
         sched: the built schedule.
         compare: optional compare_classic() rows to include under "compare".
     Returns:
-        asdict(sched), plus the optional compare key. This is the surface
+        asdict(sched), plus the optional compare key. This is the payload
         test_parity.js diffs against index.html, so these field names are part
         of the contract between the two implementations.
     """

@@ -105,7 +105,7 @@ main()
 
 **The two front ends handle bad input differently on purpose.** `build_schedule` raises `ValueError` for a non-positive dose, a non-positive film length or strip strength, or `n < 2`, and the CLI exits 2. The site cannot throw at its reader mid-typing, so `clampOpts()` bounds every field, writes the corrected value back into the box, and reports what it changed in the `#warnings` banner.
 
-The two sets of limits are *not* identical, and that is worth knowing before you assume otherwise: the CLI rejects only what is nonsensical, while the site also imposes upper bounds it can keep a reader inside: `n` 2 to 30, start dose 0.1 to 64 mg, film length 1 to 200 mm, film strength 0.1 to 12 mg. `python3 taper.py --n 1000` runs; typing 1000 into the site clamps to 30 and says so.
+The two sets of limits are *not* identical, and that is worth knowing before you assume otherwise. The CLI rejects only what is nonsensical, while the site also imposes upper bounds it can keep a reader inside: `n` 2-30, start dose 0.1-64 mg, film length 1-200 mm, film strength 0.1-12 mg. `python3 taper.py --n 1000` runs; typing 1000 into the site clamps to 30 and says so.
 
 ---
 
@@ -204,7 +204,7 @@ So the save is not the sliver. It is the sliver *plus everything earlier cycles 
 delta_save_mm = save_mm(k) − save_mm(k−1) ≡ cut_mm(k)
 ```
 
-The identity holds because `take(k−1)` is `piece(k)`: the difference of two "full minus take" figures is exactly this cycle's sliver. Two things break it, and both make "extra" meaningless rather than merely different. A **2 mg restart** puts a different film underneath, and a cycle that **drops a whole film** from the day changes how much film is opened at all. A day with **no cut** breaks it too, having nothing to compare. In all three `delta_save_mm` is `None` and every surface shows a dash. A no-cut cycle also leaves the baseline where it was, so the next real cut is compared with the last real cut rather than with zero.
+The identity holds because `take(k−1)` is `piece(k)`: the difference of two "full minus take" figures is exactly this cycle's sliver. Two things break it, and both make "extra" meaningless rather than merely different. A **2 mg restart** puts a different film underneath, and a cycle that **drops a whole film** from the day changes how much film is opened at all. A day with **no cut** breaks it too, having nothing to compare. In all three `delta_save_mm` is `None` and the schedule, cards and calendar all show a dash. A no-cut cycle also leaves the baseline where it was, so the next real cut is compared with the last real cut rather than with zero.
 
 The one reported case where the delta is *not* the sliver is the **first cut of a run**, where the baseline is still an empty jar and the delta is the whole save. Both front ends detect that (`delta == save`) and word it "the first cut of this strip" rather than "more than last cycle", which beside an identical SAVE figure would read as a mistake.
 
@@ -235,7 +235,7 @@ Two things about the search are load-bearing:
 
 The result is deterministic, same arguments and same cut, so the drawing never moves under a reader who has changed nothing. **`fold.html`** is a second shipped page explaining all of the above: the whole algorithm in one annotated block, then the same thing as seven live stages driven by a slider. The listing scrolls sideways rather than wrapping, with a Wrap button for readers who want the lines taken apart. It reimplements the search a third time, in the page, deliberately. It is an explainer, not the tool, and nothing doses off it. It is self-contained like `index.html` and the layout sweep checks that, plus that its links home still resolve, and that the glossary still names the listing. Stage 02's ladder doubles as a picker: 54 ticks, a `<select>` carrying the same 54 for the keyboard, and a comparison panel that draws whatever is picked next to the search's own choice. The panel itemises both difficulty scores from `SCORE_ROWS`, the single list `difficulty()` sums, so the number and the account of the number cannot drift; the sweep adds up the printed rows and checks they equal the printed total. It also names the one outcome that must never occur: a fold the search considered and could have had for fewer points than the one it chose. The sweep fails if that verdict ever renders, which makes the pool's difficulty-first sort a tested claim rather than a comment. `test_parity.js` sweeps 13,920 cases across six film sizes and four tolerances, because a search with a tie-break is exactly the kind of code that drifts between two implementations.
 
-Every surface states the error in milligrams. **An approximation whose size the reader cannot see is worse than no approximation**, and the panel refuses to imply otherwise.
+Every drawing states the error in milligrams. **An approximation whose size the reader cannot see is worse than no approximation**, and the panel refuses to imply otherwise.
 
 In **linear mode the folds are exact at every cycle**. A constant step lands on `5/6, 2/3, 1/2, 1/3, 1/6`, so a linear taper needs no ruler at all. `TestFractionCut` asserts that for n = 4, 6 and 8.
 
@@ -360,7 +360,7 @@ All four re-run on resize as well as on render, because a rotation leaves the ol
 
 `fitCalCells()` only works because `.cal-cell .mg` and `.cal-cell .cut` are `white-space: nowrap`. It compares `scrollWidth` with `clientWidth`, and a line allowed to wrap never overflows. It grows a fourth row and pushes the whole calendar taller instead. That is exactly what happened the moment units were added to the cell values.
 
-Cells are far tighter than the window suggests: three month grids sit side by side, so a day is about **36 to 44 px wide however large the screen is**. Two things were dropped to make room for units there, both because something else on the page already says them:
+Cells are far tighter than the window suggests: three month grids sit side by side, so a day is about **36-44 px wide however large the screen is**. Two things were dropped to make room for units there, both because something else on the page already says them:
 
 - **The mode word.** "save 11.39 mm" wants 70 px in 36 px. The mode is named on the button, in the legend and in the key under the grid; "mm" is the only thing saying what the number is, so the word goes and the unit stays.
 - **The ×N pill, when it is what does not fit.** "13.33 mg ×2" wants 48 px in the 44 px a two-strip run gets at 768 px. `fitCalCells()` adds `no-fx` to the panel and re-measures. ×N is constant across a whole cycle and is already on the schedule row, the cut mark, the day's tooltip and the key, and it is dropped from every cell at once, because a grid where some days carry ×2 and others do not is a lie about the days that do not. The 420 px tier drops it for the same reason; this decides by measurement instead of by a fixed width.
@@ -437,7 +437,7 @@ Named classes cover the closed forms against the simulation, the per-cycle invar
 | Δ save is blank for exactly the three stated reasons | a fourth, unnamed reason would be a column the reader cannot trust, and a stated reason the grid never reaches would be a claim with nothing behind it |
 | the save grows on every cycle that reports a Δ | the thing the method is sold on |
 
-`TestFractionCut` covers the folded-grid cut over the whole 0 to 1 range and every exact grid point: the piece really is the fraction it claims, the cut count matches the shape the drawing builds from, a zero tolerance takes the closest fraction available, a non-zero one caps the error rather than adding to it, extra slack is only ever spent on fewer cuts, a plain half comes out crosswise, the result is deterministic, the brief's six example fractions are all reachable exactly, and every cycle of a linear run is exact at n = 4, 6 and 8.
+`TestFractionCut` covers the folded-grid cut over the whole 0-1 range and every exact grid point: the piece really is the fraction it claims, the cut count matches the shape the drawing builds from, a zero tolerance takes the closest fraction available, a non-zero one caps the error rather than adding to it, extra slack is only ever spent on fewer cuts, a plain half comes out crosswise, the result is deterministic, the brief's six example fractions are all reachable exactly, and every cycle of a linear run is exact at n = 4, 6 and 8.
 
 `TestTakeAndSave` covers the pair the reader acts on: take and save partition the film with nothing between them, the worked default by hand, linear mode saving the same extra every cycle while the total climbs by that step, and the three cases where `delta_save_mm` has to be `None`: a 2 mg restart, a cycle that drops a whole film, and a day that lands on a film boundary and saves nothing without moving the baseline for the next real cut.
 
@@ -445,12 +445,12 @@ An eleventh test checks **the shape of the coverage itself**: that the matrix re
 
 ### `test_parity.js`: 1,323 schedules
 
-The suite that keeps the site's promise true. It loads `index.html` in headless Chromium, reaches into `window.SASTaperInternals` (a frozen, read-only test surface exposed at the bottom of the IIFE; the page itself never uses it), and diffs against `taper.py`.
+The suite that keeps the site's promise true. It loads `index.html` in headless Chromium, reaches into `window.SASTaperInternals` (a frozen, read-only object the tests read, exposed at the bottom of the IIFE; the page itself never uses it), and diffs against `taper.py`.
 
 Two phases:
 
-- **43 named cases** go through the CLI (`python3 taper.py --json`), so the argument plumbing is covered too. Start doses 0.1 to 64 mg, `n` 2 to 30, the switch both ways, stretched cycles, `n`-below-3, non-default lengths and strengths, clamp boundaries, empty ladders.
-- **1,280 matrix cases** go straight at `build_schedule()` in one Python process: 1 to 32 mg × all four strengths × `n` 2 to 30 × **both cut modes**, plus non-default film lengths. **13,567 cycles**, compared field by field.
+- **43 named cases** go through the CLI (`python3 taper.py --json`), so the argument plumbing is covered too. Start doses 0.1-64 mg, `n` 2-30, the switch both ways, stretched cycles, `n`-below-3, non-default lengths and strengths, clamp boundaries, empty ladders.
+- **1,280 matrix cases** go straight at `build_schedule()` in one Python process: 1-32 mg × all four strengths × `n` 2-30 × **both cut modes**, plus non-default film lengths. **13,567 cycles**, compared field by field.
 
 Every one of the 28 row fields is compared, plus 9 summary figures, every 30-day month bucket, the n = 6/8/10 comparison table, and `base_film_mg` over 11 film sizes. That is **about 644,000 field comparisons**, which the suite counts as it goes and prints. `fractionCut()` gets its own sweep of 13,920 cases on top of the ladder. Field naming is bridged automatically (`cutTakeMm` → `cut_take_mm`), so **a field added to one side and not the other fails the test** rather than being skipped.
 

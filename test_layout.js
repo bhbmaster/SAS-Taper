@@ -3,7 +3,7 @@
  *
  * index.html has to stay readable from a 280px phone to a 1920px desktop, in
  * both themes, and several of its parts are positioned from measured pixels
- * rather than by normal flow, the ruler tick captions, the life-size cut
+ * rather than by normal flow: the ruler tick captions, the life-size cut
  * label, the calendar grid. Those have broken four separate times: captions
  * stacked on each other, a percentage painted over a button, "SAVE" sliced in
  * half, the page scrolling sideways on a narrow phone.
@@ -157,9 +157,6 @@ const probe = () => {
 };
 
 (async () => {
-  const browser = await launchOrSkip();
-  if (!browser) process.exit(0);
-
   /* Two counters, because they are two different things and the summary line
      used to conflate them: `states` is one rendered page measured end to end
      (a width × theme × cycle × mode combination), `checks` is every assertion
@@ -167,6 +164,80 @@ const probe = () => {
   const failures = [];
   let checks = 0;
   let states = 0;
+  const fs = require("fs");
+  const path = require("path");
+
+  /* The unslop pass is punctuation and ranges, not layout, so this scan does
+     not need a browser. Em dashes, en dashes, curly quotes and the ellipsis
+     character are the tells; compact numeric ranges stay hyphenated ("24-42
+     hours") rather than spelled "to". */
+  {
+    const files = [
+      "index.html", "fold.html", "taper.py", "test_taper.py",
+      "test_parity.js", "test_layout.js", "test_browser.js",
+      "README.md", "ARCHITECTURE.md", "CLAUDE.md", "CONTRIBUTING.md",
+    ];
+    const tells = [
+      ["em dash", "\u2014"],
+      ["en dash", "\u2013"],
+      ["curly quote", /[\u2018\u2019\u201C\u201D]/],
+      ["ellipsis character", "\u2026"],
+    ];
+    /* User-facing files and docs only: the list below lives in this file. */
+    const rangeFiles = [
+      "index.html", "fold.html", "taper.py",
+      "README.md", "ARCHITECTURE.md", "CLAUDE.md", "CONTRIBUTING.md",
+    ];
+    const forbidden = [
+      "24 to 42", "88 to 91%", "98 to 100%", "10 to 25%",
+      "8 to 9 days", "0 to 1 range", "36 to 44", "43 to 60",
+      "19 to 26 days", "`n` 2 to 30", "0.1 to 64",
+    ];
+    const required = [
+      ["24-42 hours", ["index.html", "taper.py", "README.md"]],
+      ["88-91%", ["index.html", "taper.py", "README.md"]],
+      ["8-9 days", ["index.html", "taper.py"]],
+      ["0-1 range", ["ARCHITECTURE.md", "test_taper.py"]],
+    ];
+    for (const name of files) {
+      const text = fs.readFileSync(path.join(__dirname, name), "utf8");
+      checks++;
+      for (const [label, needle] of tells) {
+        const hit = needle instanceof RegExp ? needle.test(text) : text.includes(needle);
+        if (hit) failures.push(`${name} still has an ${label}`);
+      }
+    }
+    for (const name of rangeFiles) {
+      const text = fs.readFileSync(path.join(__dirname, name), "utf8");
+      checks++;
+      for (const s of forbidden) {
+        if (text.includes(s)) {
+          failures.push(`${name} spells a numeric range as "${s}" rather than with a hyphen`);
+        }
+      }
+    }
+    for (const [s, homes] of required) {
+      checks++;
+      const missing = homes.filter((name) =>
+        !fs.readFileSync(path.join(__dirname, name), "utf8").includes(s));
+      if (missing.length) {
+        failures.push(`numeric range "${s}" is gone from ${missing.join(", ")}`);
+      }
+    }
+    checks++;
+    if (files.length < 10 || rangeFiles.length < 5 || required.length < 4) {
+      failures.push("prose scan dropped files or ranges it is supposed to cover");
+    }
+  }
+
+  if (failures.length) {
+    console.error(`FAILED: ${failures.length} prose problem(s) across ${checks} checks:`);
+    for (const f of failures) console.error("  " + f);
+    process.exit(1);
+  }
+
+  const browser = await launchOrSkip();
+  if (!browser) process.exit(0);
   const record = (where, r, errs) => {
     checks++;
     states++;
@@ -336,7 +407,7 @@ const probe = () => {
 
   /* 3. Inputs that reshape the page: doses needing more than one film a day, a
         target that yields no ladder, the longest run the cap allows. The
-        multi-film cases each name the cycles worth looking at, a two-strip run
+        multi-film cases each name the cycles worth looking at. A two-strip run
         grows a kit banner, a ×N pill and, at the cycle where the ladder crosses
         a whole-film boundary, a second film bar and its caption. */
   for (const [label, fields, cycles] of [
@@ -544,7 +615,7 @@ const probe = () => {
       failures.push(`measuring did not survive a reload (${JSON.stringify(kept)})`);
     }
     /* No probe() here: a reload drops the globals openPage injects, and this
-       block is asserting persistence rather than geometry, the sweeps above
+       block is asserting persistence rather than geometry. The sweeps above
        already measured both modes at eight width/theme combinations. */
     checks++;
     if (errs.length) failures.push(`mode persistence: ${errs.join("; ")}`);
@@ -699,7 +770,7 @@ const probe = () => {
   }
 
   /* 7. The schedule header tooltips. Mouse-and-keyboard only by design, so the
-        sweep cannot see them, hover has to be driven explicitly. Three things
+        sweep cannot see them. Hover has to be driven explicitly. Three things
         matter: they appear on a desktop pointer, they stay inside the viewport
         (they are position:fixed precisely because the table's scroll container
         would clip anything else), and they never appear on a touch device. */
@@ -770,7 +841,7 @@ const probe = () => {
         for (const tr of rows) {
           [...tr.children].forEach((td, i) => {
             const txt = td.textContent.trim();
-            /* Cycle, Days and the em-dash in Δ save are the cells with no unit
+            /* Cycle, Days and the dash in Δ save are the cells with no unit
                to carry: an index, a day range, and "not applicable". */
             if (i <= 1 || txt === "-") return;
             if (!td.querySelector(".u")) bad.push(`col ${i} "${txt}"`);
@@ -1046,8 +1117,8 @@ const probe = () => {
             failures.push(`fold.html Scroll at ${width}px left no sideways scroller on the listing`);
           }
           /* The scroller has to stay inside the listing. If the <pre> widens
-             the page instead, the reader drags the whole article sideways,
-             and the page-level overflow check above cannot see it, because it
+             the page instead, the reader drags the whole article sideways.
+             The page-level overflow check above cannot see it, because it
              runs before either button is touched. */
           const after = await page.evaluate(probe);
           checks++;
@@ -1174,7 +1245,7 @@ const probe = () => {
        Scroll again has to clear the key rather than store "off", so that
        moving the default later does not leave old readers pinned to today's
        one. Whether the restore happens before first paint is checked
-       statically below, by the time Playwright can evaluate anything, both
+       statically below. By the time Playwright can evaluate anything, both
        scripts have run and the two are indistinguishable. */
     {
       const ctx = await browser.newContext({ viewport: { width: 320, height: 900 } });

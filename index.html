@@ -381,7 +381,7 @@
     .ruler-meta { display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
     .ruler-meta strong { font-size: 1.05rem; }
     /* Film specimen. A real Suboxone film is orange, so TAKE and SAVE keep one
-       fixed palette in both themes, themed tokens would recolour the product.
+       fixed palette in both themes. Themed tokens would recolour the product.
        The film outline's own backdrop is only ever visible through the
        "already off" region, so it uses the themed absence tokens. */
     /* ---- Cut-mark bar: the schematic full film, TAKE / SAVE / already off
@@ -848,7 +848,7 @@
     .fold-facts b { color: var(--ink); font-weight: 700; }
     .fold-facts .err.ok { color: var(--accent); font-weight: 700; }
     .fold-facts .err.off { color: var(--warn-ink); font-weight: 700; }
-    /* The chosen fraction, set as a real stacked fraction, "5/6" on one line
+    /* The chosen fraction, set as a real stacked fraction. "5/6" on one line
        reads as a date or a ratio, and this is neither. */
     .fold-frac { display: inline-grid; justify-items: center; vertical-align: middle; margin: 0 0.2em; }
     .fold-frac .n, .fold-frac .d { font-size: 0.82em; font-weight: 700; line-height: 1.05; color: var(--ink); }
@@ -1027,7 +1027,7 @@
         <div><dt>Hold / stretch days <span class="def">[blank = same as n]</span><span class="sep"> · </span></dt><dd>Makes every cycle longer without changing the size of the cut. Set 9 with n = 6 and you still cut 1/6, but hold each dose for 9 days instead of 6. Same taper, more settling time between drops.</dd></div>
         <div><dt>n below 3 mg <span class="def">[blank = off]</span><span class="sep"> · </span></dt><dd>Switches to a different n once the strip you are cutting from drops under 3 mg, where the same percentage is a much smaller piece of film. Setting 10 here makes the back half drop 10% per cycle instead of 16.7%.</dd></div>
         <div><dt>Your cutting tolerance (mm) <span class="def">[0.5]</span><span class="sep"> · </span></dt><dd>How accurately you can cut. Half a millimetre is realistic with a razor and a steel ruler. It feeds the "cutting error vs the step" graph, and it sets how much simplicity the life-size film's <strong>Folding</strong> mode may buy: a fold no further out than your own slip is offered in place of a closer but fiddlier one. It never changes the schedule. Set it to 0 to hide that graph and to always take the closest fold.</dd></div>
-        <div><dt>Half-life for the lag curve (h) <span class="def">[32]</span><span class="sep"> · </span></dt><dd>Buprenorphine's half-life, usually quoted as 24 to 42 hours. Draws the dashed lag curve on the first graph and nothing else. Set it to 0 to hide the curve.</dd></div>
+        <div><dt>Half-life for the lag curve (h) <span class="def">[32]</span><span class="sep"> · </span></dt><dd>Buprenorphine's half-life, usually quoted as 24-42 hours. Draws the dashed lag curve on the first graph and nothing else. Set it to 0 to hide the curve.</dd></div>
         <div><dt>Day 1 date <span class="def">[blank = no calendar]</span><span class="sep"> · </span></dt><dd>The date you plan to start. Fills in the Calendar panel with real dates and marks today, so you can see which cycle you are on. Leave blank and the plan stays in day numbers.</dd></div>
         <div><dt>Switch to 2 mg films at or below 2.25 mg <span class="def">[on]</span><span class="sep"> · </span></dt><dd>When the strip you cut from reaches 2.25 mg, restart on a 2 mg film. A 2 mg film is a quarter the density, so the same dose is four times longer and the same cut is four times more forgiving. Turn it off to stay on one strength the whole way.</dd></div>
         <div><dt>Show n = 6 / 8 / 10 comparison <span class="def">[on]</span><span class="sep"> · </span></dt><dd>Adds the panel and graph comparing three taper speeds side by side, so you can see what slowing down costs in time and total medication.</dd></div>
@@ -1042,7 +1042,7 @@
           <li>Start the cycle with a piece that is the current "whole strip" (cycle 1: a full 8 mg film, or several if your dose is bigger than one film).</li>
           <li>Keep the full width. Cut only along the length. Mark, then cut with a fresh razor on a mat, not scissors. (The film panel's <strong>Folding</strong> mode is the one exception, and it draws both cuts for you.)</li>
           <li>Cut 1/n off the <strong>right</strong> end. That short sliver goes in the save jar. Take the long left piece. Once daily is enough. If the day is more than one film, take the whole ones as they are and mark only the last: one cut a day, whatever the dose.</li>
-          <li>In practice you open a <strong>fresh film</strong> each day rather than keeping yesterday's piece, so measure the same cut from the other end: mark <strong>Take mm from the left</strong>, and everything right of that mark, <strong>Save mm</strong> , goes in the jar. It is the same cut. From cycle 2 on, the save is larger than the sliver, because it also carries the part earlier cycles had already taken off; it grows every cycle, and that growth is the <strong>Δ save</strong> column, which is the sliver.</li>
+          <li>In practice you open a <strong>fresh film</strong> each day rather than keeping yesterday's piece, so measure the same cut from the other end: mark <strong>Take mm from the left</strong>, and everything right of that mark, <strong>Save mm</strong>, goes in the jar. It is the same cut. From cycle 2 on, the save is larger than the sliver, because it also carries the part earlier cycles had already taken off; it grows every cycle, and that growth is the <strong>Δ save</strong> column, which is the sliver.</li>
           <li>Do that for n days. The save jar now holds one full piece of this cycle's size. That is a <strong>buffer / safety net, not extra daily dose</strong>. If you eat the bank, the dose never drops.</li>
           <li>Next cycle, the leftover size is the new whole strip. In the default <strong>geometric</strong> mode that is dose × (1 − 1/n) and the cut shrinks with it; in <strong>linear</strong> mode you cut the identical piece again, so the dose steps down by the same milligrams every time. Repeat until you hit the target, or in linear mode until there is nothing left to cut.</li>
         </ol>
@@ -1051,7 +1051,7 @@
       <h3>If it gets rough</h3>
       <ol>
         <li>Hold: stay at this cycle's daily dose for another n days. Cravings, bad sleep, restlessness, sweats and GI upset are all data, cravings most of all. Holding is not failure.</li>
-        <li>Optional hedges: stretch each cycle to 8 to 9 days (same 1/n cut, more settling time), or switch n to 10 once you are below 3 mg.</li>
+        <li>Optional hedges: stretch each cycle to 8-9 days (same 1/n cut, more settling time), or switch n to 10 once you are below 3 mg.</li>
         <li>When the sliver is under ~1 mm, stop shaving 8 mg films. Switch to 2 mg films, which happens by default once the strip reaches 2.25 mg, so the same cut is four times more forgiving.</li>
         <li>Store saved pieces airtight, dry, separated by wax paper, and locked up. Ask the prescriber to step the monthly quantity down; return surplus via pharmacy take-back.</li>
       </ol>
@@ -1266,10 +1266,10 @@
         <li><strong>The two cut modes trade different things.</strong> Geometric holds the percentage step constant and lets the milligrams shrink. That is the gentler shape at the low end, but it never reaches zero. Linear holds the milligrams constant and lets the percentage grow. It reaches zero on a schedule, but the last steps are the biggest ones you will have taken. Neither is the right answer for everyone; both let you hold a cycle whenever you need to, and holding is never a failure.</li>
         <li><strong>Linear is the easier one to cut.</strong> The mark never moves, so you measure once and reuse it every day instead of working out a new, smaller measurement each cycle, and it never shrinks under a millimetre, where a razor and a ruler stop resolving. That is also why this page ignores the 2 mg switch in linear mode: the switch exists to rescue a cut that has got too fine, and here it never does.</li>
         <li>Once daily is fine at every level here. Buprenorphine's half-life is long enough that splitting doses buys you nothing.</li>
-        <li>Every step is held for days on purpose. That same long half-life means a new dose needs most of a cycle to land: about 88 to 91% of the way there on day 1, and 98 to 100% by day 6, across the usual 24 to 42 hour range. It is why the ladder moves in cycles instead of shaving a little off daily, and it puts a floor under how fast this can honestly go: the default is roughly two months from 8 mg to 1 mg. Plenty of people need longer than that, and the tool is built for it. Hold a cycle, raise n, or stretch the cycle. n = 10 on 9-day cycles is about six months. Going slower is a plan, not a failure.</li>
-        <li>n = 6 (16.7% every 6 days) is at the fast end of typical 10 to 25% steps. You may not feel a drop until day 4 or 5, right as you are about to drop again. Hedge by stretching the cycle to 8 or 9 days (same cut, more settling time) or switch to n = 10 below 3 mg.</li>
+        <li>Every step is held for days on purpose. That same long half-life means a new dose needs most of a cycle to land: about 88-91% of the way there on day 1, and 98-100% by day 6, across the usual 24-42 hour range. It is why the ladder moves in cycles instead of shaving a little off daily, and it puts a floor under how fast this can honestly go: the default is roughly two months from 8 mg to 1 mg. Plenty of people need longer than that, and the tool is built for it. Hold a cycle, raise n, or stretch the cycle. n = 10 on 9-day cycles is about six months. Going slower is a plan, not a failure.</li>
+        <li>n = 6 (16.7% every 6 days) is at the fast end of typical 10-25% steps. You may not feel a drop until day 4 or 5, right as you are about to drop again. Hedge by stretching the cycle to 8-9 days (same cut, more settling time) or switch to n = 10 below 3 mg.</li>
         <li>The schedule starts from one given film size and either stays there or switches only to 2 mg films. It will not auto-change 12 → 8 → 4 mg. Clicking those rows only redraws the strip. Change Start dose / strip strength and the tool recalculates the whole ladder.</li>
-        <li><strong>Ask about the long-acting injections.</strong> <strong>Sublocade</strong> (monthly) and <strong>Brixadi</strong> (weekly or monthly) are buprenorphine, the same active drug as your film without the naloxone, injected under the skin by a clinician, where it forms a depot that releases for weeks. Two things make them worth raising here. First, you do <em>not</em> have to reach the bottom of this ladder before switching: both are labelled for a direct transfer from an established daily sublingual dose. Second, after the <em>last</em> injection the drug leaves over months rather than days. The prescribing information puts the terminal half-life at roughly 43 to 60 days for Sublocade and 19 to 26 days for monthly Brixadi, against the 24 to 42 hours this page assumes for a film. That is why people describe the ending as tapering itself. That is a fair reading of the pharmacology, but <strong>neither product is approved as a taper</strong>, and withdrawal can still arrive, sometimes weeks or months after the final shot, so it needs watching for longer than you would expect. The two differ in a way that matters to this goal: Brixadi has more strengths, so a prescriber can step you further down before stopping, while Sublocade has the longer tail once you do. Do not read the injection's milligrams against your film's. Different route, different absorption; Sublocade's 100 mg monthly maintenance dose sits near a 24 mg/day sublingual blood level, not a 100 mg one. Both are supplied under restricted distribution and given in a clinic rather than collected from a pharmacy, so ask whether an office actually <em>administers</em> them, not just whether it prescribes buprenorphine. <strong>This is a conversation to have with a prescriber; it is not a plan you can make from this page.</strong></li>
+        <li><strong>Ask about the long-acting injections.</strong> <strong>Sublocade</strong> (monthly) and <strong>Brixadi</strong> (weekly or monthly) are buprenorphine, the same active drug as your film without the naloxone, injected under the skin by a clinician, where it forms a depot that releases for weeks. Two things make them worth raising here. First, you do <em>not</em> have to reach the bottom of this ladder before switching: both are labelled for a direct transfer from an established daily sublingual dose. Second, after the <em>last</em> injection the drug leaves over months rather than days. The prescribing information puts the terminal half-life at roughly 43-60 days for Sublocade and 19-26 days for monthly Brixadi, against the 24-42 hours this page assumes for a film. That is why people describe the ending as tapering itself. That is a fair reading of the pharmacology, but <strong>neither product is approved as a taper</strong>, and withdrawal can still arrive, sometimes weeks or months after the final shot, so it needs watching for longer than you would expect. The two differ in a way that matters to this goal: Brixadi has more strengths, so a prescriber can step you further down before stopping, while Sublocade has the longer tail once you do. Do not read the injection's milligrams against your film's. Different route, different absorption; Sublocade's 100 mg monthly maintenance dose sits near a 24 mg/day sublingual blood level, not a 100 mg one. Both are supplied under restricted distribution and given in a clinic rather than collected from a pharmacy, so ask whether an office actually <em>administers</em> them, not just whether it prescribes buprenorphine. <strong>This is a conversation to have with a prescriber; it is not a plan you can make from this page.</strong></li>
         <li>Bring this schedule to your prescriber. A taper from 8 mg to 1-2 mg is a routine, well-supported goal, and they are the one who can write 2 mg films and match quantity to the ladder.</li>
         <li>Strictly unofficially, the method can be called <strong>SAS-Sub-minning</strong>, because the stat you are grinding down is Suboxone.</li>
       </ul>
@@ -1365,7 +1365,7 @@
   const $ = (id) => document.getElementById(id);
 
   /* Fraction of the piece kept after one day's cut: 1 − 1/n. The whole taper
-     is this number applied once per cycle, n = 6 keeps 5/6, so each cycle
+     is this number applied once per cycle. n = 6 keeps 5/6, so each cycle
      lands 16.7% below the one before. */
   function keepRatio(n) { return 1 - 1 / n; }
 
@@ -1420,7 +1420,7 @@
      film_layout() in taper.py; test_parity.js checks every field of both. */
   /* Subdivisions the fraction cut may fold the film into. Mirrors
      FRAC_LONG_DIVS / FRAC_SHORT_DIVS in taper.py. The long axis gets eighths
-     because three successive halvings stay reproducible over 22 mm, the short
+     because three successive halvings stay reproducible over 22 mm. The short
      axis stops at quarters because at 12.8 mm an eighth is 1.6 mm and nobody
      judges that by eye. */
   const FRAC_LONG_DIVS = [1, 2, 3, 4, 8];
@@ -1452,14 +1452,14 @@
   /* Closest practical folded-grid piece to wantFrac of one film. Mirrors
      fraction_cut() in taper.py; test_parity.js diffs the two.
 
-     tolMg caps the error a simpler cut may carry, pass the reader's own
+     tolMg caps the error a simpler cut may carry. Pass the reader's own
      cutting tolerance in milligrams, because a cut inside it is no worse than
      the slip they would make with a rule, so the simplest of those is the
      better instruction. It is a cap on the error itself, not a margin on top
      of the best one: added to the best they would compound and the chosen cut
      could land further out than the tolerance allows.
 
-     Deterministic, the same arguments always give the same cut, so the
+     Deterministic. The same arguments always give the same cut, so the
      drawing never moves under a reader who has changed nothing. */
   function fractionCut(wantFrac, filmMg, fullMm, wideMm, tolMg) {
     if (!(fullMm > 0) || !(wideMm > 0) || !(filmMg > 0)) return null;
@@ -1566,7 +1566,7 @@
      never submitted and checkValidity() is never called, so a typed or pasted
      value reached buildSchedule unchecked. taper.py:277-281 raises ValueError
      for these; the page cannot throw at the reader, so it clamps and says so.
-     Returns the adjustments for renderWarnings() to surface. */
+     Returns the adjustments for renderWarnings() to show. */
   function clampOpts(o) {
     const notes = [];
     const fix = (key, label, lo, hi) => {
@@ -1606,7 +1606,7 @@
   }
 
   /* Build the whole ladder. This is the core of the tool, and the half of it
-     that is written twice, build_schedule() in taper.py must produce the same
+     that is written twice. build_schedule() in taper.py must produce the same
      rows, which test_parity.js checks field by field.
 
      Takes an opts object: startMg, n, filmMm, film2Mm, targetMg, stripMg,
@@ -1618,7 +1618,7 @@
      a rows array of cycles, and the summary totals filled in by fillSummary.
      Also two honesty flags, truncated when the run hit MAX_CYCLES before the
      target, switchNeverFired when the 2 mg switch was wanted but could not
-     fire without raising the dose. Both surface as banners rather than
+     fire without raising the dose. Both show as banners rather than
      silently returning a short ladder. */
   function buildSchedule(opts) {
     const startMg = opts.startMg;
@@ -1783,7 +1783,7 @@
     const rows = result.rows;
     /* Defined even for an empty ladder, matching the dataclass defaults in
        taper.py. Leaving them undefined meant Math.max(sched.endDay, 1) came out
-       NaN rather than 1, so a guard that looked safe was not, the comparison
+       NaN rather than 1, so a guard that looked safe was not. The comparison
        chart then wrote x="NaN" into every axis label. */
     Object.assign(result, {
       endDay: 0, endDailyMg: 0, totalMg: 0, totalStrips: 0, totalBankedMg: 0,
@@ -1886,7 +1886,7 @@
     });
   }
 
-  /* Fixed-decimal number for display. Returns an em dash for null, undefined
+  /* Fixed-decimal number for display. Returns a dash for null, undefined
      or non-finite input, so a missing figure reads as "-" rather than NaN. */
   function fmt(n, d) {
     if (n == null || !Number.isFinite(n)) return "-";
@@ -1934,7 +1934,7 @@
       switch2mg: $("switch2").checked,
       holdDays: intOrNull("holdDays"),
       nBelow3: intOrNull("nBelow3"),
-      /* Display only, buildSchedule ignores it, so it cannot move the ladder
+      /* Display only. buildSchedule ignores it, so it cannot move the ladder
          or break parity with taper.py. It only scales the cut-error chart. */
       cutTolMm: num("cutTolMm", 0.5),
       halfLifeH: num("halfLifeH", 32),
@@ -2069,7 +2069,7 @@
   /* Every schedule column: display name, unit, what it means, and whether it
      is one of the numbers a reader actually acts on.
 
-     One list feeds four things, the table headings, the unit under each
+     One list feeds four things: the table headings, the unit under each
      heading, the hover tooltip, and the glossary under the table. Four copies
      of a definition is four chances to be wrong about the same number.
 
@@ -2158,7 +2158,7 @@
      take + save is one whole film, so the first two are the same mark
      approached from opposite ends. delta is undefined where there is nothing
      comparable. A fresh 2 mg film, a day that opens fewer films, or a day
-     with no cut, and shows as a dash. */
+     with no cut, all show as a dash. */
   /* `lower` is written out rather than produced with toLowerCase(), which
      turns the Δ of "Δ save" into a lowercase δ, a different letter. */
   const CAL_MODES = {
@@ -2323,7 +2323,7 @@
              a 44 px compact cell has room for three lines and no more. */
           + `<div class="mg">${unit(fmt(r.dailyMg, 2), "mg")}${mm.films > 1 ? `<span class="fx">×${mm.films}</span>` : ""}</div>`
           /* Number and unit only. Three months sit side by side, so a day cell
-             is about 36px wide however big the window is, "save 11.39 mm"
+             is about 36px wide however big the window is. "save 11.39 mm"
              wants 70px there and shrinking it to fit makes it unreadable. The
              unit is the half worth keeping: the mode is named on the button,
              in the legend above the grid and in the key below it, while "mm"
@@ -2356,10 +2356,10 @@
   /* Shrink any calendar number that does not fit its cell.
 
      A cell is 25px wide on a 280px phone, and what goes in it is not a fixed
-     width: an 8 mg start writes "6.67", a 16 mg one writes "13.33×2". Rather
-     than guess a font size per breakpoint. There are four tiers and they were
-     all tuned against four characters, measure after render and scale only the
-     lines that overflow. Writes the --fit multiplier the CSS above applies on
+     width: an 8 mg start writes "6.67", a 16 mg one writes "13.33×2". Do not
+     guess a font size per breakpoint. There are four tiers, all tuned against
+     four characters. Measure after render and scale only the lines that
+     overflow. Writes the --fit multiplier the CSS above applies on
      top of whichever tier is active.
 
      Reads every width before writing any style, so the whole pass costs one
@@ -2421,7 +2421,7 @@
        is constant across a whole cycle and is already on the schedule row, the
        cut mark, the day's own tooltip and the key under the grid, while the
        unit is the only thing saying what the number is. The 420px tier drops
-       it for the same reason, this just decides by measurement rather than by
+       it for the same reason. This just decides by measurement rather than by
        a fixed width, and it drops it from every cell at once, because a grid
        where some days carry ×2 and others do not is a lie about the days that
        do not. */
@@ -2626,7 +2626,7 @@
     scope.querySelectorAll("[data-short]").forEach((band) => {
       /* Height as well as width. The cut-mark bar's labels are three lines
          ("SAVE / 3.67 mm / 1.33 mg") in a fixed 60px box, so on a phone they
-         were cut off vertically while fitting horizontally, checking width
+         were cut off vertically while fitting horizontally. Checking width
          alone let that through. */
       const fits = () => band.scrollWidth <= band.clientWidth + 1
         && band.scrollHeight <= band.clientHeight + 1;
@@ -2645,7 +2645,7 @@
 
      "0" and "N mm unused" are pinned to the ends by CSS and act as bounds; the
      middle captions are clamped between them and against each other. A caption
-     with no gap wide enough is hidden rather than stacked, its numbers are
+     with no gap wide enough is hidden rather than stacked. Its numbers are
      also in the row below the bar. Under 640px the row becomes a plain wrapped
      line and this clears the offsets instead. */
   function pinRulerTickLabels() {
@@ -2665,7 +2665,7 @@
     if (!W) return;
     const GAP = 6;
     /* "0" and "22.0 mm unused" are pinned to the ends by CSS, so they are
-       obstacles, not candidates, leaving them out of the collision pass is
+       obstacles, not candidates. Leaving them out of the collision pass is
        what let the middle captions slide underneath them. */
     const startEl = box.querySelector("span.start");
     const endEl = box.querySelector("span.end");
@@ -2756,14 +2756,14 @@
      millimetre columns refer to.
 
      Folding is the default. Halving a film is more reproducible by hand than
-     measuring 15.28 mm of it, the panel states the dose error every time, and
+     measuring 15.28 mm of it. The panel states the dose error every time, and
      the reader's own cutting tolerance keeps that error no worse than the slip
      a ruler would cost. Measuring is one button away and the ruler above is
      untouched, so nobody loses the exact mark. */
   let vizMode = "fold";
 
   /* One folded film, drawn as a cutting guide: the fold grid faint, the strokes
-     you actually make bold, the piece you swallow filled orange and the rest
+     you actually make bold. The piece you swallow is filled orange and the rest
      left hatched.
 
      Takes the chosen FractionCut and the film's true size in mm. Drawn in SVG
@@ -3158,7 +3158,7 @@
 
   /* Wrap chart markup in its heading and caption.
      Takes the title, the caption beneath, the chart markup itself, and whether
-     it spans both grid columns. inner does not have to be SVG, the physical
+     it spans both grid columns. inner does not have to be SVG. The physical
      film ladder passes HTML divs. Returns the finished chart element. */
   function svgFrame(title, caption, inner, wide) {
     return `<div class="chart${wide ? " chart-wide" : ""}">
@@ -3846,7 +3846,7 @@
     if (lastSched) renderStripViz(lastSched);
   });
 
-  /* Test surface. The ladder maths lives twice, here and in taper.py, and the
+  /* Exported for tests. The ladder maths lives twice, here and in taper.py, and the
      footer promises the two agree, but everything in this file is sealed inside
      the IIFE, so nothing could check it. test_parity.js drives a headless
      browser, calls this, and diffs every row against `taper.py --json`.
