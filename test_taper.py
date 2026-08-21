@@ -989,6 +989,93 @@ class TestFractionCut(unittest.TestCase):
             kw.update(bad)
             self.assertIsNone(fraction_cut(0.5, **kw), bad)
 
+    def test_the_same_strokes_take_the_closer_dose(self):
+        """0.32 mg on an 8 mg film sits inside 0.5 mm of both 1/16 and 1/24.
+
+        Both are two cuts and one piece. 1/16 is 0.18 mg out; 1/24 is 0.01 mg
+        out. Grid fineness is not allowed to spend that 0.17 mg to prefer
+        folding into 2 over folding into 3.
+        """
+        want = 0.32 / 8.0
+        tol_mg = 0.5 * 8.0 / self.FULL
+        fc = fraction_cut(want, 8.0, self.FULL, self.WIDE, tol_mg=tol_mg)
+        self.assertEqual(fc.label, "1/24")
+        self.assertEqual((fc.long_div, fc.short_div), (8, 3))
+        self.assertEqual(fc.cuts, 2)
+        self.assertEqual(fc.pieces, 1)
+        self.assertLess(abs(fc.error_mg), 0.02)
+
+    def test_an_exact_thirty_second_is_not_traded_for_a_twenty_fourth(self):
+        """The same trap at an exact grid point: 0.25 mg is 1/32, and 1/24 is
+        the same two strokes. Fineness in the score used to pick 1/24 because
+        thirds look cheaper than quarters. They are not, once the dose is free.
+        """
+        fc = fraction_cut(0.25 / 8.0, 8.0, self.FULL, self.WIDE,
+                          tol_mg=0.5 * 8.0 / self.FULL)
+        self.assertEqual(fc.label, "1/32")
+        self.assertEqual((fc.long_div, fc.short_div), (8, 4))
+        self.assertTrue(fc.exact)
+
+    def test_equal_work_never_spends_error_on_a_coarser_grid(self):
+        """Inside the cap, folds that take the same strokes: the winner is the
+        closest of those. Walks the 0-1 range so the two named cases cannot be
+        the only place this is true, and asserts the walk actually reaches
+        those cases plus a population of same-stroke disagreements.
+        """
+        tol_mg = 0.5 * 8.0 / self.FULL
+        film_mg = 8.0
+
+        def physical(L, S, tab, cuts, pieces):
+            lengthwise = 1 if tab else 0
+            d = (cuts - lengthwise) * 10 + lengthwise * 14 + (pieces - 1) * 4
+            if tab:
+                tab_mm = min(self.FULL / L, self.WIDE * tab / S)
+                if tab_mm < 2.0:
+                    d += 20
+            return d
+
+        reasons = {"want_0.32": 0, "want_0.25": 0, "same_work_disagrees": 0}
+        for want, fc in self.each(tol_mg=tol_mg, film_mg=film_mg):
+            pool = []
+            best_err = None
+            for L in FRAC_LONG_DIVS:
+                for S in FRAC_SHORT_DIVS:
+                    total = L * S
+                    for cells in range(1, total + 1):
+                        columns, tab = divmod(cells, S)
+                        if cells == total:
+                            cuts, pieces = 0, 1
+                        elif tab == 0:
+                            cuts, pieces = 1, 1
+                        else:
+                            cuts = ((1 if columns else 0)
+                                    + (1 if columns + 1 < L else 0) + 1)
+                            pieces = 2 if columns else 1
+                        err = abs(cells / total - want) * film_mg
+                        d = physical(L, S, tab, cuts, pieces)
+                        pool.append((d, err, L, S, cells))
+                        if best_err is None or err < best_err:
+                            best_err = err
+            cap = max(best_err, max(0.0, tol_mg))
+            near = [e for e in pool if e[1] <= cap + 1e-12]
+            win_d = physical(fc.long_div, fc.short_div, fc.tab_cells,
+                             fc.cuts, fc.pieces)
+            same = [e for e in near if e[0] == win_d]
+            closest_same = min(e[1] for e in same)
+            self.assertAlmostEqual(
+                abs(fc.error_mg), closest_same, places=9,
+                msg=f"want={want:.4f} took {fc.label} at {fc.error_mg:+.3f} mg, "
+                    f"{closest_same:.3f} mg was free at the same strokes")
+            if abs(want - 0.04) < 1e-12:
+                reasons["want_0.32"] += 1
+            if abs(want - 0.25 / 8.0) < 1e-12:
+                reasons["want_0.25"] += 1
+            if max(e[1] for e in same) - closest_same > 1e-9:
+                reasons["same_work_disagrees"] += 1
+        self.assertGreater(reasons["want_0.32"], 0, reasons)
+        self.assertGreater(reasons["want_0.25"], 0, reasons)
+        self.assertGreater(reasons["same_work_disagrees"], 50, reasons)
+
 
 class TestSummary(unittest.TestCase):
     """The headline figures and the n = 6 / 8 / 10 comparison.

@@ -1026,7 +1026,7 @@
         <div><dt>Film strength you cut (mg) <span class="def">[blank = auto]</span><span class="sep"> · </span></dt><dd>Which strength of film you actually hold. Left blank, the tool picks the smallest official size that fits the start dose (2, 4, 8 or 12 mg), and 8 mg for a start above 12 mg, where no single film holds the dose. Set it if you have something else: a 16 mg start is two 8 mg strips a day, or two 12 mg strips if that is what is in the box.</dd></div>
         <div><dt>Hold / stretch days <span class="def">[blank = same as n]</span><span class="sep"> · </span></dt><dd>Makes every cycle longer without changing the size of the cut. Set 9 with n = 6 and you still cut 1/6, but hold each dose for 9 days instead of 6. Same taper, more settling time between drops.</dd></div>
         <div><dt>n below 3 mg <span class="def">[blank = off]</span><span class="sep"> · </span></dt><dd>Switches to a different n once the strip you are cutting from drops under 3 mg, where the same percentage is a much smaller piece of film. Setting 10 here makes the back half drop 10% per cycle instead of 16.7%.</dd></div>
-        <div><dt>Your cutting tolerance (mm) <span class="def">[0.5]</span><span class="sep"> · </span></dt><dd>How accurately you can cut. Half a millimetre is realistic with a razor and a steel ruler. It feeds the "cutting error vs the step" graph, and it sets how much simplicity the life-size film's <strong>Folding</strong> mode may buy: a fold no further out than your own slip is offered in place of a closer but fiddlier one. It never changes the schedule. Set it to 0 to hide that graph and to always take the closest fold.</dd></div>
+        <div><dt>Your cutting tolerance (mm) <span class="def">[0.5]</span><span class="sep"> · </span></dt><dd>How accurately you can cut. Half a millimetre is realistic with a razor and a steel ruler. It feeds the "cutting error vs the step" graph, and it sets how much simplicity the life-size film's <strong>Folding</strong> mode may buy: a fold no further out than your own slip is offered in place of a closer but fiddlier one. Among folds that take the same strokes, it still takes the closer dose. It never changes the schedule. Set it to 0 to hide that graph and to always take the closest fold.</dd></div>
         <div><dt>Half-life for the lag curve (h) <span class="def">[32]</span><span class="sep"> · </span></dt><dd>Buprenorphine's half-life, usually quoted as 24-42 hours for a film. Draws the dashed lag curve on the first graph and nothing else. In that film range the curve tracks the ladder with a few days' lag, which is the point of it. A long value (hundreds or thousands of hours, the depot picture) stays high and only slowly falls toward the new dose, because each day's intake is a small slice of what is already on board. Set it to 0 to hide the curve. 2160 h is 90 days, enough to sketch a 60-day injection tail. <a href="lag.html">How the dashed line is drawn</a>.</dd></div>
         <div><dt>Day 1 date <span class="def">[blank = no calendar]</span><span class="sep"> · </span></dt><dd>The date you plan to start. Fills in the Calendar panel with real dates and marks today, so you can see which cycle you are on. Leave blank and the plan stays in day numbers.</dd></div>
         <div><dt>Switch to 2 mg films at or below 2.25 mg <span class="def">[on]</span><span class="sep"> · </span></dt><dd>When the strip you cut from reaches 2.25 mg, restart on a 2 mg film. A 2 mg film is a quarter the density, so the same dose is four times longer and the same cut is four times more forgiving. Turn it off to stay on one strength the whole way.</dd></div>
@@ -1437,21 +1437,33 @@
   /* How hard a folded cut is by hand. Lower is easier. Mirrors
      _frac_difficulty in taper.py.
 
-     A cut across the short axis is a 12.8 mm stroke guided by the film's own
-     straight edge. A cut along the long axis is freehand down the middle and
-     materially harder to keep square, so the two are not worth the same. A
-     plain half must come out as a crosswise cut, not a lengthwise one, even
-     though both are "one cut". */
+     Only the physical work: stroke type, extra pieces, a tab too small to
+     hold. A cut across the short axis is a 12.8 mm stroke guided by the
+     film's own straight edge. A cut along the long axis is freehand down
+     the middle and materially harder to keep square, so the two are not
+     worth the same. A plain half must come out as a crosswise cut, not a
+     lengthwise one, even though both are "one cut".
+
+     Grid fineness is not part of this score. Two folds that take the same
+     strokes are ranked by how close they are, then by fracFineness. Putting
+     the grid into the score spent 0.17 mg to prefer 1/16 over 1/24 at 0.32 mg.
+     `columns` is unused; it is here so the call site matches _frac_difficulty. */
   function fracDifficulty(L, S, columns, tab, cuts, pieces, fullMm, wideMm) {
     const lengthwise = tab ? 1 : 0;
     let d = (cuts - lengthwise) * 10 + lengthwise * 14 + (pieces - 1) * 4;
-    d += { 1: 0, 2: 0, 3: 2, 4: 3, 8: 6 }[L];
-    d += { 1: 0, 2: 2, 3: 5, 4: 7 }[S];
     if (tab) {
       const tabMm = Math.min(fullMm / L, wideMm * tab / S);
       if (tabMm < FRAC_MIN_TAB_MM) d += 20;
     }
     return d;
+  }
+
+  /* How fine the grid is, as a tertiary ranking after error. Mirrors
+     _frac_fineness in taper.py. Halving is exact; thirds are a judgement.
+     Used only when two folds already take the same strokes and land equally
+     close, never to spend milligrams on a coarser-looking grid. */
+  function fracFineness(L, S) {
+    return { 1: 0, 2: 0, 3: 2, 4: 3, 8: 6 }[L] + { 1: 0, 2: 2, 3: 5, 4: 7 }[S];
   }
 
   /* Closest practical folded-grid piece to wantFrac of one film. Mirrors
@@ -1460,9 +1472,11 @@
      tolMg caps the error a simpler cut may carry. Pass the reader's own
      cutting tolerance in milligrams, because a cut inside it is no worse than
      the slip they would make with a rule, so the simplest of those is the
-     better instruction. It is a cap on the error itself, not a margin on top
-     of the best one: added to the best they would compound and the chosen cut
-     could land further out than the tolerance allows.
+     better instruction. Among folds that take the same strokes, the closer
+     dose wins; grid fineness only breaks a remaining tie. It is a cap on the
+     error itself, not a margin on top of the best one: added to the best they
+     would compound and the chosen cut could land further out than the
+     tolerance allows.
 
      Deterministic. The same arguments always give the same cut, so the
      drawing never moves under a reader who has changed nothing. */
@@ -1496,7 +1510,8 @@
     near.sort((a, b) =>
       fracDifficulty(a.L, a.S, a.columns, a.tab, a.cuts, a.pieces, fullMm, wideMm)
       - fracDifficulty(b.L, b.S, b.columns, b.tab, b.cuts, b.pieces, fullMm, wideMm)
-      || a.err - b.err || a.S - b.S || b.L - a.L || a.cells - b.cells);
+      || a.err - b.err || fracFineness(a.L, a.S) - fracFineness(b.L, b.S)
+      || a.S - b.S || b.L - a.L || a.cells - b.cells);
     const c = near[0];
     const g = gcd(c.cells, c.L * c.S);
     const doseMg = c.frac * filmMg;
