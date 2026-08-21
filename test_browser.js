@@ -56,7 +56,7 @@ function findBrowser() {
 }
 
 /* Returns a launched browser, or null after printing why it is skipping.
-   Callers should exit 0 on null — a checkout without a browser must not fail
+   Callers should exit 0 on null. A checkout without a browser must not fail
    the suite. */
 async function launchOrSkip() {
   let chromium;

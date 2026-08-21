@@ -3,7 +3,7 @@
  *
  * index.html has to stay readable from a 280px phone to a 1920px desktop, in
  * both themes, and several of its parts are positioned from measured pixels
- * rather than by normal flow — the ruler tick captions, the life-size cut
+ * rather than by normal flow, the ruler tick captions, the life-size cut
  * label, the calendar grid. Those have broken four separate times: captions
  * stacked on each other, a percentage painted over a button, "SAVE" sliced in
  * half, the page scrolling sideways on a narrow phone.
@@ -27,7 +27,7 @@
 const { launchOrSkip, PAGE, FOLD_PAGE } = require("./test_browser");
 
 /* Phone through desktop, with the known breakpoints (360, 420, 640, 820) and
-   both sides of each. 280 is a Galaxy Fold cover screen — the narrowest thing
+   both sides of each. 280 is a Galaxy Fold cover screen, the narrowest thing
    worth supporting, and where three of the four bugs showed up first. */
 const WIDTHS = [280, 320, 360, 390, 414, 430, 540, 639, 641, 768, 820, 1024, 1280, 1920];
 const CAL_WIDTHS = [280, 360, 414, 768, 1024, 1440];
@@ -65,7 +65,7 @@ const probe = () => {
   const vis = (n) => n.offsetWidth > 0 && n.offsetHeight > 0
     && getComputedStyle(n).display !== "none" && getComputedStyle(n).visibility !== "hidden";
 
-  /* Each drawing shows one bar per film it is describing — always, for every
+  /* Each drawing shows one bar per film it is describing, always, for every
      cycle of every run. The count changing between cycles of the same ladder
      means the reader is looking at a picture that is not the day in front of
      them.
@@ -73,8 +73,8 @@ const probe = () => {
      The two panels answer different questions, so they are checked separately.
      The cut-mark panel is the schedule's own film strength, so its count is the
      row's filmsOut. The life-size panel redraws the same day on whichever
-     strength is selected in the size table — a 12 mg film holds a day in fewer
-     strips than an 8 mg one — so its count comes from re-running the layout at
+     strength is selected in the size table. A 12 mg film holds a day in fewer
+     strips than an 8 mg one, so its count comes from re-running the layout at
      that strength. Every official film is 22 mm on the cut axis. */
   {
     const row = window.__selectedRow && window.__selectedRow();
@@ -96,7 +96,7 @@ const probe = () => {
       const want = lay.filmsOut;
       /* Which drawing to expect comes from the control, not from what turned
          up: folding mode on a day that needs no cut draws neither an SVG nor
-         bars — it says in words that every film is taken whole — and reading
+         bars. It says in words that every film is taken whole, and reading
          the mode off the output mistook that for measuring mode failing. */
       const btn = document.getElementById("vizModeFrac");
       const folding = !!btn && btn.getAttribute("aria-pressed") === "true";
@@ -275,7 +275,7 @@ const probe = () => {
 
       /* The legend above the grid: one worked cell, its parts named, and a
          swatch per state. It has to say the same things the cells show, so it
-         is checked against them rather than against a fixed string — and the
+         is checked against them rather than against a fixed string, and the
          swatches have to be painted in this theme, not left transparent by a
          colour token that exists in only one of the three blocks. */
       const legend = await page.evaluate(() => {
@@ -310,7 +310,7 @@ const probe = () => {
           failures.push(`${theme} ${width}px legend: ${legend.demoRows} lines in the sample cell `
             + `but ${legend.visibleRows} explaining them`);
         }
-        /* The sample cell has to be built the same way the real ones are —
+        /* The sample cell has to be built the same way the real ones are,
            both ways round, so it cannot drift into showing a unit the grid
            does not, or losing one the grid keeps. */
         for (const u of ["mg", "mm"]) {
@@ -325,7 +325,7 @@ const probe = () => {
           if (paint === "missing") {
             failures.push(`${theme} ${width}px legend: no swatch for ${name}`);
           } else if (/rgba\(0, 0, 0, 0\)\|rgba\(0, 0, 0, 0\)/.test(paint)) {
-            failures.push(`${theme} ${width}px legend: the ${name} swatch is invisible — `
+            failures.push(`${theme} ${width}px legend: the ${name} swatch is invisible, `
               + `a colour token missing from this theme?`);
           }
         }
@@ -336,7 +336,7 @@ const probe = () => {
 
   /* 3. Inputs that reshape the page: doses needing more than one film a day, a
         target that yields no ladder, the longest run the cap allows. The
-        multi-film cases each name the cycles worth looking at — a two-strip run
+        multi-film cases each name the cycles worth looking at, a two-strip run
         grows a kit banner, a ×N pill and, at the cycle where the ladder crosses
         a whole-film boundary, a second film bar and its caption. */
   for (const [label, fields, cycles] of [
@@ -346,7 +346,7 @@ const probe = () => {
     ["four-strip start", { startMg: 30, stripMg: 8, n: 3 }, [1, 2]],
     ["sliver over one film", { startMg: 40, n: 2, targetMg: 8 }, [1, 2]],
     /* Every official strength at the top of the dose range. On 2 mg film a
-       32 mg day is sixteen bars stacked in both drawings — the widest the
+       32 mg day is sixteen bars stacked in both drawings, the widest the
        inputs allow, and the case most likely to overflow something. */
     ["32 mg on 2 mg film", { startMg: 32, filmStrengthMg: 2, targetMg: 2 }, [1, 3, 6]],
     ["32 mg on 4 mg film", { startMg: 32, filmStrengthMg: 4, targetMg: 2 }, [1, 3, 6]],
@@ -394,7 +394,7 @@ const probe = () => {
 
   /* 4. Picking a different strength in the size table. The life-size panel
         redraws the same day on that film, which changes how many strips it
-        takes — a 32 mg day is 4 x 8 mg bars but only 3 x 12 mg ones. The
+        takes. A 32 mg day is 4 x 8 mg bars but only 3 x 12 mg ones. The
         cut-mark panel above must not move: it is always the schedule's film. */
   for (const width of [360, 768, 1280]) {
     const { ctx, page, errs } = await openPage(width, "dark");
@@ -418,14 +418,14 @@ const probe = () => {
     await ctx.close();
   }
 
-  /* 4b. The folding mode of the life-size panel. A different drawing entirely
-         — an SVG plan view rather than flex bars — so it needs its own sweep,
+  /* 4b. The folding mode of the life-size panel. A different drawing entirely.
+         An SVG plan view rather than flex bars, so it needs its own sweep,
          across the cycles where the chosen grid is coarsest and finest, both
          themes, and the widths where the facts line has to wrap. */
   for (const width of [320, 414, 768, 1440]) {
     for (const theme of ["dark", "light"]) {
       const { ctx, page, errs } = await openPage(width, theme);
-      /* Folding is the default, so the sweep above already covers it — but
+      /* Folding is the default, so the sweep above already covers it, but
          that means measuring is now the mode nothing else exercises. Both are
          driven here so neither drawing can rot behind the other. */
       for (const mode of ["fold", "exact"]) {
@@ -454,7 +454,7 @@ const probe = () => {
          has to be the fraction the maths chose. One disagreeing with the other
          is the whole failure mode of a second implementation of the picture. */
       /* Read the claim off data attributes rather than the prose. Parsing the
-         caption meant a wording change silently disarmed the check — which is
+         caption meant a wording change silently disarmed the check, which is
          exactly what happened the first time the copy was edited. The prose is
          still checked, but only for agreeing with the attributes. */
       const fold = await page.evaluate(() => {
@@ -544,7 +544,7 @@ const probe = () => {
       failures.push(`measuring did not survive a reload (${JSON.stringify(kept)})`);
     }
     /* No probe() here: a reload drops the globals openPage injects, and this
-       block is asserting persistence rather than geometry — the sweeps above
+       block is asserting persistence rather than geometry, the sweeps above
        already measured both modes at eight width/theme combinations. */
     checks++;
     if (errs.length) failures.push(`mode persistence: ${errs.join("; ")}`);
@@ -631,7 +631,7 @@ const probe = () => {
     }
 
     /* The linear mode's defining property, read off the rendered schedule: the
-       Δ save column — how much further in the mark moves each cycle — must not
+       Δ save column, how much further in the mark moves each cycle, must not
        change from the first cycle to the last. This is the thing a reader is
        asked to trust, and no other suite looks at the rendered table. */
     await setField(page, "cutMode", "linear");
@@ -671,7 +671,7 @@ const probe = () => {
       failures.push(`geometric schedule has only ${saves.length} rows to check the save against`);
     }
     for (let i = 1; i < saves.length; i++) {
-      if (saves[i].delta === "—") continue;
+      if (saves[i].delta === "-") continue;
       if (!(saves[i].save > saves[i - 1].save)) {
         failures.push(`Save mm did not grow at cycle ${i + 1}: `
           + `${saves[i - 1].save} then ${saves[i].save}, with Δ save ${saves[i].delta}`);
@@ -699,7 +699,7 @@ const probe = () => {
   }
 
   /* 7. The schedule header tooltips. Mouse-and-keyboard only by design, so the
-        sweep cannot see them — hover has to be driven explicitly. Three things
+        sweep cannot see them, hover has to be driven explicitly. Three things
         matter: they appear on a desktop pointer, they stay inside the viewport
         (they are position:fixed precisely because the table's scroll container
         would clip anything else), and they never appear on a touch device. */
@@ -712,7 +712,7 @@ const probe = () => {
       if (cols !== 12) failures.push(`schedule has ${cols} documented headers, expected 12`);
 
       /* Units live in their own span so they can be small and muted, and the
-         name and the unit need a real space between them — a CSS margin looks
+         name and the unit need a real space between them. A CSS margin looks
          right and still reads as "Cut frommg" to a screen reader. */
       const units = await page.evaluate(() =>
         [...document.querySelectorAll("#schedTable thead th")].map((th) => {
@@ -728,8 +728,8 @@ const probe = () => {
         }
       }
 
-      /* The block the reader acts on — take, save, and how much more the jar
-         gets than last cycle — is tinted. The tint is an inset shadow, not a
+      /* The block the reader acts on, take, save, and how much more the jar
+         gets than last cycle, is tinted. The tint is an inset shadow, not a
          background, because the row states set td backgrounds and would paint
          straight over it; check it survives on a 2 mg switch row, which is
          where that would show up. It also has to be one contiguous run: five
@@ -772,7 +772,7 @@ const probe = () => {
             const txt = td.textContent.trim();
             /* Cycle, Days and the em-dash in Δ save are the cells with no unit
                to carry: an index, a day range, and "not applicable". */
-            if (i <= 1 || txt === "—") return;
+            if (i <= 1 || txt === "-") return;
             if (!td.querySelector(".u")) bad.push(`col ${i} "${txt}"`);
           });
         }
@@ -784,7 +784,7 @@ const probe = () => {
       }
 
       /* And the units must be visibly secondary, or they compete with the
-         number they qualify — which is the whole reason they are a span. */
+         number they qualify, which is the whole reason they are a span. */
       const unitStyle = await page.evaluate(() => {
         const u = document.querySelector("#schedTable tbody td .u");
         if (!u) return null;
@@ -836,8 +836,8 @@ const probe = () => {
     await page.reload();
     await page.waitForFunction(() => !!window.SASTaperInternals, null, { timeout: 10000 });
     /* A real tap first, then the synthetic event the guard is actually written
-       against. The tap alone is timing-dependent — pointerleave can arrive and
-       hide the tooltip again, so a broken guard could still look clean — while
+       against. The tap alone is timing-dependent, pointerleave can arrive and
+       hide the tooltip again, so a broken guard could still look clean, while
        a bare pointerover with pointerType "touch" is exactly the case the code
        branches on and has no follow-up event to rescue it. */
     await page.tap("#schedTable thead th:nth-child(2)").catch(() => {});
@@ -863,7 +863,7 @@ const probe = () => {
     await ctx.close();
   }
 
-  /* 9. fold.html — the algorithm explainer. A second shipped page with its own
+  /* 9. fold.html, the algorithm explainer. A second shipped page with its own
         stylesheet, so the same failure modes apply. It is also live: every
         diagram redraws from a slider, so the sweep drives that too, and it has
         to stay self-contained like index.html does. */
@@ -871,7 +871,7 @@ const probe = () => {
     const SRC = require("fs").readFileSync(require("path").join(__dirname, "fold.html"), "utf8");
     checks++;
     /* People open this from disk, offline. A CDN link would break that
-       silently — it just renders in the wrong font on a machine with no
+       silently. It just renders in the wrong font on a machine with no
        network, and nobody notices until someone is holding a razor. */
     const remote = SRC.match(/(?:src|href)\s*=\s*["']https?:\/\/[^"']+/gi) || [];
     const offsite = remote.filter((m) => !/github\.com/.test(m));
@@ -880,9 +880,9 @@ const probe = () => {
     }
 
     /* The glossary is the names the listing uses, and it has to agree with the
-       listing in BOTH directions. It drifted one way once already — cells /
+       listing in BOTH directions. It drifted one way once already, cells /
        err / cap in the table against parts_taken / error_mg / worst_allowed in
-       the block — and a reader who learns one set then meets the other is
+       the block, and a reader who learns one set then meets the other is
        being taught two languages for one function. Checking only glossary →
        listing leaves the other way open: a name the search introduces and
        nobody documents (parts_in_all was exactly that) is just as confusing.
@@ -913,8 +913,8 @@ const probe = () => {
         if (missing.length) {
           failures.push(`fold.html glossary names missing from the listing: ${missing.join(", ")}`);
         }
-        /* The other direction: every name the search binds — parameters, loop
-           variables, assignments, divmod targets — must have a glossary row. */
+        /* The other direction: every name the search binds, parameters, loop
+           variables, assignments, divmod targets, must have a glossary row. */
         const bound = new Set();
         const add = (t) => t.split(",").forEach((n) => {
           const m = n.trim().match(/^([a-z][a-z0-9_]*)$/);
@@ -941,7 +941,7 @@ const probe = () => {
       }
     }
 
-    /* Phone through desktop. The listing scrolls at all of them — the default
+    /* Phone through desktop. The listing scrolls at all of them. The default
        does not depend on the viewport any more, so every width is the same
        assertion, and a width-dependent default reappearing would break it. */
     const FOLD_WIDTHS = [320, 414, 768, 1280];
@@ -1014,7 +1014,7 @@ const probe = () => {
               + `(white-space: ${listing.whole.whiteSpace}); wrapping is the opt-in`);
           }
           /* The scroller is the point of the default, so at a phone width the
-             listing has to actually have one — a listing that fits is a
+             listing has to actually have one. A listing that fits is a
              listing something has re-wrapped. */
           if (width <= 414 && listing.whole.overflowX <= 1) {
             failures.push(`fold.html listing has no sideways scroller at ${width}px`);
@@ -1046,7 +1046,7 @@ const probe = () => {
             failures.push(`fold.html Scroll at ${width}px left no sideways scroller on the listing`);
           }
           /* The scroller has to stay inside the listing. If the <pre> widens
-             the page instead, the reader drags the whole article sideways —
+             the page instead, the reader drags the whole article sideways,
              and the page-level overflow check above cannot see it, because it
              runs before either button is touched. */
           const after = await page.evaluate(probe);
@@ -1134,7 +1134,7 @@ const probe = () => {
         /* Which fraction the panel falls back to is checked in the dose sweep
            below rather than here. At any one dose the chosen fold is very
            often also the closest one, and where those coincide the check
-           cannot tell the two apart — a fallback wired to the wrong one of
+           cannot tell the two apart, a fallback wired to the wrong one of
            them passes. The sweep visits doses where they differ, and counts
            how many, so it cannot quietly stop covering them. */
 
@@ -1174,7 +1174,7 @@ const probe = () => {
        Scroll again has to clear the key rather than store "off", so that
        moving the default later does not leave old readers pinned to today's
        one. Whether the restore happens before first paint is checked
-       statically below — by the time Playwright can evaluate anything, both
+       statically below, by the time Playwright can evaluate anything, both
        scripts have run and the two are indistinguishable. */
     {
       const ctx = await browser.newContext({ viewport: { width: 320, height: 900 } });
@@ -1213,7 +1213,7 @@ const probe = () => {
     }
 
     /* Two invariants of the comparison panel, swept across the whole dose
-       range once rather than at every viewport — neither depends on width.
+       range once rather than at every viewport, neither depends on width.
 
        The first is the panel's own arithmetic: the difficulty table itemises
        where every point comes from, and those rows have to add up to the score
@@ -1261,7 +1261,7 @@ const probe = () => {
              fraction most cheaply. Ask the list for the chosen fold's own
              fraction and both columns must draw the same grid; if the two
              orderings break a tie differently, they will not. */
-          const opt = [...sel.options].find((o) => o.textContent.split(" —")[0] === chosenF);
+          const opt = [...sel.options].find((o) => o.textContent.split(" ·")[0] === chosenF);
           if (!opt) {
             disagreed.push(`at ${w.toFixed(3)}: ${chosenF} is not on the list at all`);
           } else {
@@ -1324,7 +1324,7 @@ const probe = () => {
       }
       /* The shape of the sweep's own coverage. The fallback check above is
          only meaningful at doses where the chosen fold is not also the closest
-         one — everywhere else the two fractions coincide and any wiring
+         one, everywhere else the two fractions coincide and any wiring
          passes. If that population dries up, the check has stopped testing
          anything and should fail rather than go on reporting green. */
       checks++;
@@ -1339,7 +1339,7 @@ const probe = () => {
 
     /* The restore has to run in the <head>, during parse. Put it at the foot
        of the body with the rest of the script and a reader who chose Wrap
-       watches the listing render as a strip and then re-flow — which no
+       watches the listing render as a strip and then re-flow, which no
        measurement taken after load can tell apart from the correct order, so
        this one is read off the file. The key is written twice, once in each
        script, and the two have to be the same string. */
@@ -1364,20 +1364,20 @@ const probe = () => {
   await browser.close();
 
   if (failures.length) {
-    console.error(`FAILED — ${failures.length} layout problem(s) across ${checks} checks `
+    console.error(`FAILED: ${failures.length} layout problem(s) across ${checks} checks `
       + `over ${states} viewport states:`);
     const seen = new Set();
     for (const f of failures) {
       if (seen.has(f)) continue;
       seen.add(f);
-      if (seen.size > 40) { console.error(`  … and ${failures.length - 40} more`); break; }
+      if (seen.size > 40) { console.error(`  ... and ${failures.length - 40} more`); break; }
       console.error("  " + f);
     }
     process.exit(1);
   }
   console.log(
-    `OK — no overflow, overlap, clipping, spill or bar-count mismatch across `
-    + `${states} viewport states (${checks} checks in all)`
+    `OK. No overflow, overlap, clipping, spill or bar-count mismatch across `
+    + `${states} viewport states (${checks} checks in all).`
   );
 })().catch((e) => {
   console.error(e);

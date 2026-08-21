@@ -41,7 +41,7 @@ class TestClosedForms(unittest.TestCase):
 
     build_schedule walks the cycles; ingested_closed_form and lifetime_ceiling_mg
     answer the same questions in one step. If the two ever disagree, one of them
-    is wrong — and the closed forms are what the summary cards quote.
+    is wrong, and the closed forms are what the summary cards quote.
     """
 
     def test_simulation_matches_closed_form(self):
@@ -234,7 +234,7 @@ class TestLinearCutMode(unittest.TestCase):
 
     Geometric cuts 1/n of the piece in your hand, so the step shrinks with the
     dose and the ladder approaches zero without arriving. Linear cuts 1/n of the
-    ORIGINAL strip every time — same milligrams, same millimetres — so the dose
+    ORIGINAL strip every time, same milligrams, same millimetres, so the dose
     falls in equal steps and lands on zero.
 
     These pin the four properties that make it that mode and not the other one,
@@ -305,7 +305,7 @@ class TestLinearCutMode(unittest.TestCase):
         self.assertIsNone(sched.zero_day, "stopped at a target, so it never reached zero")
 
     def test_the_percentage_step_grows_every_cycle(self):
-        """Not a defect — the arithmetic of a constant step — but the reason the
+        """Not a defect. The arithmetic of a constant step, but the reason the
         mode needs a warning rather than just an option. Equal milligrams are
         growing percentages, and the growth lands on the hardest part."""
         sched = build_schedule(start_mg=8.0, n=6, cut_mode="linear", target_mg=0)
@@ -355,7 +355,7 @@ class TestMultiFilmDays(unittest.TestCase):
     """Days whose dose is bigger than one film.
 
     A 32 mg start on 8 mg strips is four of them. The dose arithmetic is
-    unchanged — it is all milligrams — but the physical instruction is not, and
+    unchanged. It is all milligrams, but the physical instruction is not, and
     everything the reader measures comes out of film_layout(). These are worked
     examples a reader can follow; TestMultiFilmMatrix covers the space.
     """
@@ -411,8 +411,8 @@ class TestMultiFilmDays(unittest.TestCase):
             self.assertAlmostEqual(row.cut_save_mm, row.cut_mm, places=12)
 
     def test_sixteen_mg_on_eight_mg_films_is_two_strips_one_of_them_cut(self):
-        # 1/6 of 16 mg is 2.67 mg. The take is 13.33 mg — one whole film plus
-        # 5.33 mg — so one strip goes down whole and the other is marked.
+        # 1/6 of 16 mg is 2.67 mg. The take is 13.33 mg, one whole film plus
+        # 5.33 mg, so one strip goes down whole and the other is marked.
         row = build_schedule(start_mg=16.0, strip_mg=8.0).rows[0]
         self.assertEqual(row.film_mg, 8.0)
         self.assertEqual(row.films_out, 2)
@@ -424,7 +424,7 @@ class TestMultiFilmDays(unittest.TestCase):
         self.assertAlmostEqual(row.sliver_mg, 16.0 / 6, places=9)
 
     def test_the_sliver_can_run_onto_a_strip_you_never_open(self):
-        # 32 mg, cycle 2: the strip is 73.3 mm, which spans four films — but the
+        # 32 mg, cycle 2: the strip is 73.3 mm, which spans four films, but the
         # take only reaches into the third. The fourth would be opened purely to
         # put it in the jar, so it is left in the box and counted in spare_mm.
         row = build_schedule(start_mg=32.0, target_mg=0.5).rows[1]
@@ -464,7 +464,7 @@ class TestMultiFilmMatrix(unittest.TestCase):
 
     TestMultiFilmDays covers named cases a reader can follow. This covers the
     space: start doses from 1 to 32 mg against all four official film
-    strengths, n from 2 to 30, three film lengths, the 2 mg switch both ways —
+    strengths, n from 2 to 30, three film lengths, the 2 mg switch both ways,
     and it checks every cycle of every one of those ladders, not just the
     first. A 32 mg start on 2 mg films is sixteen strips a day, which is the
     far corner of what the inputs allow.
@@ -587,7 +587,7 @@ class TestMultiFilmMatrix(unittest.TestCase):
 
     def test_you_open_exactly_the_films_the_dose_needs(self):
         # Not one more. A film the take never reaches would be opened only to
-        # put it straight in the jar, so it stays in the box — that is the whole
+        # put it straight in the jar, so it stays in the box. That is the whole
         # reason a day can need fewer films than its strip spans.
         for tag, _, row, full in self.each_row():
             take_mm = row.piece_mm - row.cut_mm
@@ -616,7 +616,7 @@ class TestMultiFilmMatrix(unittest.TestCase):
         """The identity the whole column rests on.
 
         take(k−1) is piece(k), so the difference of two "full minus take"
-        figures is exactly this cycle's sliver — as long as the day still opens
+        figures is exactly this cycle's sliver, as long as the day still opens
         the same films off the same strip. The one reported case where it is
         not the sliver is the first cut of a run, where the comparison is
         against an empty jar and the delta is the whole save.
@@ -678,7 +678,7 @@ class TestMultiFilmMatrix(unittest.TestCase):
             self.assertGreater(seen[reason], 0, f"the grid never reached: {reason}\n{seen}")
 
     def test_the_save_grows_every_cycle_it_is_comparable(self):
-        """The claim the method is sold on — the jar's share keeps rising.
+        """The claim the method is sold on, the jar's share keeps rising.
 
         Only between reported deltas: a 2 mg restart and a dropped film both
         genuinely shrink the save, which is why they show a dash rather than a
@@ -702,7 +702,7 @@ class TestMultiFilmMatrix(unittest.TestCase):
         """The mark is cut_save_mm in from the right of the strip ON the marked
         film. On a cycle with an already-off region the film's own right end is
         further out, and measuring from there would put the cut millimetres
-        wrong — so cut_context has to hand the caller the piece, not the film.
+        wrong, so cut_context has to hand the caller the piece, not the film.
         """
         ghosted = 0
         for tag, sched, row, full in self.each_row():
@@ -754,7 +754,7 @@ class TestTakeAndSave(unittest.TestCase):
 
     take_mm / save_mm partition the film you opened; save_mg / daily_mg do the
     same in milligrams. delta_save_mm is how much more the jar gets than the
-    last cycle that cut a film — the growth the method promises — and is None
+    last cycle that cut a film. The growth the method promises, and is None
     wherever that comparison would be against a different thing.
     """
 
@@ -771,7 +771,7 @@ class TestTakeAndSave(unittest.TestCase):
     def test_the_worked_default(self):
         """8 mg, n = 6, 22 mm film, by hand.
 
-        Cycle 1 takes 5/6 of a 22 mm film — 18.33 mm — and jars the other
+        Cycle 1 takes 5/6 of a 22 mm film, 18.33 mm, and jars the other
         3.67 mm. Cycle 2 takes 5/6 of *that*, 15.28 mm off a fresh film, so the
         jar gets 6.72 mm: the same 3.67 mm sliver plus the 3.06 mm the ladder
         moved the mark. Δ save is that 3.06 mm.
@@ -804,7 +804,7 @@ class TestTakeAndSave(unittest.TestCase):
         self.assertTrue(switches, "the default run should switch to 2 mg film")
         for row in switches:
             self.assertIsNone(row.delta_save_mm, f"cycle {row.cycle}")
-            # The save is real, though — it is the first cut of a new strip.
+            # The save is real, though: it is the first cut of a new strip.
             self.assertGreater(row.save_mm, 0.0)
 
     def test_dropping_a_film_has_no_delta(self):
@@ -813,7 +813,7 @@ class TestTakeAndSave(unittest.TestCase):
         On the cycle where the second film stops being needed the save falls
         rather than grows, because far less film is opened at all. Comparing
         that with the previous cycle would say the jar shrank, which is true of
-        the film and false of the taper — so there is nothing to report.
+        the film and false of the taper, so there is nothing to report.
         """
         rows = build_schedule(16.0, 6).rows
         drops = [
@@ -850,7 +850,7 @@ class TestFractionCut(unittest.TestCase):
     """The folded-grid cut: take whole cells instead of measuring millimetres.
 
     This is an approximation by construction, so the tests are mostly about it
-    being an honest one — the piece it describes is really the fraction it
+    being an honest one. The piece it describes is really the fraction it
     claims, the error is really the error, and it never quietly picks something
     further out than it was allowed to.
     """
@@ -858,7 +858,7 @@ class TestFractionCut(unittest.TestCase):
     FULL, WIDE = 22.0, 12.8
 
     def each(self, tol_mg=0.0, film_mg=8.0):
-        """Walk the whole 0–1 range in fine steps, plus the exact grid points."""
+        """Walk the whole 0 to 1 range in fine steps, plus the exact grid points."""
         seen = set()
         for i in range(1, 1001):
             seen.add(i / 1000)
@@ -958,7 +958,7 @@ class TestFractionCut(unittest.TestCase):
             self.assertEqual(first, again, msg=f"want={want:.4f} moved")
 
     def test_the_brief_examples_are_all_reachable(self):
-        """1/2, 1/4, 1/8, 1/12, 1/24, 1/32 — the combinations the design is
+        """1/2, 1/4, 1/8, 1/12, 1/24, 1/32. The combinations the design is
         specified around. Each must come back exact, and as one piece."""
         for want, label in ((1 / 2, "1/2"), (1 / 4, "1/4"), (1 / 8, "1/8"),
                             (1 / 12, "1/12"), (1 / 24, "1/24"), (1 / 32, "1/32")):
@@ -993,9 +993,9 @@ class TestFractionCut(unittest.TestCase):
 class TestSummary(unittest.TestCase):
     """The headline figures and the n = 6 / 8 / 10 comparison.
 
-    Mostly about consistency of convention — the ~2 mg and ~1 mg milestones
+    Mostly about consistency of convention, the ~2 mg and ~1 mg milestones
     once reported opposite ends of their cycle, five days apart on the default
-    run — and about the comparison being an honest like-for-like.
+    run, and about the comparison being an honest like-for-like.
     """
 
     def test_milestones_use_the_same_convention(self):
@@ -1030,7 +1030,7 @@ def _count_assertions() -> dict:
     """Wrap TestCase's assert methods with a counter.
 
     Most of what this file checks lives inside matrix loops, so "61 tests" says
-    almost nothing about how much is actually verified — one of those tests
+    almost nothing about how much is actually verified, one of those tests
     makes tens of thousands of assertions. Counting them keeps the number in
     the README honest without anyone having to remember to update it.
     """
