@@ -21,9 +21,13 @@
 </script>
 <style>
   /* Light is the base set. The two blocks after it redefine only tokens, so no
-     colour is ever defined in one theme and missing from another. The film
-     oranges sit outside that system on purpose: a real Suboxone film is orange
-     in any light, and recolouring it would misrepresent the product. */
+     colour is ever defined in one theme and missing from another.
+
+     Unlike the calculator, this explainer follows prefers-color-scheme. Nobody
+     doses off this page, so matching the OS is the better default.
+
+     The film oranges sit outside that system on purpose. A real Suboxone film
+     is orange in any light, and recolouring it would misrepresent the product. */
   :root {
     --paper: #fbfaf8; --card: #ffffff; --sunk: #f4f1ec;
     --ink: #1c1917; --muted: #57534e; --faint: #8a837c;
@@ -51,6 +55,9 @@
     --shadow: 0 1px 2px rgb(0 0 0 / .5), 0 10px 30px -20px rgb(0 0 0 / .9);
   }
 
+  /* ---- Page frame -------------------------------------------------------
+     Reset, wrap, type, nav. Max width matches the calculator so the two
+     pages sit together. Nav chips are the way back. */
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--paper); color: var(--ink);
@@ -86,7 +93,9 @@
   nav a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   nav a.home { border-color: var(--accent); color: var(--accent); }
 
-  /* The control that drives every diagram on the page at once. */
+  /* ---- Driver -----------------------------------------------------------
+     Sticky dose control. It stays at the top while you scroll the stages,
+     because every diagram on the page is driven from this one number. */
   .driver {
     position: sticky; top: 0; z-index: 20; margin: 2.5rem 0 0;
     background: var(--card); border: 1px solid var(--line); border-radius: 12px;
@@ -110,8 +119,11 @@
   .presets button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   @media (max-width: 700px) { .driver { grid-template-columns: 1fr; } }
 
-  /* Stages. Numbered because this really is a pipeline: each one consumes what
-     the one before it produced. */
+  /* ---- Stages -----------------------------------------------------------
+     Numbered because this really is a pipeline. Each one consumes what the
+     one before it produced. Two columns until 860 px, then stacked.
+     min-width: 0 or the <pre> blocks inside set the track's min-content
+     width and the whole page scrolls sideways on a phone. */
   .stage {
     margin-top: 2.5rem; display: grid; gap: 1.1rem 2rem;
     grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); align-items: start;
@@ -136,12 +148,15 @@
   .fig .cap { font-size: 0.76rem; color: var(--faint); }
   .fig svg { display: block; width: 100%; height: auto; color: var(--faint); }
 
-  /* Film parts, fixed orange in both themes. */
+  /* ---- Film drawing -----------------------------------------------------
+     Fixed orange in both themes. Same rule as the calculator. Cell edges
+     are the folds you judge by eye. Blade lines are the strokes you make. */
   .grid-line { stroke: #9a3412; stroke-width: 0.7; stroke-dasharray: 2 3; opacity: 0.45; }
   .blade-u { stroke: #7f1d1d; stroke-width: 3.4; stroke-linecap: round; }
   .blade { stroke: #f87171; stroke-width: 1.6; stroke-linecap: round; }
   .edge { fill: none; stroke: #9a3412; stroke-width: 2; }
 
+  /* ---- Tables and callouts ---------------------------------------------- */
   table { border-collapse: collapse; width: 100%; font-size: 0.8rem; }
   th, td { padding: 0.34rem 0.5rem; text-align: right; white-space: nowrap; }
   th { font: 600 0.66rem/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -164,6 +179,10 @@
   .note p { font-size: 0.87rem; color: var(--muted); }
   .note code { background: rgb(128 128 128 / .16); }
 
+  /* ---- Code listings ----------------------------------------------------
+     The listing scrolls sideways by default. Wrap is the opt-in. The text
+     is hard-wrapped at 80 columns with comments in an aligned second
+     column, so soft-wrapping costs more than it saves. */
   pre.whole { font-size: 0.74rem; line-height: 1.7; padding: 1.1rem 1.2rem; }
   pre {
     margin: 0; background: var(--sunk); border: 1px solid var(--line);
@@ -937,19 +956,23 @@ paint(columns × col, 0, col, tab × row)
 
 <script>
 (() => {
+  /* Look up one element by id. Short because every stage writes through it. */
   const $ = (id) => document.getElementById(id);
 
   const WRAP_KEY = "sas-taper-fold-wrap"; /* must match the head script */
   let codeWrap = false;
   try { codeWrap = localStorage.getItem(WRAP_KEY) === "on"; } catch (e) { /* private mode */ }
+  /* Apply the Wrap/Scroll choice to the listings and the two buttons.
+     Scrolling is the default, so it is the absence of the attribute rather
+     than a value of its own. Only the non-default value is ever stored. */
   function applyCodeWrap(on) {
-    /* Scrolling is the default, so it is the absence of the attribute rather
-       than a value of its own. Only the non-default value is ever stored. */
     if (on) document.documentElement.setAttribute("data-code-wrap", "on");
     else document.documentElement.removeAttribute("data-code-wrap");
     $("codeWrapOn").setAttribute("aria-pressed", String(on));
     $("codeWrapOff").setAttribute("aria-pressed", String(!on));
   }
+  /* Remember the Wrap/Scroll choice, then apply it. Silent if storage is
+     blocked. Removing the key (not storing "off") lets the default move later. */
   function setCodeWrap(on) {
     codeWrap = on;
     try {
@@ -967,9 +990,18 @@ paint(columns × col, 0, col, tab × row)
   const TOL = TOL_MM * FILM_MG / FULL;          // 0.182 mg
   const LPEN = {1:0, 2:0, 3:2, 4:3, 8:6}, SPEN = {1:0, 2:2, 3:5, 4:7};
 
+  /* Greatest common divisor. Used to print a fraction in lowest terms. */
   const gcd = (a, b) => { while (b) { [a, b] = [b, a % b]; } return a; };
+  /* n/d in lowest terms, as "5/6". */
   const frac = (n, d) => { const g = gcd(n, d); return `${n / g}/${d / g}`; };
 
+  /* How cells of an L×S grid become a connected piece: whole columns plus a
+     tab of leftover cells on the next column. Never a scattered set.
+
+     Returns cuts (strokes you make) and pieces (bits that end up in your
+     mouth). A tab that runs to the film's own edge needs no cut on that
+     side, which is what makes 5/6 on a 3×2 grid two strokes rather than
+     three. */
   function shape(L, S, cells) {
     const columns = Math.floor(cells / S), tab = cells - columns * S;
     let cuts, pieces;
@@ -982,6 +1014,8 @@ paint(columns × col, 0, col, tab × row)
     return { L, S, cells, columns, tab, cuts, pieces, f: cells / (L * S) };
   }
 
+  /* How fine the grid is, as a tertiary ranking after error. Same table as
+     _frac_fineness in taper.py. Halving is exact. Thirds are a judgement. */
   const fineness = (c) => LPEN[c.L] + SPEN[c.S];
 
   /* The score, itemised. Every term the difficulty is made of, in one list, so
@@ -1001,6 +1035,8 @@ paint(columns × col, 0, col, tab × row)
       (c.tab && Math.min(FULL / c.L, WIDE * c.tab / c.S) < 2 ? 20 : 0)],
   ];
 
+  /* Sum of SCORE_ROWS. The itemisation is the score. Add a term to one and
+     not the other and the comparison panel's own arithmetic stops adding up. */
   function difficulty(c) {
     return SCORE_ROWS.reduce((n, row) => n + row[1](c), 0);
   }
@@ -1033,6 +1069,12 @@ paint(columns × col, 0, col, tab × row)
     if (!seen || CHEAPEST_FIRST(c, seen) < 0) EASIEST.set(c.f, c);
   }
 
+  /* Closest practical folded-grid piece to `want` of one 8 mg film.
+
+     Same search as fraction_cut() in taper.py, with this page's own copy of
+     the score. tol is a cap on the error, not a margin on top of the best
+     one. Returns the winner, the pool that was in the running, and the
+     closest fold regardless of difficulty (the one the ladder highlights). */
   function choose(want) {
     const scored = ALL.map((c) => Object.assign({ err: Math.abs(c.f - want) * FILM_MG }, c));
     const best = Math.min(...scored.map((c) => c.err));
@@ -1047,6 +1089,9 @@ paint(columns × col, 0, col, tab × row)
   /* ---- drawing ---------------------------------------------------------- */
   const U = 10, W = FULL * U, H = WIDE * U;
 
+  /* One folded film as SVG: fold grid faint, blade strokes bold, TAKE
+     filled orange, SAVE hatched. opts.cells / opts.split / opts.mark are
+     for the vocabulary figures that are not a real chosen cut. */
   function filmSvg(c, opts) {
     const o = opts || {};
     const cw = W / c.L, rh = H / c.S, p = c.columns, q = c.tab;
@@ -1197,6 +1242,9 @@ paint(columns × col, 0, col, tab × row)
      answering a question nobody asked. */
   let picked = null;
 
+  /* Draw the comparison: the fold the search chose beside the one the
+     reader picked off the ladder. Scores are broken out term by term so a
+     reader can see why the cheaper one won. */
   function renderCompare(r, want, shownF) {
     const a = r.pick, b = EASIEST.get(shownF);
     const errOf = (c) => Math.abs(c.f - want) * FILM_MG;
@@ -1273,6 +1321,10 @@ paint(columns × col, 0, col, tab × row)
     $("cmpVerdict").innerHTML = v;
   }
 
+  /* Redraw every stage from the wanted fraction. Called on slider input
+     and on a tick click. The comparison panel resets to "closest" whenever
+     the dose changes, because a comparison held over from the previous
+     dose is answering a question nobody asked. */
   function render(want) {
     const r = choose(want), c = r.pick;
     const wantMg = want * FILM_MG;

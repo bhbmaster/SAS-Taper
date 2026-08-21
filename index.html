@@ -22,17 +22,25 @@
     })();
   </script>
   <style>
-    /* Dark is the default. It is the bare :root palette, not a
-       prefers-color-scheme branch. The page opens dark whatever the OS says.
-       Light is opt-in via data-theme="light" (the toggle, or printing).
+    /* Colour tokens. Three copies, and they must stay in step.
 
-       The Suboxone film itself is deliberately NOT themed. A real film is
-       orange, so the strip keeps one fixed palette in both modes. Those
-       literals live under "film specimen" below.
+       1. Bare :root          dark. This is the default, not a media query.
+       2. [data-theme=light]  the toggle, and what a reader chose.
+       3. @media print        always light. A dark page wastes toner and is
+                              unreadable on paper.
 
-       Everything around the film does theme: the stage it sits on, the
-       "already off" region (absence, so it recedes toward the page), and the
-       cut-mark label. Only the product keeps fixed colour. */
+       A media block cannot join a selector list, so print repeats the light
+       values. Add a token to one block and miss another, and that mode shows
+       an undefined colour. The layout suite will not catch that.
+
+       Dark is not prefers-color-scheme. The page opens dark whatever the OS
+       says. Light is opt-in via data-theme="light".
+
+       The Suboxone film itself is NOT themed. A real film is orange, so the
+       strip keeps one fixed palette in both modes. Those literals live under
+       "film specimen" below. Everything around the film does theme: the stage
+       it sits on, the "already off" region (absence, so it recedes toward the
+       page), and the cut-mark label. Only the product keeps fixed colour. */
     :root {
       color-scheme: dark;
       --ink: #f4efe7;
@@ -120,7 +128,16 @@
       --gone-ink: #78716c;
       --film-mark: #9a3412;
     }
-    /* ---- Page frame: reset, body, header ------------------------------ */
+    /* ---- Page frame -------------------------------------------------------
+       Reset, body, header, how-to, wrap, warning banner, panel shell.
+
+       The page is one file. There is no layout framework. Width is capped at
+       1120 px so a printed A4 page still holds the tables. Panels are cards
+       with one small uppercase heading. The heading names the block. It does
+       not compete with the numbers inside it.
+
+       The warning banner uses the warn tokens. It is the first thing after
+       the lede on purpose. "Not medical advice" has to stay prominent. */
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
     body {
@@ -204,7 +221,11 @@
       color: var(--muted);
       margin: 0 0 0.8rem;
     }
-    /* ---- Inputs: the form grid, fields, buttons, banners --------------- */
+    /* ---- Form: the live inputs -------------------------------------------
+       auto-fill so a phone gets one column and a desktop gets several.
+       align-items: end so labels of different heights still sit on one
+       baseline with their fields. The HTML min/max only drive the spinner.
+       clampOpts() is what actually bounds a typed value. */
     form.grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -241,6 +262,10 @@
       color: var(--ink);
     }
     .checks input { width: auto; accent-color: var(--accent); }
+    /* ---- Headline cards --------------------------------------------------
+       The seven (or eight) totals above the schedule. One number per card.
+       The label is small and uppercase. The value is large. The sub-line
+       says what the number is, so nobody has to guess "strips consumed". */
     .cards {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
@@ -257,6 +282,10 @@
     .card .lbl { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
     .card .val { font-size: 1.35rem; font-weight: 650; letter-spacing: -0.03em; margin-top: 0.15rem; }
     .card .sub { font-size: 0.8rem; color: var(--muted); margin-top: 0.15rem; }
+    /* ---- Tables ----------------------------------------------------------
+       Tabular numbers so columns line up. Sticky header so the names stay
+       while you scroll. Only the schedule table handles a click. The compare
+       and month tables do not, so they keep a default cursor. */
     .scroll { overflow-x: auto; }
     table {
       width: 100%;
@@ -384,8 +413,16 @@
        fixed palette in both themes. Themed tokens would recolour the product.
        The film outline's own backdrop is only ever visible through the
        "already off" region, so it uses the themed absence tokens. */
-    /* ---- Cut-mark bar: the schematic full film, TAKE / SAVE / already off
-           Fixed orange palette, see the note below. --------------------- */
+    /* ---- Cut-mark bar ----------------------------------------------------
+       The schematic full unused film: TAKE, this cycle's extra, already off.
+       Fixed orange palette. A real Suboxone film is orange. Themed tokens
+       would recolour the product. The hashed "already off" region is absence,
+       so it uses the themed gone tokens and recedes toward the page.
+
+       One bar per film the day needs. The film that carries the cut is drawn
+       tall and keeps the tick captions under it. The rest are short, because
+       there is nothing on them to measure. Heights stay the same from one
+       cycle to the next, so the picture does not change shape. */
     .film {
       position: relative;
       height: 64px;
@@ -441,7 +478,17 @@
       border-left: 2px dashed #9a3412;
       pointer-events: none;
     }
-    /* ---- Ruler captions and the life-size drawing ---------------------- */
+    /* ---- Ruler captions and the life-size drawing ------------------------
+       Tick captions under the cut-mark bar are pinned to millimetre points
+       in CSS, then pinRulerTickLabels() slides them so they do not collide.
+       Under 640 px they become a wrapped row. Flow handles them. JS clears
+       the offsets.
+
+       The life-size panel below is sized in CSS millimetres. True size only
+       on a 96 PPI screen, which is why the 20 mm calibration bar and the
+       zoom slider exist. Folding mode belongs to this panel only. The bar
+       above always measures, because the schedule's millimetre columns refer
+       to that drawing. */
     .ticks { position: relative; height: 1.55rem; margin-top: 0.15rem; font-size: 0.75rem; color: var(--muted); }
     .ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
     .ticks span.start { left: 0; transform: none; }
@@ -614,9 +661,20 @@
       min-width: 11rem;
       box-sizing: border-box;
     }
-    /* Calendar. auto-fill rather than a fixed column count so a phone gets one
-       month and a desktop gets three, without a breakpoint per size. */
-    /* ---- Calendar: month grids, day cells, mode controls --------------- */
+    /* ---- Calendar --------------------------------------------------------
+       auto-fill rather than a fixed column count, so a phone gets one month
+       and a desktop gets three, with no breakpoint per size.
+
+       Seven columns are fixed by the week. On a narrow screen the only give
+       is in the cell. Drop the cut length first, then the type size. A
+       clipped "6.6" is worse than a small "6.67".
+
+       --fit is written by fitCalCells() when a cell's numbers do not fit.
+       It is a multiplier, so it composes with the narrow tiers below instead
+       of having to out-specify them. nowrap is what makes that measurement
+       work: a line allowed to wrap never overflows, it just grows a fourth
+       row. Held on one line, an oversized "save 11.39 mm" reports overflow
+       and gets scaled down. */
     .cal-months {
       display: grid;
       /* min() so the track can drop below 17rem on a very narrow screen, a
@@ -750,10 +808,12 @@
       margin: 0 0 0.8rem;
     }
     .cal-controls .k { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
-    /* Each entry is one paragraph, not two stacked blocks: the term and its
-       description run inline inside a wrapper div, which HTML5 allows around a
-       dt/dd pair. The term is set apart by colour alone, bold made it read as
-       another heading, and the ink/muted contrast already does that job. */
+    /* ---- Glossary lists --------------------------------------------------
+       Each entry is one paragraph, not two stacked blocks. The term and its
+       description run inline inside a wrapper div, which HTML5 allows around
+       a dt/dd pair. The term is set apart by colour alone. Bold made it
+       read as another heading. A real span, not a ::after: generated
+       content is dropped when the page is copied. */
     .inputdoc { margin: 0.5rem 0 0; padding-left: 1.15rem; }
     /* display: list-item gives the wrapper a bullet without giving up the
        description-list semantics, dt/dd stay a term and its description. */
@@ -831,9 +891,11 @@
       color: var(--on-accent);
       border-color: var(--accent);
     }
-    /* The folded-grid drawing. Cell edges are the folds you judge by eye; the
-       blade lines are the strokes you actually make, and have to read as a
-       different kind of thing entirely. */
+    /* ---- Folded-grid drawing ---------------------------------------------
+       Cell edges are the folds you judge by eye. Blade lines are the strokes
+       you actually make. They have to read as a different kind of thing.
+       Stroke colours are film orange, not theme tokens. Same rule as the
+       specimen: a real film is orange. */
     .fold-grid { stroke: #9a3412; stroke-width: 0.7; stroke-dasharray: 2 3; opacity: 0.45; }
     .fold-blade-under { stroke: #7f1d1d; stroke-width: 3.4; stroke-linecap: round; }
     .fold-blade { stroke: #f87171; stroke-width: 1.6; stroke-linecap: round; }
@@ -853,7 +915,14 @@
     .fold-frac { display: inline-grid; justify-items: center; vertical-align: middle; margin: 0 0.2em; }
     .fold-frac .n, .fold-frac .d { font-size: 0.82em; font-weight: 700; line-height: 1.05; color: var(--ink); }
     .fold-frac .r { width: 100%; min-width: 1.1em; height: 1px; background: currentColor; opacity: 0.7; margin: 0.1em 0; }
-    /* ---- Charts: the grid they sit in, plus the HTML piece ladder ------ */
+    /* ---- Charts ----------------------------------------------------------
+       Two columns down to 820 px, then one. Chart colours come from
+       readChartPalette(), never hardcoded. They are baked into the SVG at
+       render time, so a CSS variable in an SVG attribute does not resolve.
+       Flipping the theme has to redraw, not restyle.
+
+       The piece ladder at the bottom is HTML flex bars, not SVG. It is the
+       same TAKE / Δ save picture as the cut-mark bar, one row per cycle. */
     .charts {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -889,6 +958,10 @@
     .piece-row.warn .piece-track { border-color: var(--warn); }
     .piece-row .mm { font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .swatch { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 2px; vertical-align: -0.1rem; margin-right: 0.25rem; }
+    /* ---- Buttons, notes, footer ------------------------------------------
+       Primary fills with accent. ghost is outline only, for the theme toggle
+       and the Reset next to it. Notes are the practical block at the bottom.
+       The footer names the two implementations and the GitHub link. */
     .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.4rem 0 0.2rem; }
     button {
       font: inherit;
@@ -908,11 +981,21 @@
     .foot { color: var(--muted); font-size: 0.8rem; margin-top: 1.5rem; }
     .foot a { color: var(--accent); font-weight: 650; text-decoration: none; }
     .foot a:hover { text-decoration: underline; }
+    /* ---- Print -----------------------------------------------------------
+       Always print light. This page exists to be handed to a prescriber.
+       A dark background is unreadable on paper and a waste of toner.
+
+       These repeat the [data-theme="light"] values because a media block
+       cannot join that selector list. Keep the two in step.
+
+       JS also flips to light before printing, because chart colours are baked
+       into the SVG and the print stylesheet cannot lighten them on its own.
+       The reader's theme is restored when the dialog closes.
+
+       Nothing hovers on paper: drop the tooltip, open the glossary, hide the
+       controls. A day can be a stack of bars. A page break through one is
+       unreadable, so films and months avoid breaks. */
     @media print {
-      /* Always print light. This page exists to be handed to a prescriber, and
-         a dark background is unreadable on paper and a waste of toner. These
-         repeat the [data-theme="light"] values because a media block cannot
-         join that selector list; keep the two in step. */
       :root {
         color-scheme: light;
         --ink: #1c1917;
@@ -1375,6 +1458,7 @@
     return FILM_SPECS[specKeyForMg(filmMg)].label;
   }
 
+  /* Look up one element by id. Short because every renderer uses it. */
   const $ = (id) => document.getElementById(id);
 
   /* Fraction of the piece kept after one day's cut: 1 − 1/n. The whole taper
@@ -1405,32 +1489,9 @@
     return 8;
   }
 
-  /* How one day of a cycle is laid out across real films.
+  /* How one day of a cycle is laid out across real films. The function is
+     filmLayout() below, after the fold search it shares film geometry with. */
 
-     A day's strip can be longer than one film: a 32 mg start on 8 mg strips is
-     four of them. The dose arithmetic does not care. It is all milligrams,
-     but the person holding a razor does.
-
-     Think of the day's strip as the films laid end to end. You take from the
-     left; everything past the mark goes in the jar. So the only films worth
-     opening are the ones the TAKE reaches:
-
-       takeFilms        whole films swallowed untouched, no cut
-       the marked film  TAKE cutTakeMm | SAVE cutSaveMm | already off
-
-     That is one cut a day, on one film, wherever the dose lands. A film the
-     take never reaches would be opened only to put it straight in the jar, so
-     it is left in the box instead and counted in spareMm, the part of today's
-     sliver sitting on film you never open. spareMm is zero whenever the day
-     fits inside the films the take needs, which is every cycle of any run that
-     fits on one film.
-
-     When the take lands exactly on a film boundary there is no marked film at
-     all: take the whole ones, and nothing needs measuring.
-
-     Takes the day's strip and sliver in mg plus the film's strength and length.
-     Returns { filmsOut, takeFilms, cutTakeMm, cutSaveMm, spareMm }. Mirrors
-     film_layout() in taper.py; test_parity.js checks every field of both. */
   /* Subdivisions the fraction cut may fold the film into. Mirrors
      FRAC_LONG_DIVS / FRAC_SHORT_DIVS in taper.py. The long axis gets eighths
      because three successive halvings stay reproducible over 22 mm. The short
@@ -1440,6 +1501,7 @@
   const FRAC_SHORT_DIVS = [1, 2, 3, 4];
   const FRAC_MIN_TAB_MM = 2.0;
 
+  /* Greatest common divisor. Used to print a fraction in lowest terms. */
   function gcd(a, b) { while (b) { [a, b] = [b, a % b]; } return a; }
 
   /* How hard a folded cut is by hand. Lower is easier. Mirrors
@@ -1532,6 +1594,37 @@
     };
   }
 
+  /* Lay one day's strip across whole films, with a single cut.
+
+     Takes the day's strip and sliver in mg plus the film's strength and
+     length. Returns { filmsOut, takeFilms, cutTakeMm, cutSaveMm, spareMm }.
+     Guarantees:
+       takeFilms * filmMm + cutTakeMm  == the day's TAKE length
+       cutSaveMm + spareMm             == the day's SLIVER length
+       filmsOut                        == the films you actually open
+     and at most one of them carries a mark.
+
+     A day's strip can be longer than one film. A 32 mg start on 8 mg strips
+     is four of them. The dose arithmetic does not care. It is all milligrams.
+     The person holding a razor does.
+
+     Think of the day's strip as the films laid end to end. You take from the
+     left. Everything past the mark goes in the jar. So the only films worth
+     opening are the ones the TAKE reaches:
+
+       takeFilms        whole films swallowed untouched, no cut
+       the marked film  TAKE cutTakeMm | SAVE cutSaveMm | already off
+
+     That is one cut a day, on one film, wherever the dose lands. A film the
+     take never reaches would be opened only to put it straight in the jar, so
+     it is left in the box instead and counted in spareMm. spareMm is zero
+     whenever the day fits inside the films the take needs, which is every
+     cycle of any run that fits on one film.
+
+     When the take lands exactly on a film boundary there is no marked film
+     at all. Take the whole ones. Nothing needs measuring.
+
+     Mirrors film_layout() in taper.py. test_parity.js checks every field. */
   function filmLayout(stripMg, sliverMg, filmMg, filmMm) {
     if (!(filmMg > 0) || !(filmMm > 0)) {
       return { filmsOut: 0, takeFilms: 0, cutTakeMm: 0, cutSaveMm: 0, spareMm: 0 };
@@ -2380,17 +2473,6 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
     fitCalCells();
   }
 
-  /* Shrink any calendar number that does not fit its cell.
-
-     A cell is 25px wide on a 280px phone, and what goes in it is not a fixed
-     width: an 8 mg start writes "6.67", a 16 mg one writes "13.33×2". Do not
-     guess a font size per breakpoint. There are four tiers, all tuned against
-     four characters. Measure after render and scale only the lines that
-     overflow. Writes the --fit multiplier the CSS above applies on
-     top of whichever tier is active.
-
-     Reads every width before writing any style, so the whole pass costs one
-     reflow rather than one per cell. Takes and returns nothing. */
   /* A worked day cell above the grid, with every part of it named and every
      state it can be in shown as a swatch.
 
@@ -2433,6 +2515,17 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
      instead of shrunk. */
   const FIT_FLOOR = 0.6;
 
+  /* Shrink any calendar number that does not fit its cell.
+
+     A cell is 25 px wide on a 280 px phone, and what goes in it is not a
+     fixed width. An 8 mg start writes "6.67". A 16 mg one writes "13.33×2".
+     Do not guess a font size per breakpoint. There are four tiers, all
+     tuned against four characters. Measure after render and scale only the
+     lines that overflow. Writes the --fit multiplier the CSS above applies
+     on top of whichever tier is active.
+
+     Reads every width before writing any style, so the whole pass costs one
+     reflow rather than one per cell. Takes and returns nothing. */
   function fitCalCells() {
     const panel = $("calendarPanel");
     panel.classList.remove("no-fx");
@@ -2772,12 +2865,6 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
     if (Number.isFinite(v) && v >= 50 && v <= 300) stripScalePct = v;
   }
 
-  /* The life-size film drawing, in real millimetres.
-
-     Takes the schedule and draws the selected cycle at the chosen zoom, on
-     whichever film strength the reader picked in the size table (vizFilmMg) or
-     the cycle's own. Sizes are in CSS mm, which is true size only on a 96 PPI
-     screen, hence the calibration bar and the zoom slider. */
   /* Which way the life-size panel finds the cut. Only this panel. The ruler
      above it always measures, because it is the drawing the schedule's own
      millimetre columns refer to.
@@ -2848,12 +2935,24 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
     return o.join("");
   }
 
+  /* The chosen fraction, as a stacked numerator over denominator. "5/6" on
+     one line reads as a date or a ratio, and this is neither. */
   const fracHtml = (label) => {
     const [n, d] = label.split("/");
     return `<span class="fold-frac"><span class="n">${n}</span>`
       + `<span class="r"></span><span class="d">${d}</span></span>`;
   };
 
+  /* The life-size film drawing, in real millimetres.
+
+     Takes the schedule and draws the selected cycle at the chosen zoom, on
+     whichever film strength the reader picked in the size table (vizFilmMg)
+     or the cycle's own. Sizes are in CSS mm, which is true size only on a
+     96 PPI screen, hence the calibration bar and the zoom slider.
+
+     vizMode chooses Folding or Measuring. Only this panel. The ruler above
+     always measures, because it is the drawing the schedule's millimetre
+     columns refer to. */
   function renderStripViz(s, o) {
     lastSched = s;
     /* Held so the mode buttons and the scale slider can redraw without
@@ -2964,14 +3063,6 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
     pinStripCutLabel(takePct);
   }
 
-  /* Place the "today's cut" caption over the cut line on the life-size drawing.
-
-     Takes the cut position as a percentage of the strip. The caption is
-     absolutely positioned, so it contributes nothing to the mat's width and is
-     wider than the strip at any modest zoom. The mat is widened from the
-     caption's measured width, and the caption itself is clamped so it never
-     hangs off either end. Measured rather than set in CSS because the text
-     length moves with the numbers in it. */
   /* The folding mode of the life-size panel.
 
      Approximates the marked film's take with whole cells of a folded grid and
@@ -3062,6 +3153,15 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
      among the strengths this tool can reach. */
   const article = (mg) => (/^(8|11|18|80)/.test(String(mg)) ? "an" : "a");
 
+  /* Place the "today's cut" caption over the cut line on the life-size
+     drawing.
+
+     Takes the cut position as a percentage of the strip. The caption is
+     absolutely positioned, so it contributes nothing to the mat's width and
+     is wider than the strip at any modest zoom. The mat is widened from the
+     caption's measured width, and the caption itself is clamped so it never
+     hangs off either end. Measured rather than set in CSS because the text
+     length moves with the numbers in it. */
   function pinStripCutLabel(takePct) {
     const strip = $("stripViz").querySelector(".strip-full.marked");
     const label = $("stripViz").querySelector(".strip-cut-label");
@@ -3098,8 +3198,13 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
      shows it too, so the information is not mouse-only. */
   let tipEl = null;
   let tipFor = null;
+  /* True on a device that actually hovers. On a phone there is no hover
+     state, and a long-press would fight the browser's own text selection. */
   const canHover = () => window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
+  /* Show the schedule-header tooltip for one <th>. Creates the shared
+     element on first use, measures it, then pins it above the header
+     (or below if there is no room). Clamped to the viewport on both axes. */
   function showTip(th) {
     const text = th.getAttribute("data-tip");
     if (!text) return;
@@ -3127,6 +3232,8 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
     tipEl.style.visibility = "visible";
   }
 
+  /* Hide the header tooltip. Does not remove the element. The next show
+     reuses it. */
   function hideTip() {
     tipFor = null;
     if (tipEl) tipEl.style.display = "none";
@@ -3304,11 +3411,15 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
     const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], 12));
     return Number.isNaN(d.getTime()) ? null : d;
   }
+  /* Add k whole days to a noon-UTC Date. Uses milliseconds, not setUTCDate,
+     so DST cannot land on the same calendar day twice. */
   const addDays = (d, k) => new Date(d.getTime() + k * DAY_MS);
-  /* Whole days between two noon-UTC anchors; rounded because a leap second or
-     a stray hour must not turn 6 days into 5.999. */
+  /* Whole days between two noon-UTC anchors. Rounded because a leap second
+     or a stray hour must not turn 6 days into 5.999. */
   const daysBetween = (a, b) => Math.round((b.getTime() - a.getTime()) / DAY_MS);
+  /* YYYY-MM-DD from a noon-UTC Date. Slice of toISOString, which is already UTC. */
   const isoDay = (d) => d.toISOString().slice(0, 10);
+  /* Short weekday + day + month, for the calendar lede. Monday-first DOW. */
   const fmtDay = (d) => `${DOW[(d.getUTCDay() + 6) % 7]} ${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()].slice(0, 3)}`;
   /* Today's local calendar date, as a UTC-noon anchor, so it can be compared
      with parseDay() values by whole days. */
@@ -3352,6 +3463,9 @@ html += `</div><p class="cal-key">The big number is the day's dose in mg. The se
     return out;
   }
 
+  /* Expand the schedule's cycle rows into one dose per day, then run
+     lagFromDoses. Takes the rows, the half-life in hours, and the start
+     dose. Returns [] when the half-life is off (0) or there are no rows. */
   function lagSeries(rows, halfLifeH, startMg) {
     if (!(halfLifeH > 0) || !rows.length) return [];
     const doses = [];

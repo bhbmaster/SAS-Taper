@@ -575,6 +575,11 @@ class FractionCut:
 
     @property
     def exact(self) -> bool:
+        """True when the fold lands inside 0.0005 mg of the asked dose.
+
+        Half a microgram is well below anything a hand cut can resolve, so
+        the panel may print "exact" rather than "+0.00 mg".
+        """
         return abs(self.error_mg) < 5e-4
 
 
@@ -1125,7 +1130,14 @@ def compare_classic(
 
 
 def share_cols(values: list[float], inner: int) -> list[int]:
-    """Integer column counts that sum to inner, proportional to values."""
+    """Integer column counts that sum to inner, proportional to values.
+
+    Used by the ASCII ruler so TAKE, this cycle's extra, and already-off
+    share a fixed width. Largest remainder wins leftover columns. A band
+    with any real millimetres is never given zero columns if another band
+    can spare one. That is what stops a thin sliver vanishing from the
+    drawing.
+    """
     n = len(values)
     total = sum(max(0.0, v) for v in values)
     if inner <= 0 or n == 0:
@@ -1159,8 +1171,11 @@ def ascii_ruler(
     ghost_mm: float = 0.0,
     width: int = 52,
 ) -> str:
-    """TAKE (=) on the left, then the SAVE: this cycle's extra (#), then the
-    part already off before (.). Everything right of the = is saved."""
+    """One line picture of a full unused film.
+
+    TAKE (=) on the left. Then the SAVE: this cycle's extra (#), then the
+    part already off before (.). Everything right of the = goes in the jar.
+    """
     inner = max(12, width - 2)
     take_c, save_c, ghost_c = share_cols([take_mm, save_mm, ghost_mm], inner)
     parts = [("=", take_c), ("#", save_c), (".", ghost_c)]
@@ -1404,7 +1419,12 @@ def print_table(headers: list[str], rows: list[list[str]]) -> None:
 
 
 def parse_start_date(raw: Optional[str]) -> Optional[date]:
-    """YYYY-MM-DD, or None. Raises ValueError on anything else."""
+    """Parse YYYY-MM-DD, or return None for blank.
+
+    Raises ValueError on anything else. The CLI rejects a bad date rather
+    than clamping it. The web page cannot throw at its reader, so it
+    ignores an unparseable box instead.
+    """
     if not raw:
         return None
     return date.fromisoformat(raw.strip())
@@ -1662,7 +1682,11 @@ def print_schedule(
 
 
 def print_compare(rows: list[dict[str, Any]]) -> None:
-    """Print the n = 6 / 8 / 10 comparison from compare_classic() rows."""
+    """Print the n = 6 / 8 / 10 table from compare_classic().
+
+    Args:
+        rows: one dict per n, the same shape the site's compare panel uses.
+    """
     print("Compare n = 6 / 8 / 10 at ~1 mg")
     print("8 mg films all the way. Last cycle still above 1 mg. Bank is not re-dosed.")
     print("Strips = strips consumed. Less than opened, because you saved some. Stay = strips consumed if you never tapered. Saved = the difference.")

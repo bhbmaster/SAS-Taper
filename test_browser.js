@@ -14,6 +14,8 @@ const fs = require("fs");
 const path = require("path");
 
 function findBrowser() {
+  /* First an explicit CHROMIUM_PATH, then a Playwright cache, then a
+     Chrome or Chromium already installed. Returns a path or null. */
   const envPath = process.env.CHROMIUM_PATH;
   if (envPath && fs.existsSync(envPath)) return envPath;
 
