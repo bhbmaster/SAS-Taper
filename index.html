@@ -1090,7 +1090,7 @@
         <li>Pick a <strong>cut mode</strong>. <strong>Geometric</strong> (the default) cuts the same <em>fraction</em> every cycle. The percentage step stays steady. The ladder never quite reaches zero. <strong>Linear</strong> cuts the same <em>amount</em> every cycle. The milligram step stays steady. The ladder reaches zero after about n of them. Linear is easier to cut. It is the same mark every day, not a new smaller mark each cycle. The trade is a steeper finish. You can change mode and compare. Nothing else changes.</li>
         <li>Measure your film with a ruler along its <strong>length only</strong>. That is the 22 mm side, the side you will cut. Put that number in "Start film length". All four Suboxone strengths are 22 mm on that side. So it is the same number whichever you start on. Default n = 6 (16.7% every 6 days). If you want a gentler taper, raise n to 8 or 10.</li>
         <li>The cards, graphs, and schedule recalculate live. Click a cycle row, or a graph step, to see that day's cut mark and a life-size film. <strong>TAKE is on the left. SAVE is on the right.</strong> The cut-mark bar is a full unused film. Later cycles hash the rest that is already removed.</li>
-        <li>At the counter you need four numbers. The schedule's tinted block is those four plus one. <strong>Take</strong> in mg and mm. <strong>Save</strong> in mg and mm. <strong>Δ save</strong>. Open a film. Mark it at Take mm from its <strong>left</strong> end. Cut one time. Left of the mark is the dose. Everything right of the mark goes in the jar. All of it, not only this cycle's sliver. Δ save is how much more the jar gets than last cycle. It grows every cycle. Do no arithmetic at the strip.</li>
+        <li>At the counter you need four numbers. The schedule's tinted block is those four plus one. <strong>Take</strong> in mg and mm. <strong>Save</strong> in mg and mm. <strong>Δ save</strong>. Open a film. Mark it at Take mm from its <strong>left</strong> end. Cut one time. Left of the mark is the dose. Everything right of the mark goes in the jar. All of it, not only this cycle's sliver. Δ save is how much more the jar gets than last cycle. It grows every cycle. Do not calculate at the strip.</li>
         <li>If your dose is larger than one film, the day is several strips. Example: 16 mg on 8 mg strips. The Film column shows <strong>×2</strong>. Cut only one of those strips. TAKE the whole ones as they are.</li>
         <li>The life-size film shows <strong>Folding</strong> by default. That is the same dose as whole parts of a folded grid. Halve it. Halve it again. Take five of six. That needs no ruler and no arithmetic. It is easier to repeat than a measure of 15.28 mm at 6 am. It always tells you how far off the ladder that lands. In linear mode it lands exactly. Change to <strong>Measuring</strong> for the exact mark in millimetres. The cut-mark panel above always measures either way. If you want to know how the fold is picked, <a href="fold.html">there is a page on it</a>.</li>
         <li>Print / save as PDF. Take it to your prescriber <em>before day 1</em>. They can match quantity and write 2 mg films for the back half.</li>
@@ -2100,7 +2100,7 @@
   }
 
   /* The seven headline tiles: days to ~2 mg and ~1 mg, end of run, total
-     ingested, banked buffer, lifetime ceiling, and the saving against staying
+     consumed, banked buffer, lifetime ceiling, and the saving against staying
      put. Takes the schedule, writes into #cards, then renders the warnings. */
   function renderCards(s) {
     const items = [
@@ -2457,7 +2457,7 @@
       cur = new Date(Date.UTC(y, m + 1, 1, 12));
     }
     const mode = CAL_MODES[calMode];
-html += `</div><p class="cal-key">The big number is the day's dose in mg. The second is the mm figure the button above selects, currently <strong>${mode.label}</strong>. ${mode.help}`
+    html += `</div><p class="cal-key">The big number is the day's dose in mg. The second is the mm figure the button above selects, currently <strong>${mode.label}</strong>. ${mode.help}`
       + ` The mm is measured on the film that carries the cut. ×N means the day needs N films. Cut only that one.`
       + ` Alternate cycles are shaded. Cycles on 2 mg film carry a blue edge. The first day of each cycle is tagged c1, c2 and so on.`
       + ` Click any day to select that cycle. The selected one is ringed.</p>`;
