@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /* Parity checks for SAS-Taper. Run: node test_parity.js
  *
- * The ladder maths is implemented twice — buildSchedule() in index.html and
- * build_schedule() in taper.py — and the site's footer promises the two agree.
+ * The ladder maths is implemented twice, buildSchedule() in index.html and
+ * build_schedule() in taper.py, and the site's footer promises the two agree.
  * test_taper.py only covers the Python side, so this diffs the JS one against
  * it: same inputs into both, then every row field compared.
  *
  * Needs playwright-core and a Chromium. If neither is present the script says
- * so and exits 0 — a checkout without a browser should not fail the suite.
+ * so and exits 0. A checkout without a browser should not fail the suite.
  */
 
 "use strict";
@@ -87,7 +87,7 @@ const CASES = [
   { n: 30 },
   { startMg: 0.1, stripMg: 0.1 },
   // Empty ladder: target too close to the start dose. Both sides must report
-  // zeroed summary fields rather than leaving them undefined — an undefined
+  // zeroed summary fields rather than leaving them undefined, an undefined
   // endDay turned Math.max(endDay, 1) into NaN and broke the comparison chart.
   { startMg: 1.1, targetMg: 1, stopMode: "above" },
   { startMg: 8, targetMg: 8, stopMode: "above" },
@@ -233,7 +233,7 @@ for (const cutMode of ["geometric", "linear"]) {
   }
 }
 /* Film length only scales millimetres, so it gets a slice rather than the full
-   cross — but it has to be in here, because every layout figure is derived
+   cross, but it has to be in here, because every layout figure is derived
    from it. */
 for (const startMg of MATRIX_STARTS) {
   for (const filmStrengthMg of MATRIX_STRENGTHS) {
@@ -335,7 +335,7 @@ json.dump(out, sys.stdout)
   }
 
   /* fractionCut() is the second thing written twice on both sides, and unlike
-     the ladder it is a search with a tie-break — exactly the kind of code that
+     the ladder it is a search with a tie-break, exactly the kind of code that
      drifts silently. Swept across the whole 0-1 range on several film sizes and
      both tolerance regimes, comparing every field of the result. */
   {
@@ -428,18 +428,18 @@ json.dump(out, sys.stdout)
 
   const checks = CASES.length + 11 + 7 + MATRIX.length;
   if (failures.length) {
-    console.error(`FAILED — ${failures.length} mismatch(es) across ${checks} checks:`);
+    console.error(`FAILED: ${failures.length} mismatch(es) across ${checks} checks:`);
     for (const f of failures.slice(0, 40)) console.error("  " + f);
     process.exit(1);
   }
   console.log(
-    `OK — index.html matches taper.py across ${CASES.length + MATRIX.length} schedules `
+    `OK. index.html matches taper.py across ${CASES.length + MATRIX.length} schedules `
     + `(${matrixRows} matrix cycles, widest day ${widestDay} films: `
     + `${shapes.multi} multi-film, ${shapes.spareFilm} whose sliver runs onto unopened film, `
     + `${shapes.noCut} with nothing to cut), 11 film sizes, `
     + `every month bucket and the n = 6/8/10 table, and `
-    + `${fracChecked.toLocaleString("en-US")} folded-grid cuts — `
-    + `${comparisons.toLocaleString("en-US")} field comparisons in all`
+    + `${fracChecked.toLocaleString("en-US")} folded-grid cuts. `
+    + `${comparisons.toLocaleString("en-US")} field comparisons in all.`
   );
 })().catch((e) => {
   console.error(e);
