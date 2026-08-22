@@ -88,8 +88,8 @@ You should never have to do arithmetic while holding a razor. Five columns of th
 
 | Column | What it is |
 |---|---|
-| **Take mg** | the dose you take each day. This is what goes in your mouth |
-| **Take mm** | mark a full film that far from its **left** end, then cut once |
+| **Take mg** | how much you take that day. This is the day's total. You can split the take piece |
+| **Take mm** | mark a full film that far from its **left** end, then cut once. The left piece is the day's take. You can split that piece after you cut |
 | **Save mg** | milligrams that go in the jar. Do not take this as extra dose |
 | **Save mm** | everything right of the mark. Put that in the jar |
 | **Δ save mm** | how much more the jar gets than last cycle. That extra is the sliver |
@@ -142,7 +142,7 @@ test method can make tens of thousands of assertions:
 |---|---|---|
 | `test_taper.py` | **74 tests, ~501,000 assertions** | 1,440 ladders / 15,422 cycles in the matrix alone |
 | `test_parity.js` | **1,323 schedules + 13,920 folded cuts + 2,444 lag checks, ~647,000 field comparisons** | 13,567 matrix cycles × 28 row fields, plus summaries, months, the compare table, the fraction search, the lag-curve closed form and the explainer copy |
-| `test_layout.js` | **697 viewport states, 989 checks** | each state is a whole rendered page, `index.html`, `fold.html` or `lag.html`, measured for five failure modes, plus a source scan for leftover dashes and ranges spelled "to" |
+| `test_layout.js` | **697 viewport states, 997 checks** | each state is a whole rendered page, `index.html`, `fold.html` or `lag.html`, measured for five failure modes, plus a source scan for leftover dashes, ranges spelled "to", and Take still being the day's total you can split |
 
 Around **1,148,000 individual checks** in total, in about five minutes.
 
@@ -224,7 +224,7 @@ All three run in GitHub Actions on every push and pull request.
 0. Pick a cut mode. Geometric (default) or linear. See [Two cut modes](#two-cut-modes). Everything below is the same either way. Only the size of the next cut differs.
 1. Start with the current whole strip. For cycle 1, this is one full 8 mg film. If your dose is larger than one film, start with that number of films.
 2. Keep the full width. Cut along the length only. Mark the cut first. Then cut with a razor. Do not use scissors.
-3. Cut `1/n` from the **right** end. Save that sliver. Take the long left piece. Take the dose one time each day. If the day is more than one film, cut one of them and take the rest whole.
+3. Cut `1/n` from the **right** end. Save that sliver. Take the long left piece. That is how much you take that day, the day's total. You do not have to take it all at once. You can split the take piece. Example: one piece in the morning and one in the evening. Or more often. Or less often. If the day is more than one film, cut one of them and take the rest whole.
 4. After `n` days the save jar holds one full piece. Do not take the bank as extra daily dose. If you do, the taper does not decrease.
 5. Next cycle, the leftover size is the new whole strip. In geometric mode the next cut is smaller. In linear mode you cut the identical piece again. Repeat until you reach the target (default 1 mg). In linear mode, repeat until there is nothing left to cut.
 

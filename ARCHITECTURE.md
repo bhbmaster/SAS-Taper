@@ -193,7 +193,7 @@ save_mm  = film_mm − cut_take_mm      the rest of the marked film
 
 #### Take and save, the pair the reader acts on
 
-`piece_mm` and `cut_mm` describe the *ladder*: the piece you conceptually hold and the sliver the method shaves off it. Nobody keeps yesterday's offcut, though. In practice you open a fresh film every day and cut it down. `take_mm` and `save_mm` describe **that**, and they are what the schedule's tinted block shows:
+`piece_mm` and `cut_mm` describe the *ladder*: the piece you conceptually hold and the sliver the method shaves off it. Nobody keeps yesterday's offcut, though. In practice you open a fresh film every day and cut it down. `take_mm` and `save_mm` describe **that**, and they are what the schedule's tinted block shows. Take milligrams is how much you take that day: the day's total. You can split the take piece after you cut. The millimetre columns still describe that one cut.
 
 ```
 take_mm + save_mm = films_out × film_mm      the film you actually opened
@@ -470,7 +470,7 @@ The lag curve is JS-only, so it is not in the field-by-field ladder diff. `test_
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js`: 697 viewport states, 989 checks
+### `test_layout.js`: 697 viewport states, 997 checks
 
 Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty-one reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
 
@@ -498,7 +498,7 @@ It also carries a short pass over **rendered figures no other suite can see**: t
 
 Any console error or page error fails it too.
 
-Before it looks for a browser it also scans the source for the punctuation tells the unslop pass removed: em dashes, en dashes, curly quotes and the ellipsis character. Compact numeric ranges have to stay hyphenated (`24-42 hours`); spelling the same range with the word "to" fails the scan.
+Before it looks for a browser it also scans the source for the punctuation tells the unslop pass removed: em dashes, en dashes, curly quotes and the ellipsis character. Compact numeric ranges have to stay hyphenated (`24-42 hours`); spelling the same range with the word "to" fails the scan. The same pass also checks that Take is worded as the day's total you can split, and that the old one-sitting-only lines are gone from every surface a reader doses from.
 
 ### CI
 
@@ -528,6 +528,7 @@ Every guard above was checked by injecting the fault it is meant to catch:
 | `monthly_usage` drifts by 0.1% | 14,304 parity mismatches |
 | `compareClassic` drifts by 2% on the target | 14 parity mismatches |
 | 0.1% error in `keepRatio` | 1985 mismatches |
+| restore the old one-sitting-only note | take-wording scan fails at the source pass |
 
 A guard that has never been seen to fail is not yet a guard.
 

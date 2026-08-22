@@ -376,8 +376,8 @@
       text-transform: none;
       margin-left: 0.1em;
     }
-    /* Take, Save and Δ save: swallow this much, jar the rest, and the jar's
-       share grows. What the reader does every morning, tinted as one block
+    /* Take, Save and Δ save: the day's take, the jar, and the jar's
+       share grows. What the reader does that day, tinted as one block
        across the middle of the row. Tinted with an inset shadow
        rather than a background, because the row states (selected, 2 mg switch,
        thin sliver) set td backgrounds and would paint straight over it. */
@@ -1090,7 +1090,7 @@
         <li>Pick a <strong>cut mode</strong>. <strong>Geometric</strong> (the default) cuts the same <em>fraction</em> every cycle. The percentage step stays steady. The ladder never quite reaches zero. <strong>Linear</strong> cuts the same <em>amount</em> every cycle. The milligram step stays steady. The ladder reaches zero after about n of them. Linear is easier to cut. It is the same mark every day, not a new smaller mark each cycle. The trade is a steeper finish. You can change mode and compare. Nothing else changes.</li>
         <li>Measure your film with a ruler along its <strong>length only</strong>. That is the 22 mm side, the side you will cut. Put that number in "Start film length". All four Suboxone strengths are 22 mm on that side. So it is the same number whichever you start on. Default n = 6 (16.7% every 6 days). If you want a gentler taper, raise n to 8 or 10.</li>
         <li>The cards, graphs, and schedule recalculate live. Click a cycle row, or a graph step, to see that day's cut mark and a life-size film. <strong>TAKE is on the left. SAVE is on the right.</strong> The cut-mark bar is a full unused film. Later cycles hash the rest that is already removed.</li>
-        <li>At the counter you need four numbers. The schedule's tinted block is those four plus one. <strong>Take</strong> in mg and mm. <strong>Save</strong> in mg and mm. <strong>Δ save</strong>. Open a film. Mark it at Take mm from its <strong>left</strong> end. Cut one time. Left of the mark is the dose. Everything right of the mark goes in the jar. All of it, not only this cycle's sliver. Δ save is how much more the jar gets than last cycle. It grows every cycle. Do not calculate at the strip.</li>
+        <li>At the counter you need four numbers. The schedule's tinted block is those four plus one. <strong>Take</strong> in mg and mm. <strong>Save</strong> in mg and mm. <strong>Δ save</strong>. Open a film. Mark it at Take mm from its <strong>left</strong> end. Cut one time. Left of the mark is the day's take. That is how much you take that day, the day's total. You do not have to take it all at once. You can split the take piece after you cut. Everything right of the mark goes in the jar. All of it, not only this cycle's sliver. Δ save is how much more the jar gets than last cycle. It grows every cycle. Do not calculate at the strip.</li>
         <li>If your dose is larger than one film, the day is several strips. Example: 16 mg on 8 mg strips. The Film column shows <strong>×2</strong>. Cut only one of those strips. TAKE the whole ones as they are.</li>
         <li>The life-size film shows <strong>Folding</strong> by default. That is the same dose as whole parts of a folded grid. Halve it. Halve it again. Take five of six. That needs no ruler and no arithmetic. It is easier to repeat than a measure of 15.28 mm at 6 am. It always tells you how far off the ladder that lands. In linear mode it lands exactly. Change to <strong>Measuring</strong> for the exact mark in millimetres. The cut-mark panel above always measures either way. If you want to know how the fold is picked, <a href="fold.html">there is a page on it</a>.</li>
         <li>Print / save as PDF. Take it to your prescriber <em>before day 1</em>. They can match quantity and write 2 mg films for the back half.</li>
@@ -1124,7 +1124,7 @@
         <ol>
           <li>Start the cycle with a piece that is the current whole strip. For cycle 1, this is one full 8 mg film. If your dose is larger than one film, start with that number of films.</li>
           <li>Keep the full width. Cut only along the length. Mark the cut first. Then cut with a new razor on a mat. Do not use scissors. (The film panel's <strong>Folding</strong> mode is the one exception. It draws both cuts for you.)</li>
-          <li>Cut 1/n from the <strong>right</strong> end. Put that short sliver in the save jar. TAKE the long left piece. One dose each day is enough. If the day is more than one film, TAKE the whole ones as they are. Mark only the last film. One cut a day, whatever the dose.</li>
+          <li>Cut 1/n from the <strong>right</strong> end. Put that short sliver in the save jar. TAKE the long left piece. That is how much you take that day, the day's total. You do not have to take it all at once. You can split the take piece. Example: one piece in the morning and one in the evening. Or more often. Or less often. If the day is more than one film, TAKE the whole ones as they are. Mark only the last film. One cut a day, whatever the dose.</li>
           <li>Open a <strong>fresh film</strong> each day. Do not keep yesterday's piece. Measure the same cut from the other end. Mark <strong>Take mm from the left</strong>. Put everything right of that mark in the jar. That length is <strong>Save mm</strong>. It is the same cut. From cycle 2 on, the save is larger than the sliver. It also holds the part that earlier cycles already removed. It grows every cycle. That growth is the <strong>Δ save</strong> column, which is the sliver.</li>
           <li>Do that for n days. The save jar now holds one full piece of this cycle's size. That is a <strong>buffer / safety net, not extra daily dose</strong>. If you take the bank as extra daily dose, the taper does not decrease.</li>
           <li>Next cycle, the leftover size is the new whole strip. In the default <strong>geometric</strong> mode that is dose × (1 − 1/n) and the cut becomes smaller with it. In <strong>linear</strong> mode you cut the identical piece again, so the dose steps down by the same milligrams every time. Repeat until you reach the target. In linear mode, repeat until there is nothing left to cut.</li>
@@ -1214,7 +1214,7 @@
           <tbody></tbody>
         </table>
       </div>
-      <p class="legend">Click a row to show its cut mark. Blue = restarted on a 2 mg film. Amber = sliver under 1 mm (stop shaving 8 mg films). ×N in the Film column = films needed per day. Cut only one of them. The tinted block is what you act on: <strong>Take</strong> is the dose and where to mark it. <strong>Save</strong> is what goes in the jar. <strong>&Delta; save</strong> is how much more the jar gets than last cycle. <strong>Sum strips</strong> is how many strips you consumed. That number is less than the strips you opened, because you saved some.</p>
+      <p class="legend">Click a row to show its cut mark. Blue = restarted on a 2 mg film. Amber = sliver under 1 mm (stop shaving 8 mg films). ×N in the Film column = films needed per day. Cut only one of them. The tinted block is what you act on: <strong>Take</strong> is how much you take that day, and where to mark it. You can split the take piece. <strong>Save</strong> is what goes in the jar. <strong>&Delta; save</strong> is how much more the jar gets than last cycle. <strong>Sum strips</strong> is how many strips you consumed. That number is less than the strips you opened, because you saved some.</p>
       <details class="coldoc">
         <summary>What each column means</summary>
         <dl class="inputdoc" id="colDoc"></dl>
@@ -1356,7 +1356,7 @@
         <li>Holding is not failure. If a cycle leaves you with bad sleep, restlessness, sweats, GI upset, or above all a spike in cravings, stay at that dose for another cycle or two before you decrease again.</li>
         <li><strong>The two cut modes trade different things.</strong> Geometric holds the percentage step constant and lets the milligrams decrease. That is the gentler shape at the low end, but it never reaches zero. Linear holds the milligrams constant and lets the percentage grow. It reaches zero on a schedule, but the last steps are the largest ones you will have taken. Neither is the right answer for everyone. Both let you hold a cycle whenever you need to. A hold is never a failure.</li>
         <li><strong>Linear is the easier one to cut.</strong> The mark does not move. Measure one time. Use that mark every day. You do not calculate a new, smaller measurement each cycle. The mark never becomes smaller than one millimetre, where a razor and a ruler stop resolving. That is also why this page ignores the 2 mg switch in linear mode. The switch exists to rescue a cut that has become too fine. Here it never does.</li>
-        <li>One dose each day is enough at every level here. Buprenorphine's half-life is long enough that split doses give you nothing.</li>
+        <li><strong>Take milligrams is how much you take that day.</strong> That is the day's total. You do not have to take it all at once. You can split the take piece. Example: one piece in the morning and one in the evening. Or more often. Or less often. Buprenorphine stays in the body a long time. One sitting is usually enough. Split if you need to. The schedule number does not change.</li>
         <li>Every step is held for days on purpose. That same long half-life means a new dose needs most of a cycle to land: about 88-91% of the way there on day 1, and 98-100% by day 6, across the usual 24-42 hour range. That is why the ladder moves in cycles instead of a small daily decrease. It also sets a floor under how fast this can honestly go: the default is roughly two months from 8 mg to 1 mg. Plenty of people need longer than that, and the tool is built for it. Hold a cycle, raise n, or stretch the cycle. n = 10 on 9-day cycles is about six months. Going slower is a plan, not a failure.</li>
         <li>n = 6 (16.7% every 6 days) is at the fast end of typical 10-25% steps. You may not feel a drop until day 4 or 5, right as you are about to drop again. Hedge by stretching the cycle to 8-9 days (same cut, more settling time) or change to n = 10 below 3 mg.</li>
         <li>The schedule starts from one given film size. It then keeps that size, or it changes only to 2 mg films. It will not auto-change 12 → 8 → 4 mg. A click on those rows only redraws the strip. Change Start dose / strip strength and the tool calculates the whole ladder again.</li>
@@ -2199,15 +2199,15 @@
      enough to push the table into a sideways scroll on a phone.
 
      key marks the middle block: Take mg/mm, Save mg/mm and Δ save. At the
-     counter with a film and a razor, those are the whole job. Swallow this
-     much. Put the rest in the jar. The jar's share grows every cycle.
-     Everything either side of them is context. */
+     counter with a film and a razor, those are the whole job. The take is
+     the day's total. Put the rest in the jar. The jar's share grows every
+     cycle. Everything either side of them is context. */
   const COLUMN_DOC = [
     ["Cycle", "", false, "Which step of the ladder you are on. Click the row to draw that day's cut mark."],
     ["Days", "", false, "The days this cycle covers. Every day in the cycle has the same dose and the same cut."],
     ["Film", "", false, "Strength of the film you cut. ×N means the day needs N films. Cut only one of them."],
-    ["Take", "mg", true, "The dose you take each day of this cycle. This is what goes in your mouth."],
-    ["Take", "mm", true, "Where to mark a full film, measured from the left end. Cut there. The left piece is the dose. On a ×N day, take the whole films first. The mark is on the last film."],
+    ["Take", "mg", true, "How much you take that day. This is the day's total. You do not have to take it all at once. You can split the take piece. Example: one piece in the morning and one in the evening. Or more often. Or less often."],
+    ["Take", "mm", true, "Where to mark a full film, measured from the left end. Cut there. The left piece is the day's take. You can split that piece after you cut. On a ×N day, take the whole films first. The mark is on the last film."],
     ["Save", "mg", true, "Milligrams that go in the jar each day. Do not take this as extra dose."],
     ["Save", "mm", true, "Everything right of the mark on the film you opened. Put that in the jar. Take mm + Save mm is the film you opened. Zero on a day with no cut."],
     ["Δ save", "mm", true, "How much more goes in the jar than last cycle. That extra length is this cycle's sliver. A dash means there is nothing to compare: a new 2 mg film, a day that opens fewer films, or a day with no cut."],
@@ -2271,7 +2271,7 @@
 
        save   everything right of the mark on the marked film, what goes in
               the jar today. Grows every cycle.
-       take   the piece you swallow, which is also where the mark falls
+       take   how much you take that day, which is also where the mark falls
               measured from the LEFT end of a full unused film
        delta  how much more the jar gets than the last cycle that cut a film
 
@@ -2283,7 +2283,7 @@
      turns the Δ of "Δ save" into a lowercase δ, a different letter. */
   const CAL_MODES = {
     save:  { label: "Save",   lower: "save",   short: "save", help: "everything right of the mark on the marked film. Put that in the jar that day." },
-    take:  { label: "Take",   lower: "take",   short: "take", help: "the piece you swallow. Measure it from the left end of a full unused film. That is where you mark it." },
+    take:  { label: "Take",   lower: "take",   short: "take", help: "how much you take that day. This is the day's total. You can split the take piece. Measure it from the left end of a full unused film. That is where you mark it." },
     delta: { label: "Δ save", lower: "Δ save", short: "Δ",    help: "how much more goes in the jar than the last cycle that cut a film. A dash means there is nothing to compare." },
   };
   const CAL_ORDER = ["save", "take", "delta"];
@@ -2604,7 +2604,7 @@
         </div>
         <div>${cut
           ? `Mark <strong>${fmt(cut.take, 2)} mm from the left end of a full ${fmt(fullMm, 1)} mm film</strong>${multi ? " (the marked one)" : ""}.
-             Left of the mark is the dose. Right of it is the jar. Keep full width. Shorten length only.`
+             Left of the mark is the day's take. Right of it is the jar. Keep full width. Shorten length only.`
           : `<strong>No cut this cycle.</strong> Every film today is taken whole. Nothing to measure.`}</div>
       </div>
       ${multi ? `<p class="kit"><strong>${kitLine(row)}</strong> One day's dose is more than one
@@ -3056,7 +3056,7 @@
       <p class="legend">${mismatch ? `The taper cycle runs on an ${fmtG(row.filmMg)} mg film (${fmt(row.dailyMg, 2)} mg/day planned, ${row.filmsOut} strip${row.filmsOut === 1 ? "" : "s"} a day). This drawing asks what the same day looks like on the <strong>${spec.label}</strong> size you picked, same dose, ${films.length} strip${films.length === 1 ? "" : "s"}, and its own cut.` : ""} ${!cut
         ? `Nothing is measured today: take ${lay.takeFilms} whole ${fmtG(spec.mg)} mg film${lay.takeFilms === 1 ? "" : "s"}. Today's sliver is a film you never open. Leave it in the box.`
         : (ghost
-          ? `The dashed outline is a full unused ${spec.label} film. The empty end was already coming off in earlier cycles, so it is part of today's save, not part of today's dose. Mark <strong>${fmt(cutTakeMm, 2)} mm from the left end</strong>${multi ? " of the marked bar" : ""}: left of the mark is the dose, and the ${fmt(saveTotalMm, 2)} mm right of it goes in the jar.`
+          ? `The dashed outline is a full unused ${spec.label} film. The empty end was already coming off in earlier cycles, so it is part of today's save, not part of today's take. Mark <strong>${fmt(cutTakeMm, 2)} mm from the left end</strong>${multi ? " of the marked bar" : ""}: left of the mark is the day's take, and the ${fmt(saveTotalMm, 2)} mm right of it goes in the jar.`
           : `Mark <strong>${fmt(cutTakeMm, 2)} mm from the left end</strong>${multi ? " of the marked bar" : ""}, then cut straight across the ${fmt(widthMm, 1)} mm width. The ${fmt(saveTotalMm, 2)} mm right of the mark goes in the jar. ${row.cycle === 1 && !multi ? "Cycle 1 uses the full unused film." : ""}`)}</p>
     `;
     fitBandLabels($("stripViz"));
