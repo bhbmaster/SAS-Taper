@@ -470,7 +470,7 @@ The lag curve is JS-only, so it is not in the field-by-field ladder diff. `test_
 
 Like the Python matrix, it asserts the shape of its own coverage.
 
-### `test_layout.js`: 697 viewport states, 989 checks
+### `test_layout.js`: 697 viewport states, 997 checks
 
 Committed because this class of bug had been found by hand and lost again four separate times. 14 widths from 280 px to 1920 px, both themes, several cycles, zoom extremes, calendar densities and measurement modes, plus twenty-one reshaping input cases, a pass that redraws one day on each of the four film strengths, and a pass over the linear mode.
 
@@ -528,6 +528,7 @@ Every guard above was checked by injecting the fault it is meant to catch:
 | `monthly_usage` drifts by 0.1% | 14,304 parity mismatches |
 | `compareClassic` drifts by 2% on the target | 14 parity mismatches |
 | 0.1% error in `keepRatio` | 1985 mismatches |
+| restore the old one-sitting-only note | take-wording scan fails at the source pass |
 
 A guard that has never been seen to fail is not yet a guard.
 
