@@ -230,6 +230,51 @@ const probe = () => {
     }
   }
 
+  /* Take is how much you take that day, the day's total, and it may be
+     split after the cut. The page used to say split doses give you nothing
+     and that one sitting was the whole instruction. That is the wording
+     this scan exists to keep out. The required phrases have to appear on
+     every surface a reader doses from. */
+  {
+    const takeFiles = ["index.html", "taper.py", "README.md"];
+    const takeRequired = [
+      "how much you take that day",
+      "You can split the take piece",
+      "one piece in the morning and one in the evening",
+    ];
+    const takeForbidden = [
+      "split doses give you nothing",
+      "One dose each day is enough",
+      "Take the dose one time each day",
+      "This is what goes in your mouth",
+    ];
+    for (const name of takeFiles) {
+      const text = fs.readFileSync(path.join(__dirname, name), "utf8");
+      checks++;
+      const missing = takeRequired.filter((s) =>
+        !text.toLowerCase().includes(s.toLowerCase()));
+      if (missing.length) {
+        failures.push(`${name} dropped the take-is-the-day's-total wording: ${missing.join("; ")}`);
+      }
+    }
+    const forbidHomes = [
+      "index.html", "taper.py", "README.md", "ARCHITECTURE.md",
+    ];
+    for (const name of forbidHomes) {
+      const text = fs.readFileSync(path.join(__dirname, name), "utf8");
+      checks++;
+      for (const s of takeForbidden) {
+        if (text.includes(s)) {
+          failures.push(`${name} still says "${s}"`);
+        }
+      }
+    }
+    checks++;
+    if (takeFiles.length < 3 || takeRequired.length < 3 || takeForbidden.length < 4) {
+      failures.push("take-wording scan dropped files or phrases it is supposed to cover");
+    }
+  }
+
   if (failures.length) {
     console.error(`FAILED: ${failures.length} prose problem(s) across ${checks} checks:`);
     for (const f of failures) console.error("  " + f);

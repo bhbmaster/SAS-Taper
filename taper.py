@@ -126,7 +126,11 @@ The method, every day of a cycle
   2. Keep the full width of the film. Cut along the length only.
      Mark the cut first. Then cut with a razor. Do not use scissors.
   3. Cut 1/n from the RIGHT end. SAVE that sliver. TAKE the long left piece.
-     Take the dose one time each day.
+     That is how much you take that day, the day's total.
+     You do not have to take it all at once. You can split the take piece.
+     Example: one piece in the morning and one in the evening.
+     Or more often. Or less often.
+     If the day is more than one film, TAKE the whole ones as they are.
   4. Open a FRESH film each day. Measure the same cut from the other end.
      Mark Take mm from the LEFT. TAKE that piece.
      Put everything right of the mark in the jar. That length is Save mm.
@@ -234,8 +238,12 @@ Practical notes
   Use that mark every day. You do not calculate a new smaller mark each cycle.
   The mark never becomes smaller than one millimetre, where a razor cannot
   resolve it. That is also why the 2 mg switch is not needed there.
-- One dose each day is enough at every level here. Buprenorphine's half-life
-  is long enough that split doses give you nothing.
+- Take milligrams is how much you take that day. That is the day's total.
+  You do not have to take it all at once. You can split the take piece.
+  Example: one piece in the morning and one in the evening. Or more often.
+  Or less often. Buprenorphine stays in the body a long time. One sitting
+  is usually enough. Split if you need to. The schedule number does not
+  change.
 - Every step is held for days on purpose. That same long half-life means a new
   dose needs most of a cycle to land: about 88-91% of the way there on
   day 1, and 98-100% by day 6, across the usual 24-42 hour range. That is why
@@ -304,8 +312,9 @@ class CycleRow:
 
     take_mm / save_mg / save_mm are the three numbers the reader acts on at the
     strip. They are about the film in front of them, not the ladder. Open a
-    film. Cut one time. Swallow take_mm. Everything past that mark, save_mm,
-    worth save_mg, goes in the jar. take_mm + save_mm is the film you opened
+    film. Cut one time. take_mm is the day's take. Split it after the cut if
+    you need to. Everything past that mark, save_mm, worth save_mg, goes in
+    the jar. take_mm + save_mm is the film you opened
     (films_out of them on a day whose dose needs more than one). The two
     partition it with nothing unaccounted for. The save grows every cycle.
     It is this cycle's sliver plus everything earlier cycles already removed.
@@ -1542,14 +1551,15 @@ def print_schedule(
     print()
 
     # Take and Save are the pair you act on at the strip. Open a film. Cut
-    # one time. Swallow the take. Put the save in the jar. Delta is how much
-    # more the jar gets than last cycle. Everything after them is running totals.
+    # one time. The take is the day's total. Split it after the cut if you
+    # need to. Put the save in the jar. Delta is how much more the jar gets
+    # than last cycle. Everything after them is running totals.
     headers = [
         "Cyc", "Days", "Film", "Take mg", "Take mm", "Save mg", "Save mm",
         "+Save mm", "Cycle mg", "Sum mg", "Sum strips", "Banked",
     ]
-    print("Take mg  = the dose you take each day. This is what goes in your mouth.")
-    print("Take mm  = mark that far from the LEFT end of a full film, then cut.")
+    print("Take mg  = how much you take that day. This is the day's total. You do not have to take it all at once. You can split the take piece. Example: one piece in the morning and one in the evening. Or more often. Or less often.")
+    print("Take mm  = mark that far from the LEFT end of a full film, then cut. The left piece is the day's take. You can split that piece after you cut.")
     print("Save mg  = milligrams that go in the jar. Do not take this as extra dose.")
     print("Save mm  = everything right of the mark. Put that in the jar.")
     print("+Save mm = how much more than last cycle (this cycle's sliver). A dash means nothing to compare.")
